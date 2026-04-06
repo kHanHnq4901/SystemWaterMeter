@@ -24,7 +24,7 @@ const showLogo = ref(
   )?.showLogo ?? true
 );
 
-const { t, route, locale, translationVi, translationEn, translationZh } =
+const { t, route, locale, translationVi, translationEn } =
   useTranslationLang(menuRef);
 const {
   title,
@@ -90,16 +90,6 @@ onMounted(() => {
         </div>
         <template #dropdown>
           <el-dropdown-menu class="translation">
-            <el-dropdown-item
-              :style="getDropdownItemStyle(locale, 'zh')"
-              :class="['dark:text-white!', getDropdownItemClass(locale, 'zh')]"
-              @click="translationVi"
-            >
-              <span v-show="locale === 'zh'" class="check-zh">
-                <IconifyIconOffline :icon="Check" />
-              </span>
-              简体中文
-            </el-dropdown-item>
             <el-dropdown-item
               :style="getDropdownItemStyle(locale, 'en')"
               :class="['dark:text-white!', getDropdownItemClass(locale, 'en')]"
@@ -173,10 +163,6 @@ onMounted(() => {
     padding: 5px 40px;
   }
 
-  .check-zh {
-    position: absolute;
-    left: 20px;
-  }
 
   .check-en {
     position: absolute;

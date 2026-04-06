@@ -21,7 +21,7 @@ import Check from "~icons/ep/check";
 const menuRef = ref();
 const defaultActive = ref(null);
 
-const { t, route, locale, translationVi, translationEn, translationZh } =
+const { t, route, locale, translationVi, translationEn } =
   useTranslationLang(menuRef);
 const {
   device,
@@ -92,7 +92,7 @@ watch(
           </div>
           <div :style="getDivStyle">
             <span class="select-none">
-              {{ transformI18n(route.meta.title) }}
+              {{ route.meta.backstage ? route.meta.title : transformI18n(route.meta.title) }}
             </span>
             <LaySidebarExtraIcon :extraIcon="route.meta.extraIcon" />
           </div>
@@ -111,16 +111,7 @@ watch(
         </div>
         <template #dropdown>
           <el-dropdown-menu class="translation">
-            <el-dropdown-item
-              :style="getDropdownItemStyle(locale, 'zh')"
-              :class="['dark:text-white!', getDropdownItemClass(locale, 'zh')]"
-              @click="translationVi"
-            >
-              <span v-show="locale === 'zh'" class="check-zh">
-                <IconifyIconOffline :icon="Check" />
-              </span>
-              简体中文
-            </el-dropdown-item>
+
             <el-dropdown-item
               :style="getDropdownItemStyle(locale, 'en')"
               :class="['dark:text-white!', getDropdownItemClass(locale, 'en')]"
@@ -131,6 +122,7 @@ watch(
               </span>
               English
             </el-dropdown-item>
+
             <el-dropdown-item
               :style="getDropdownItemStyle(locale, 'vi')"
               :class="['dark:text-white!', getDropdownItemClass(locale, 'vi')]"
@@ -194,10 +186,6 @@ watch(
     padding: 5px 40px;
   }
 
-  .check-zh {
-    position: absolute;
-    left: 20px;
-  }
 
   .check-en {
     position: absolute;

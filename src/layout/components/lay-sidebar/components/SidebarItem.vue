@@ -161,7 +161,7 @@ function resolvePath(routePath) {
         truncated
         class="w-full! px-3! min-w-13.5! text-center! text-inherit!"
       >
-        {{ transformI18n(onlyOneChild.meta.title) }}
+        {{ onlyOneChild.meta.backstage ? onlyOneChild.meta.title : transformI18n(onlyOneChild.meta.title) }}
       </el-text>
 
       <template #title>

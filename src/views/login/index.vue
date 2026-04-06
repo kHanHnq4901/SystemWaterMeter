@@ -69,10 +69,13 @@ const onLogin = async (formEl: FormInstance | undefined) => {
       try {
         // 1. Gọi đến Backend Express của bạn (nhớ mở cổng 3000)
         // Với cấu trúc mới: /api/auth/login
-        const response = await axios.post("http://localhost:3000/api/auth/login", {
-          username: ruleForm.username,
-          password: ruleForm.password
-        });
+        const response = await axios.post(
+          "http://localhost:3000/api/auth/login",
+          {
+            username: ruleForm.username,
+            password: ruleForm.password
+          }
+        );
 
         const result = response.data;
 
@@ -277,7 +280,7 @@ watch(loginDay, value => {
     <div
       class="w-full flex-c absolute bottom-3 text-sm text-[rgba(0,0,0,0.6)] dark:text-[rgba(220,220,242,0.8)]"
     >
-      Copyright © 2026-present
+      Copyright © {{ new Date().getFullYear() }}-present
       <a
         class="hover:text-primary!"
         href="https://emic.com.vn/vn"

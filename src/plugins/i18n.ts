@@ -93,10 +93,12 @@ export function transformI18n(message: any = "") {
 
   const key = message.match(/(\S*)\./)?.input;
 
-  if (key && flatI18n("zh").has(key)) {
+  if (key && flatI18n("vi").has(key)) {
     return i18n.global.t.call(i18n.global.locale, message);
-  } else if (!key && Object.hasOwn(siphonI18n("zh") || {}, message)) {
+  } else if (!key && Object.hasOwn(siphonI18n("vi") || {}, message)) {
     // 兼容非嵌套形式的国际化写法
+    return i18n.global.t.call(i18n.global.locale, message);
+  } else if (key && flatI18n("en").has(key)) {
     return i18n.global.t.call(i18n.global.locale, message);
   } else {
     return message;
@@ -111,8 +113,8 @@ export const i18n: I18n = createI18n({
   locale:
     storageLocal().getItem<StorageConfigs>(
       `${responsiveStorageNameSpace()}locale`
-    )?.locale ?? "zh",
-  fallbackLocale: "en",
+    )?.locale ?? "vi",
+  fallbackLocale: "vi",
   messages: localesConfigs
 });
 

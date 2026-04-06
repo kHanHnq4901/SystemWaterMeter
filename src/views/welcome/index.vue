@@ -35,11 +35,6 @@ const optionsBasis: Array<OptionsType> = [
   <div>
     <el-card shadow="never" class="mb-4.5 border-0">
       <div class="flex flex-col md:flex-row justify-between items-center">
-        <span
-          class="text-lg font-bold text-gray-700 dark:text-gray-200 mb-4 md:mb-0"
-        >
-          Tổng quan Sản lượng & Thiết bị
-        </span>
         <div class="flex items-center space-x-4">
           <el-select
             v-model="selectedUnit"

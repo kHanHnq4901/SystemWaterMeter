@@ -4,13 +4,13 @@ buttons:
   pureLogin: Đăng nhập
   pureOpenSystemSet: Mở cấu hình hệ thống
   pureReload: Tải lại
-  pureCloseCurrentTab: Đóng tab hiện tại
-  pureCloseLeftTabs: Đóng các tab bên trái
-  pureCloseRightTabs: Đóng các tab bên phải
-  pureCloseOtherTabs: Đóng các tab khác
-  pureCloseAllTabs: Đóng tất cả tab
+  pureCloseCurrentTab: Đóng thẻ hiện tại
+  pureCloseLeftTabs: Đóng các thẻ bên trái
+  pureCloseRightTabs: Đóng các thẻ bên phải
+  pureCloseOtherTabs: Đóng các thẻ khác
+  pureCloseAllTabs: Đóng tất cả các thẻ
   pureContentFullScreen: Toàn màn hình nội dung
-  pureContentExitFullScreen: Thoát toàn màn hình
+  pureContentExitFullScreen: Thoát toàn màn hình nội dung
   pureClickCollapse: Nhấn để thu gọn
   pureClickExpand: Nhấn để mở rộng
   pureConfirm: Xác nhận
@@ -21,120 +21,245 @@ buttons:
   pureCloseText: Tắt
   pureWatchMore: Xem thêm
   pureMarkAsRead: Đánh dấu đã đọc
-
 search:
   pureTotal: Tổng
   pureHistory: Lịch sử tìm kiếm
-  pureCollect: Yêu thích
-  pureDragSort: (có thể kéo để sắp xếp)
-  pureEmpty: Không có kết quả
-  purePlaceholder: Tìm kiếm menu
-
+  pureCollect: Mục yêu thích
+  pureDragSort: (Có thể kéo thả để sắp xếp)
+  pureEmpty: Không tìm thấy kết quả
+  purePlaceholder: Tìm kiếm menu (Hỗ trợ Pinyin)
 panel:
   pureSystemSet: Cấu hình hệ thống
   pureCloseSystemSet: Đóng cấu hình
-  pureClearCacheAndToLogin: Xóa cache và về trang đăng nhập
-  pureClearCache: Xóa cache
+  pureClearCacheAndToLogin: Xóa bộ nhớ đệm và quay lại trang đăng nhập
+  pureClearCache: Xóa bộ nhớ đệm
   pureThemeMode: Chế độ giao diện
   pureThemeModeLight: Sáng
-  pureThemeModeLightTip: Giao diện sáng, dễ nhìn
+  pureThemeModeLightTip: Khởi đầu tươi mới, thắp sáng không gian làm việc
   pureThemeModeDark: Tối
-  pureThemeModeDarkTip: Giao diện tối, dịu mắt
+  pureThemeModeDarkTip: Giai điệu ánh trăng, đắm chìm trong sự tĩnh lặng
   pureThemeModeSystem: Tự động
-  pureThemeModeSystemTip: Theo hệ thống
-  pureThemeColor: Màu chủ đề
-  pureMenuLayout: Kiểu menu
-  pureVerticalTip: Menu bên trái
-  pureHorizontalTip: Menu trên cùng
-  pureMixTip: Menu kết hợp
-  pureStretch: Độ rộng trang
+  pureThemeModeSystemTip: Đồng bộ thời gian, giao diện tự thay đổi theo ngày đêm
+  pureThemeColor: Màu chủ đạo
+  pureMenuLayout: Bố cục menu
+  pureVerticalTip: Menu bên trái, quen thuộc và thân thiện
+  pureHorizontalTip: Menu phía trên, đơn giản và tổng quan
+  pureMixTip: Menu kết hợp, linh hoạt và đa dạng
+  pureStretch: Chiều rộng trang
   pureStretchFixed: Cố định
-  pureStretchFixedTip: Giao diện gọn
+  pureStretchFixedTip: Trang thu gọn, dễ dàng tập trung
   pureStretchCustom: Tùy chỉnh
   pureStretchCustomTip: Tối thiểu 1280, tối đa 1600
-  pureTagsStyle: Kiểu tab
+  pureTagsStyle: Kiểu thẻ (Tags)
   pureTagsStyleSmart: Linh hoạt
-  pureTagsStyleSmartTip: Tab sinh động
-  pureTagsStyleCard: Dạng thẻ
-  pureTagsStyleCardTip: Hiển thị dạng card
-  pureTagsStyleChrome: Chrome
-  pureTagsStyleChromeTip: Giống Chrome
-  pureFullScreenWatermark: Watermark toàn màn hình
-  pureEnableWatermark: Bật watermark
-  pureWatermarkText: Nội dung watermark
-  pureWatermarkTextPlaceholder: Nhập nội dung watermark
+  pureTagsStyleSmartTip: Thẻ linh hoạt, thêm phần sinh động
+  pureTagsStyleCard: Thẻ (Card)
+  pureTagsStyleCardTip: Dạng thẻ, duyệt nhanh gọn
+  pureTagsStyleChrome: Trình duyệt
+  pureTagsStyleChromeTip: Kiểu Chrome, cổ điển và đẹp mắt
+  pureFullScreenWatermark: Hình mờ toàn màn hình
+  pureEnableWatermark: Hiện hình mờ
+  pureWatermarkText: Văn bản mờ
+  pureWatermarkTextPlaceholder: Nhập nội dung hình mờ
   pureInterfaceDisplay: Hiển thị giao diện
   pureGreyModel: Chế độ xám
   pureWeakModel: Chế độ mù màu
-  pureHiddenTags: Ẩn tab
-  pureHiddenFooter: Ẩn footer
-  pureMultiTagsCache: Lưu tab
-
+  pureHiddenTags: Ẩn thanh tab
+  pureHiddenFooter: Ẩn chân trang (Footer)
+  pureMultiTagsCache: Lưu trữ thẻ tab
 menus:
   pureHome: Trang chủ
   pureLogin: Đăng nhập
-  pureEmpty: Trang trống
-  pureTable: Bảng
+  pureEmpty: Không có Layout
+  pureTable: Bảng dữ liệu
   pureSysManagement: Quản lý hệ thống
   pureUser: Quản lý người dùng
   pureRole: Quản lý vai trò
   pureSystemMenu: Quản lý menu
   pureDept: Quản lý phòng ban
   pureSysMonitor: Giám sát hệ thống
-  pureOnlineUser: Người dùng online
+  pureOnlineUser: Người dùng trực tuyến
   pureLoginLog: Nhật ký đăng nhập
   pureOperationLog: Nhật ký thao tác
   pureSystemLog: Nhật ký hệ thống
-
+  pureCodeMirror: Trình soạn thảo mã
+  pureMarkdown: Markdown
+  pureEditor: Trình soạn thảo văn bản
+  pureAbnormal: Trang lỗi
+  purePageNotFound: "404"
+  pureAccessDenied: "403"
+  pureServerError: "500"
+  pureComponents: Thành phần (Components)
+  pureDialog: Hộp thoại (Dialog)
+  pureDrawer: Ngăn kéo (Drawer)
+  pureMessage: Thông báo (Message)
+  pureVideo: Video
+  pureSegmented: Bộ điều khiển phân đoạn
+  pureWaterfall: Cuộn thác nước vô hạn
+  pureMap: Bản đồ
+  pureDraggable: Kéo thả
+  pureSplitPane: Bảng phân chia
+  pureText: Cắt bớt văn bản
+  pureSlider: Thanh trượt (Slider)
+  pureElButton: Nút bấm
+  pureCheckButton: Nút có thể chọn
+  pureButton: Hiệu ứng nút
+  pureCropping: Cắt ảnh
+  pureAnimatecss: Hiệu ứng animate.css
+  pureCountTo: Đếm số động
+  pureSelector: Bộ chọn phạm vi
+  pureFlowChart: Lưu đồ (Flowchart)
+  pureSeamless: Cuộn liền mạch
+  pureContextmenu: Menu chuột phải
+  pureTypeit: Hiệu ứng máy đánh chữ
+  pureJsonEditor: Trình soạn thảo JSON
+  pureColorPicker: Bộ chọn màu
+  pureColorPickerPanel: Bảng chọn màu
+  pureDatePicker: Bộ chọn ngày
+  pureDateTimePicker: Bộ chọn ngày giờ
+  pureTimePicker: Bộ chọn giờ
+  pureTag: Thẻ (Tag)
+  pureStatistic: Thống kê
+  pureCollapse: Bảng thu gọn
+  pureGanttastic: Biểu đồ Gantt
+  pureProgress: Thanh tiến trình
+  pureUpload: Tải lên tệp
+  pureCheckCard: Thẻ đa chọn
+  pureMenus: Menu đa cấp
+  pureMenu1: Menu 1
+  pureMenu1-1: Menu 1-1
+  pureMenu1-2: Menu 1-2
+  pureMenu1-2-1: Menu 1-2-1
+  pureMenu1-2-2: Menu 1-2-2
+  pureMenu1-3: Menu 1-3
+  pureMenu2: Menu 2
+  purePermission: Quản lý quyền hạn
+  purePermissionPage: Quyền trang
+  purePermissionButton: Quyền nút bấm
+  purePermissionButtonRouter: Quyền nút bấm trả về từ Router
+  purePermissionButtonLogin: Quyền nút bấm trả về từ API đăng nhập
+  pureTabs: Thao tác Tab
+  pureGuide: Trang hướng dẫn
+  pureAble: Chức năng
+  pureMenuTree: Cấu trúc cây menu
+  pureVideoFrame: Chụp khung hình video (WASM)
+  pureWavesurfer: Trực quan hóa âm thanh
+  pureRipple: Hiệu ứng gợn sóng (Ripple)
+  pureMqtt: Client MQTT
+  pureOptimize: Tối ưu (Debounce/Throttle/Copy)
+  pureVerify: Mã xác thực hình ảnh
+  pureWatermark: Hình mờ
+  purePrint: In ấn
+  pureDownload: Tải xuống
+  pureExternalPage: Trang bên ngoài
+  pureExternalDoc: Liên kết tài liệu ngoài
+  pureEmbeddedDoc: Tài liệu nhúng
+  pureExternalLink: vue-pure-admin
+  pureUtilsLink: pure-admin-utils
+  pureColorHuntDoc: Bảng màu
+  pureUiGradients: Màu Gradient
+  pureEpDoc: element-plus
+  pureTailwindcssDoc: tailwindcss
+  pureVueDoc: vue3
+  pureViteDoc: vite
+  purePiniaDoc: pinia
+  pureRouterDoc: vue-router
+  pureAbout: Giới thiệu
+  pureResult: Trang kết quả
+  pureSuccess: Trang thành công
+  pureFail: Trang thất bại
+  pureIconSelect: Bộ chọn biểu tượng
+  pureTimeline: Dòng thời gian
+  pureLineTree: Cây đường dẫn nối
+  pureList: Trang danh sách
+  pureCardList: Danh sách dạng thẻ
+  pureDebounce: Debounce & Throttle
+  pureFormDesign: Thiết kế biểu mẫu
+  pureBarcode: Mã vạch
+  pureQrcode: Mã QR
+  pureCascader: Chọn cấp bậc khu vực
+  pureSwiper: Plugin Swiper
+  pureVirtualList: Danh sách ảo
+  purePdf: Xem trước PDF
+  pureExcel: Xuất Excel
+  pureInfiniteScroll: Cuộn bảng vô hạn
+  pureSensitive: Lọc từ nhạy cảm
+  purePinyin: Hán Việt (Pinyin)
+  pureDanmaku: Bình luận nổi (Danmaku)
+  pureSchemaForm: Biểu mẫu (Form)
+  pureTableBase: Bảng cơ bản
+  pureTableHigh: Bảng nâng cao
+  pureTableEdit: Bảng có thể chỉnh sửa
+  pureVxeTable: Cuộn ảo (VXE Table)
+  pureBoard: Bảng vẽ
+  pureMindMap: Sơ đồ tư duy
+  pureMenuOverflow: Tooltip khi thư mục quá dài
+  pureChildMenuOverflow: Tooltip khi menu con quá dài
 status:
   pureLoad: Đang tải...
   pureMessage: Tin nhắn
   pureNotify: Thông báo
-  pureTodo: Công việc
+  pureTodo: Việc cần làm
   pureNoMessage: Không có tin nhắn
   pureNoNotify: Không có thông báo
-  pureNoTodo: Không có công việc
-
+  pureNoTodo: Không có việc cần làm
 login:
   pureUsername: Tài khoản
   purePassword: Mật khẩu
   pureVerifyCode: Mã xác thực
   pureRemember: Ghi nhớ đăng nhập
-  pureRememberInfo: Tự động đăng nhập trong thời gian đã chọn
+  pureRememberInfo: Sau khi chọn và đăng nhập, bạn sẽ không cần nhập lại mật khẩu trong số ngày quy định
   pureSure: Xác nhận mật khẩu
   pureForget: Quên mật khẩu?
   pureLogin: Đăng nhập
   pureThirdLogin: Đăng nhập bên thứ ba
-  purePhoneLogin: Đăng nhập bằng điện thoại
-  pureQRCodeLogin: Đăng nhập bằng QR
+  purePhoneLogin: Đăng nhập SMS
+  pureQRCodeLogin: Đăng nhập mã QR
   pureRegister: Đăng ký
+  pureWeChatLogin: Đăng nhập WeChat
+  pureAlipayLogin: Đăng nhập Alipay
+  pureQQLogin: Đăng nhập QQ
+  pureWeiBoLogin: Đăng nhập Weibo
   purePhone: Số điện thoại
-  pureSmsVerifyCode: Mã SMS
+  pureSmsVerifyCode: Mã xác thực SMS
   pureBack: Quay lại
+  pureTest: Kiểm tra thử nghiệm
+  pureTip: Quét mã QR rồi nhấn "Xác nhận" để đăng nhập
   pureDefinite: Xác nhận
   pureLoginSuccess: Đăng nhập thành công
   pureLoginFail: Đăng nhập thất bại
   pureRegisterSuccess: Đăng ký thành công
-  pureTickPrivacy: Vui lòng đồng ý chính sách
-  pureReadAccept: Tôi đã đọc và đồng ý
-  purePrivacyPolicy: Chính sách bảo mật
-  pureGetVerifyCode: Lấy mã
+  pureTickPrivacy: Vui lòng đồng ý với chính sách bảo mật
+  pureReadAccept: Tôi đã đọc kỹ và đồng ý với
+  purePrivacyPolicy: 《Chính sách bảo mật》
+  pureGetVerifyCode: Lấy mã xác thực
   pureInfo: giây sau lấy lại
-
+  pureUsernameReg: Vui lòng nhập tài khoản
+  purePassWordReg: Vui lòng nhập mật khẩu
+  pureVerifyCodeReg: Vui lòng nhập mã xác thực
+  pureVerifyCodeCorrectReg: Vui lòng nhập đúng mã xác thực
+  pureVerifyCodeSixReg: Vui lòng nhập mã xác thực 6 chữ số
+  purePhoneReg: Vui lòng nhập số điện thoại
+  purePhoneCorrectReg: Định dạng số điện thoại không hợp lệ
+  purePassWordRuleReg: Mật khẩu phải từ 8-18 ký tự, bao gồm ít nhất hai loại (chữ số, chữ cái, ký tự đặc biệt)
+  purePassWordSureReg: Vui lòng nhập lại mật khẩu
+  purePassWordDifferentReg: Hai mật khẩu không khớp!
+  purePassWordUpdateReg: Đổi mật khẩu thành công
+  pureLoginExpired: Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại
 tableBar:
   pureList: Danh sách
-  pureLarge: Rộng
+  pureLarge: Rộng rãi
   pureDefault: Mặc định
-  pureSmall: Gọn
+  pureSmall: Nhỏ gọn
   pureColumnSettings: Cài đặt cột
   pureCollapse: Thu gọn
   pureExpand: Mở rộng
   pureRefresh: Làm mới
   pureDensity: Mật độ
-  pureColumnDisplay: Hiển thị cột
+  pureColumnDisplay: Cột hiển thị
   pureReset: Đặt lại
-  pureExitFullScreen: Thoát full màn hình
+  pureExitFullScreen: Thoát toàn màn hình
   pureFullScreen: Toàn màn hình
-  purePinLeft: Ghim trái
-  purePinRight: Ghim phải
+  purePinLeft: Ghim bên trái
+  purePinRight: Ghim bên phải
   pureUnpin: Bỏ ghim
