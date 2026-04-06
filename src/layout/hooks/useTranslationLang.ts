@@ -8,15 +8,21 @@ export function useTranslationLang(ref?: Ref) {
   const { locale, t } = useI18n();
   const route = useRoute();
 
-  function translationCh() {
-    $storage.locale = { locale: "zh" };
-    locale.value = "zh";
+  function translationVi() {
+    $storage.locale = { locale: "vi" };
+    locale.value = "vi";
     ref && handleResize(ref.value);
   }
 
   function translationEn() {
     $storage.locale = { locale: "en" };
     locale.value = "en";
+    ref && handleResize(ref.value);
+  }
+
+  function translationZh() {
+    $storage.locale = { locale: "zh" };
+    locale.value = "zh";
     ref && handleResize(ref.value);
   }
 
@@ -28,14 +34,15 @@ export function useTranslationLang(ref?: Ref) {
   );
 
   onBeforeMount(() => {
-    locale.value = $storage.locale?.locale ?? "zh";
+    locale.value = $storage.locale?.locale ?? "vi";
   });
 
   return {
     t,
     route,
     locale,
-    translationCh,
-    translationEn
+    translationVi,
+    translationEn,
+    translationZh
   };
 }

@@ -1,14 +1,14 @@
-import mssql from 'mssql';
-import dotenv from 'dotenv';
+import mssql from "mssql";
+import dotenv from "dotenv";
 
 dotenv.config();
 
 const config = {
-  server: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT) || 1433,
-  user: process.env.DB_USER || 'sa',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'vue_pure_admin',
+  server: process.env.DB_HOST || "DESKTOP-G171CPL",
+  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 1433,
+  user: process.env.DB_USER || "sa",
+  password: process.env.DB_PASSWORD || "gelex@123",
+  database: process.env.DB_NAME || "SONGDA",
   options: {
     encrypt: true,
     trustServerCertificate: true
@@ -26,10 +26,10 @@ const pool = new mssql.ConnectionPool(config);
 export const testConnection = async () => {
   try {
     await pool.connect();
-    console.log('✅ Database connected successfully!');
+    console.log("✅ Database connected successfully!");
     return true;
   } catch (error) {
-    console.error('❌ Database connection failed:', error.message);
+    console.error("❌ Database connection failed:", error.message);
     return false;
   }
 };

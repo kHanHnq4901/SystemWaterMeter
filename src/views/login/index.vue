@@ -10,21 +10,23 @@ import { useNav } from "@/layout/hooks/useNav";
 import { useEventListener } from "@vueuse/core";
 import type { FormInstance } from "element-plus";
 import { $t, transformI18n } from "@/plugins/i18n";
-import { operates, thirdParty } from "./utils/enums";
 import { useLayout } from "@/layout/hooks/useLayout";
-import LoginPhone from "./components/LoginPhone.vue";
-import LoginRegist from "./components/LoginRegist.vue";
-import LoginUpdate from "./components/LoginUpdate.vue";
-import LoginQrCode from "./components/LoginQrCode.vue";
 import { useUserStoreHook } from "@/store/modules/user";
 import { initRouter, getTopMenu } from "@/router/utils";
-import { bg, avatar, illustration } from "./utils/static";
-import { ReImageVerify } from "@/components/ReImageVerify";
-import { ref, toRaw, reactive, watch, computed } from "vue";
+import {
+  bg,
+  avatar,
+  illustration,
+  illustration1,
+  illustration2
+} from "./utils/static";
+import { ref, toRaw, reactive, watch } from "vue";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { useTranslationLang } from "@/layout/hooks/useTranslationLang";
 import { useDataThemeChange } from "@/layout/hooks/useDataThemeChange";
+import { setToken } from "@/utils/auth"; // Dùng để lưu token sau khi API trả về
 
+import axios from "axios"; // Thêm axios để gọi API trực tiếp
 import dayIcon from "@/assets/svg/day.svg?component";
 import darkIcon from "@/assets/svg/dark.svg?component";
 import globalization from "@/assets/svg/globalization.svg?component";
@@ -32,22 +34,17 @@ import Lock from "~icons/ri/lock-fill";
 import Check from "~icons/ep/check";
 import User from "~icons/ri/user-3-fill";
 import Info from "~icons/ri/information-line";
-import Keyhole from "~icons/ri/shield-keyhole-line";
 
 defineOptions({
   name: "Login"
 });
 
-const imgCode = ref("");
 const loginDay = ref(7);
 const router = useRouter();
 const loading = ref(false);
 const checked = ref(false);
 const disabled = ref(false);
 const ruleFormRef = ref<FormInstance>();
-const currentPage = computed(() => {
-  return useUserStoreHook().currentPage;
-});
 
 const { t } = useI18n();
 const { initStorage } = useLayout();
@@ -55,39 +52,69 @@ initStorage();
 const { dataTheme, themeMode, dataThemeChange } = useDataThemeChange();
 dataThemeChange(themeMode.value);
 const { title, getDropdownItemStyle, getDropdownItemClass } = useNav();
-const { locale, translationCh, translationEn } = useTranslationLang();
+const { locale, translationVi, translationEn } = useTranslationLang();
 
 const ruleForm = reactive({
-  username: "admin",
-  password: "admin123",
-  verifyCode: ""
+  username: "",
+  password: ""
 });
 
 const onLogin = async (formEl: FormInstance | undefined) => {
   if (!formEl) return;
-  await formEl.validate(valid => {
+  await formEl.validate(async valid => {
     if (valid) {
       loading.value = true;
-      useUserStoreHook()
-        .loginByUsername({
+      disabled.value = true;
+
+      try {
+        // 1. Gọi đến Backend Express của bạn (nhớ mở cổng 3000)
+        // Với cấu trúc mới: /api/auth/login
+        const response = await axios.post("http://localhost:3000/api/auth/login", {
           username: ruleForm.username,
           password: ruleForm.password
-        })
-        .then(async () => {
-          // 获取后端路由
-          await initRouter();
-          disabled.value = true;
-          router.push(getTopMenu(true).path).then(() => {
-            message(t("login.pureLoginSuccess"), { type: "success" });
-          });
-        })
-        .catch(_err => {
-          message(t("login.pureLoginFail"), { type: "error" });
-        })
-        .finally(() => {
-          disabled.value = false;
-          loading.value = false;
         });
+
+        const result = response.data;
+
+        // 2. Kiểm tra cờ "success" mà API của bạn trả về
+        if (result.success) {
+          const userData = result.data; // Dữ liệu từ IAUDIT_USER
+
+          // 3. TẠO TOKEN GIẢ CHO VUE-PURE-ADMIN
+          // Do API hiện tại chưa sinh ra JWT Token, ta dùng dữ liệu này để bypass bảo vệ router
+          const tokenData = {
+            accessToken: "token-tam-thoi-cua-" + userData.username, // Token giả định
+            expires: new Date(
+              new Date().getTime() + 24 * 60 * 60 * 1000
+            ).getTime(), // Hết hạn sau 24h
+            roles: [userData.roleId] // Truyền role từ Database vào (nếu template có check role)
+          };
+
+          // 4. Lưu thông tin đăng nhập vào hệ thống
+          setToken(tokenData);
+          useUserStoreHook().SET_USERNAME(userData.name || userData.username);
+
+          // 5. Khởi tạo lại menu và chuyển hướng vào trang chủ
+          await initRouter();
+          router.push(getTopMenu(true).path).then(() => {
+            message("Đăng nhập thành công!", { type: "success" });
+          });
+        } else {
+          // Trường hợp API trả về success: false
+          message(result.message || "Tài khoản hoặc mật khẩu không đúng!", {
+            type: "error"
+          });
+          disabled.value = false;
+        }
+      } catch (error: any) {
+        // Xử lý lỗi từ Backend (Lỗi 401, 403, 500 hoặc mất mạng)
+        const errorMsg =
+          error.response?.data?.message || "Không thể kết nối đến Server!";
+        message(errorMsg, { type: "error" });
+        disabled.value = false;
+      } finally {
+        loading.value = false;
+      }
     }
   });
 };
@@ -107,9 +134,6 @@ useEventListener(document, "keydown", ({ code }) => {
     immediateDebounce(ruleFormRef.value);
 });
 
-watch(imgCode, value => {
-  useUserStoreHook().SET_VERIFYCODE(value);
-});
 watch(checked, bool => {
   useUserStoreHook().SET_ISREMEMBERED(bool);
 });
@@ -122,7 +146,6 @@ watch(loginDay, value => {
   <div class="select-none">
     <img :src="bg" class="wave" />
     <div class="flex-c absolute right-5 top-3">
-      <!-- 主题 -->
       <el-switch
         v-model="dataTheme"
         inline-prompt
@@ -130,7 +153,6 @@ watch(loginDay, value => {
         :inactive-icon="darkIcon"
         @change="dataThemeChange"
       />
-      <!-- 国际化 -->
       <el-dropdown trigger="click">
         <globalization
           class="hover:text-primary hover:bg-transparent! size-5 ml-1.5 cursor-pointer outline-hidden duration-300"
@@ -138,16 +160,16 @@ watch(loginDay, value => {
         <template #dropdown>
           <el-dropdown-menu class="translation">
             <el-dropdown-item
-              :style="getDropdownItemStyle(locale, 'zh')"
-              :class="['dark:text-white!', getDropdownItemClass(locale, 'zh')]"
-              @click="translationCh"
+              :style="getDropdownItemStyle(locale, 'vi')"
+              :class="['dark:text-white!', getDropdownItemClass(locale, 'vi')]"
+              @click="translationVi"
             >
               <IconifyIconOffline
-                v-show="locale === 'zh'"
-                class="check-zh"
+                v-show="locale === 'vi'"
+                class="check-vi"
                 :icon="Check"
               />
-              简体中文
+              Tiếng Việt
             </el-dropdown-item>
             <el-dropdown-item
               :style="getDropdownItemStyle(locale, 'en')"
@@ -165,7 +187,7 @@ watch(loginDay, value => {
     </div>
     <div class="login-container">
       <div class="img">
-        <component :is="toRaw(illustration)" />
+        <img :src="illustration2" alt="Hình minh họa" />
       </div>
       <div class="login-box">
         <div class="login-form">
@@ -179,7 +201,6 @@ watch(loginDay, value => {
           </Motion>
 
           <el-form
-            v-if="currentPage === 0"
             ref="ruleFormRef"
             :model="ruleForm"
             :rules="loginRules"
@@ -218,39 +239,10 @@ watch(loginDay, value => {
             </Motion>
 
             <Motion :delay="200">
-              <el-form-item prop="verifyCode">
-                <el-input
-                  v-model="ruleForm.verifyCode"
-                  clearable
-                  :placeholder="t('login.pureVerifyCode')"
-                  :prefix-icon="useRenderIcon(Keyhole)"
-                >
-                  <template v-slot:append>
-                    <ReImageVerify v-model:code="imgCode" />
-                  </template>
-                </el-input>
-              </el-form-item>
-            </Motion>
-
-            <Motion :delay="250">
               <el-form-item>
                 <div class="w-full h-5 flex-bc">
                   <el-checkbox v-model="checked">
                     <span class="flex">
-                      <select
-                        v-model="loginDay"
-                        :style="{
-                          width: loginDay < 10 ? '10px' : '16px',
-                          outline: 'none',
-                          background: 'none',
-                          appearance: 'none',
-                          border: 'none'
-                        }"
-                      >
-                        <option value="1">1</option>
-                        <option value="7">7</option>
-                        <option value="30">30</option>
-                      </select>
                       {{ t("login.pureRemember") }}
                       <IconifyIconOffline
                         v-tippy="{
@@ -262,11 +254,7 @@ watch(loginDay, value => {
                       />
                     </span>
                   </el-checkbox>
-                  <el-button
-                    link
-                    type="primary"
-                    @click="useUserStoreHook().SET_CURRENTPAGE(4)"
-                  >
+                  <el-button link type="primary">
                     {{ t("login.pureForget") }}
                   </el-button>
                 </div>
@@ -282,64 +270,17 @@ watch(loginDay, value => {
                 </el-button>
               </el-form-item>
             </Motion>
-
-            <Motion :delay="300">
-              <el-form-item>
-                <div class="w-full h-5 flex-bc">
-                  <el-button
-                    v-for="(item, index) in operates"
-                    :key="index"
-                    class="w-full mt-4!"
-                    size="default"
-                    @click="useUserStoreHook().SET_CURRENTPAGE(index + 1)"
-                  >
-                    {{ t(item.title) }}
-                  </el-button>
-                </div>
-              </el-form-item>
-            </Motion>
           </el-form>
-
-          <Motion v-if="currentPage === 0" :delay="350">
-            <el-form-item>
-              <el-divider>
-                <p class="text-gray-500 text-xs">
-                  {{ t("login.pureThirdLogin") }}
-                </p>
-              </el-divider>
-              <div class="w-full flex justify-evenly">
-                <span
-                  v-for="(item, index) in thirdParty"
-                  :key="index"
-                  :title="t(item.title)"
-                >
-                  <IconifyIconOnline
-                    :icon="`ri:${item.icon}-fill`"
-                    width="20"
-                    class="cursor-pointer text-gray-500 hover:text-blue-400"
-                  />
-                </span>
-              </div>
-            </el-form-item>
-          </Motion>
-          <!-- 手机号登录 -->
-          <LoginPhone v-if="currentPage === 1" />
-          <!-- 二维码登录 -->
-          <LoginQrCode v-if="currentPage === 2" />
-          <!-- 注册 -->
-          <LoginRegist v-if="currentPage === 3" />
-          <!-- 忘记密码 -->
-          <LoginUpdate v-if="currentPage === 4" />
         </div>
       </div>
     </div>
     <div
       class="w-full flex-c absolute bottom-3 text-sm text-[rgba(0,0,0,0.6)] dark:text-[rgba(220,220,242,0.8)]"
     >
-      Copyright © 2020-present
+      Copyright © 2026-present
       <a
         class="hover:text-primary!"
-        href="https://github.com/pure-admin"
+        href="https://emic.com.vn/vn"
         target="_blank"
       >
         &nbsp;{{ title }}
@@ -362,7 +303,7 @@ watch(loginDay, value => {
     padding: 5px 40px;
   }
 
-  .check-zh {
+  .check-vi {
     position: absolute;
     left: 20px;
   }

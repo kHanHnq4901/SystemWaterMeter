@@ -1,0 +1,140 @@
+buttons:
+  pureAccountSettings: Cài đặt tài khoản
+  pureLoginOut: Đăng xuất
+  pureLogin: Đăng nhập
+  pureOpenSystemSet: Mở cấu hình hệ thống
+  pureReload: Tải lại
+  pureCloseCurrentTab: Đóng tab hiện tại
+  pureCloseLeftTabs: Đóng các tab bên trái
+  pureCloseRightTabs: Đóng các tab bên phải
+  pureCloseOtherTabs: Đóng các tab khác
+  pureCloseAllTabs: Đóng tất cả tab
+  pureContentFullScreen: Toàn màn hình nội dung
+  pureContentExitFullScreen: Thoát toàn màn hình
+  pureClickCollapse: Nhấn để thu gọn
+  pureClickExpand: Nhấn để mở rộng
+  pureConfirm: Xác nhận
+  pureSwitch: Chuyển đổi
+  pureClose: Đóng
+  pureBackTop: Lên đầu trang
+  pureOpenText: Bật
+  pureCloseText: Tắt
+  pureWatchMore: Xem thêm
+  pureMarkAsRead: Đánh dấu đã đọc
+
+search:
+  pureTotal: Tổng
+  pureHistory: Lịch sử tìm kiếm
+  pureCollect: Yêu thích
+  pureDragSort: (có thể kéo để sắp xếp)
+  pureEmpty: Không có kết quả
+  purePlaceholder: Tìm kiếm menu
+
+panel:
+  pureSystemSet: Cấu hình hệ thống
+  pureCloseSystemSet: Đóng cấu hình
+  pureClearCacheAndToLogin: Xóa cache và về trang đăng nhập
+  pureClearCache: Xóa cache
+  pureThemeMode: Chế độ giao diện
+  pureThemeModeLight: Sáng
+  pureThemeModeLightTip: Giao diện sáng, dễ nhìn
+  pureThemeModeDark: Tối
+  pureThemeModeDarkTip: Giao diện tối, dịu mắt
+  pureThemeModeSystem: Tự động
+  pureThemeModeSystemTip: Theo hệ thống
+  pureThemeColor: Màu chủ đề
+  pureMenuLayout: Kiểu menu
+  pureVerticalTip: Menu bên trái
+  pureHorizontalTip: Menu trên cùng
+  pureMixTip: Menu kết hợp
+  pureStretch: Độ rộng trang
+  pureStretchFixed: Cố định
+  pureStretchFixedTip: Giao diện gọn
+  pureStretchCustom: Tùy chỉnh
+  pureStretchCustomTip: Tối thiểu 1280, tối đa 1600
+  pureTagsStyle: Kiểu tab
+  pureTagsStyleSmart: Linh hoạt
+  pureTagsStyleSmartTip: Tab sinh động
+  pureTagsStyleCard: Dạng thẻ
+  pureTagsStyleCardTip: Hiển thị dạng card
+  pureTagsStyleChrome: Chrome
+  pureTagsStyleChromeTip: Giống Chrome
+  pureFullScreenWatermark: Watermark toàn màn hình
+  pureEnableWatermark: Bật watermark
+  pureWatermarkText: Nội dung watermark
+  pureWatermarkTextPlaceholder: Nhập nội dung watermark
+  pureInterfaceDisplay: Hiển thị giao diện
+  pureGreyModel: Chế độ xám
+  pureWeakModel: Chế độ mù màu
+  pureHiddenTags: Ẩn tab
+  pureHiddenFooter: Ẩn footer
+  pureMultiTagsCache: Lưu tab
+
+menus:
+  pureHome: Trang chủ
+  pureLogin: Đăng nhập
+  pureEmpty: Trang trống
+  pureTable: Bảng
+  pureSysManagement: Quản lý hệ thống
+  pureUser: Quản lý người dùng
+  pureRole: Quản lý vai trò
+  pureSystemMenu: Quản lý menu
+  pureDept: Quản lý phòng ban
+  pureSysMonitor: Giám sát hệ thống
+  pureOnlineUser: Người dùng online
+  pureLoginLog: Nhật ký đăng nhập
+  pureOperationLog: Nhật ký thao tác
+  pureSystemLog: Nhật ký hệ thống
+
+status:
+  pureLoad: Đang tải...
+  pureMessage: Tin nhắn
+  pureNotify: Thông báo
+  pureTodo: Công việc
+  pureNoMessage: Không có tin nhắn
+  pureNoNotify: Không có thông báo
+  pureNoTodo: Không có công việc
+
+login:
+  pureUsername: Tài khoản
+  purePassword: Mật khẩu
+  pureVerifyCode: Mã xác thực
+  pureRemember: Ghi nhớ đăng nhập
+  pureRememberInfo: Tự động đăng nhập trong thời gian đã chọn
+  pureSure: Xác nhận mật khẩu
+  pureForget: Quên mật khẩu?
+  pureLogin: Đăng nhập
+  pureThirdLogin: Đăng nhập bên thứ ba
+  purePhoneLogin: Đăng nhập bằng điện thoại
+  pureQRCodeLogin: Đăng nhập bằng QR
+  pureRegister: Đăng ký
+  purePhone: Số điện thoại
+  pureSmsVerifyCode: Mã SMS
+  pureBack: Quay lại
+  pureDefinite: Xác nhận
+  pureLoginSuccess: Đăng nhập thành công
+  pureLoginFail: Đăng nhập thất bại
+  pureRegisterSuccess: Đăng ký thành công
+  pureTickPrivacy: Vui lòng đồng ý chính sách
+  pureReadAccept: Tôi đã đọc và đồng ý
+  purePrivacyPolicy: Chính sách bảo mật
+  pureGetVerifyCode: Lấy mã
+  pureInfo: giây sau lấy lại
+
+tableBar:
+  pureList: Danh sách
+  pureLarge: Rộng
+  pureDefault: Mặc định
+  pureSmall: Gọn
+  pureColumnSettings: Cài đặt cột
+  pureCollapse: Thu gọn
+  pureExpand: Mở rộng
+  pureRefresh: Làm mới
+  pureDensity: Mật độ
+  pureColumnDisplay: Hiển thị cột
+  pureReset: Đặt lại
+  pureExitFullScreen: Thoát full màn hình
+  pureFullScreen: Toàn màn hình
+  purePinLeft: Ghim trái
+  purePinRight: Ghim phải
+  pureUnpin: Bỏ ghim
