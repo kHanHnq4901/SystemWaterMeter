@@ -35,11 +35,11 @@ defineExpose({ getRef });
     ref="ruleFormRef"
     :model="newFormInline"
     :rules="formRules"
-    label-width="82px"
+    label-width="100px"
   >
     <el-row :gutter="30">
       <re-col>
-        <el-form-item label="上级部门">
+        <el-form-item label="Phòng ban cha">
           <el-cascader
             v-model="newFormInline.parentId"
             class="w-full"
@@ -52,7 +52,7 @@ defineExpose({ getRef });
             }"
             clearable
             filterable
-            placeholder="请选择上级部门"
+            placeholder="Chọn phòng ban cha"
           >
             <template #default="{ node, data }">
               <span>{{ data.name }}</span>
@@ -63,45 +63,45 @@ defineExpose({ getRef });
       </re-col>
 
       <re-col :value="12" :xs="24" :sm="24">
-        <el-form-item label="部门名称" prop="name">
+        <el-form-item label="Tên phòng ban" prop="name">
           <el-input
             v-model="newFormInline.name"
             clearable
-            placeholder="请输入部门名称"
+            placeholder="Nhập tên phòng ban"
           />
         </el-form-item>
       </re-col>
       <re-col :value="12" :xs="24" :sm="24">
-        <el-form-item label="部门负责人">
+        <el-form-item label="Người phụ trách">
           <el-input
             v-model="newFormInline.principal"
             clearable
-            placeholder="请输入部门负责人"
+            placeholder="Nhập người phụ trách"
           />
         </el-form-item>
       </re-col>
 
       <re-col :value="12" :xs="24" :sm="24">
-        <el-form-item label="手机号" prop="phone">
+        <el-form-item label="Số điện thoại" prop="phone">
           <el-input
             v-model="newFormInline.phone"
             clearable
-            placeholder="请输入手机号"
+            placeholder="Nhập số điện thoại"
           />
         </el-form-item>
       </re-col>
       <re-col :value="12" :xs="24" :sm="24">
-        <el-form-item label="邮箱" prop="email">
+        <el-form-item label="Email" prop="email">
           <el-input
             v-model="newFormInline.email"
             clearable
-            placeholder="请输入邮箱"
+            placeholder="Nhập email"
           />
         </el-form-item>
       </re-col>
 
       <re-col :value="12" :xs="24" :sm="24">
-        <el-form-item label="排序">
+        <el-form-item label="Sắp xếp">
           <el-input-number
             v-model="newFormInline.sort"
             class="w-full!"
@@ -112,24 +112,24 @@ defineExpose({ getRef });
         </el-form-item>
       </re-col>
       <re-col :value="12" :xs="24" :sm="24">
-        <el-form-item label="部门状态">
+        <el-form-item label="Trạng thái">
           <el-switch
             v-model="newFormInline.status"
             inline-prompt
             :active-value="1"
             :inactive-value="0"
-            active-text="启用"
-            inactive-text="停用"
+            active-text="Bật"
+            inactive-text="Tắt"
             :style="switchStyle"
           />
         </el-form-item>
       </re-col>
 
       <re-col>
-        <el-form-item label="备注">
+        <el-form-item label="Ghi chú">
           <el-input
             v-model="newFormInline.remark"
-            placeholder="请输入备注信息"
+            placeholder="Nhập ghi chú"
             type="textarea"
           />
         </el-form-item>

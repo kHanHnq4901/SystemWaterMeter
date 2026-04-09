@@ -22,40 +22,40 @@ export function useDept() {
 
   const columns: TableColumnList = [
     {
-      label: "部门名称",
+      label: "Tên phòng ban",
       prop: "name",
       width: 180,
       align: "left"
     },
     {
-      label: "排序",
+      label: "Sắp xếp",
       prop: "sort",
       minWidth: 70
     },
     {
-      label: "状态",
+      label: "Trạng thái",
       prop: "status",
       minWidth: 100,
       cellRenderer: ({ row, props }) => (
         <el-tag size={props.size} style={tagStyle.value(row.status)}>
-          {row.status === 1 ? "启用" : "停用"}
+          {row.status === 1 ? "Bật" : "Tắt"}
         </el-tag>
       )
     },
     {
-      label: "创建时间",
+      label: "Ngày tạo",
       minWidth: 200,
       prop: "createTime",
       formatter: ({ createTime }) =>
         dayjs(createTime).format("YYYY-MM-DD HH:mm:ss")
     },
     {
-      label: "备注",
+      label: "Ghi chú",
       prop: "remark",
       minWidth: 320
     },
     {
-      label: "操作",
+      label: "Thao tác",
       fixed: "right",
       width: 210,
       slot: "operation"
@@ -107,7 +107,7 @@ export function useDept() {
 
   function openDialog(title = "新增", row?: FormItemProps) {
     addDialog({
-      title: `${title}部门`,
+      title: `${title} phòng ban`,
       props: {
         formInline: {
           higherDeptOptions: formatHigherDeptOptions(cloneDeep(dataList.value)),
@@ -131,7 +131,7 @@ export function useDept() {
         const FormRef = formRef.value.getRef();
         const curData = options.props.formInline as FormItemProps;
         function chores() {
-          message(`您${title}了部门名称为${curData.name}的这条数据`, {
+          message(`Đã ${title} phòng ban ${curData.name}`, {
             type: "success"
           });
           done(); // 关闭弹框
@@ -155,7 +155,7 @@ export function useDept() {
   }
 
   function handleDelete(row) {
-    message(`您删除了部门名称为${row.name}的这条数据`, { type: "success" });
+    message(`Đã xóa phòng ban ${row.name}`, { type: "success" });
     onSearch();
   }
 

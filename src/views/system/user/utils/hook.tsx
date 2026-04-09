@@ -69,18 +69,18 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
   });
   const columns: TableColumnList = [
     {
-      label: "勾选列", // 如果需要表格多选，此处label必须设置
+      label: "Chọn",
       type: "selection",
       fixed: "left",
-      reserveSelection: true // 数据刷新后保留选项
+      reserveSelection: true
     },
     {
-      label: "用户编号",
+      label: "Mã người dùng",
       prop: "id",
       width: 90
     },
     {
-      label: "用户头像",
+      label: "Ảnh đại diện",
       prop: "avatar",
       cellRenderer: ({ row }) => (
         <el-image
@@ -94,17 +94,17 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
       width: 90
     },
     {
-      label: "用户名称",
+      label: "Tên đăng nhập",
       prop: "username",
       minWidth: 130
     },
     {
-      label: "用户昵称",
+      label: "Biệt danh",
       prop: "nickname",
       minWidth: 130
     },
     {
-      label: "性别",
+      label: "Giới tính",
       prop: "sex",
       minWidth: 90,
       cellRenderer: ({ row, props }) => (
@@ -113,23 +113,23 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
           type={row.sex === 1 ? "danger" : null}
           effect="plain"
         >
-          {row.sex === 1 ? "女" : "男"}
+          {row.sex === 1 ? "Nữ" : "Nam"}
         </el-tag>
       )
     },
     {
-      label: "部门",
+      label: "Phòng ban",
       prop: "dept.name",
       minWidth: 90
     },
     {
-      label: "手机号码",
+      label: "Số điện thoại",
       prop: "phone",
       minWidth: 90,
       formatter: ({ phone }) => hideTextAtIndex(phone, { start: 3, end: 6 })
     },
     {
-      label: "状态",
+      label: "Trạng thái",
       prop: "status",
       minWidth: 90,
       cellRenderer: scope => (
@@ -139,8 +139,8 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
           v-model={scope.row.status}
           active-value={1}
           inactive-value={0}
-          active-text="已启用"
-          inactive-text="已停用"
+          active-text="Bật"
+          inactive-text="Tắt"
           inline-prompt
           style={switchStyle.value}
           onChange={() => onChange(scope as any)}
@@ -148,7 +148,7 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
       )
     },
     {
-      label: "创建时间",
+      label: "Ngày tạo",
       minWidth: 90,
       prop: "createTime",
       formatter: ({ createTime }) =>
@@ -232,7 +232,7 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
   }
 
   function handleDelete(row) {
-    message(`您删除了用户编号为${row.id}的这条数据`, { type: "success" });
+    message(`Đã xóa người dùng ${row.id}`, { type: "success" });
     onSearch();
   }
 
@@ -263,7 +263,7 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
     // 返回当前选中的行
     const curSelected = tableRef.value.getTableRef().getSelectionRows();
     // 接下来根据实际业务，通过选中行的某项数据，比如下面的id，调用接口进行批量删除
-    message(`已删除用户编号为 ${getKeyList(curSelected, "id")} 的数据`, {
+    message(`Đã xóa ${getKeyList(curSelected, "id")} người dùng`, {
       type: "success"
     });
     tableRef.value.getTableRef().clearSelection();
@@ -338,7 +338,7 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
         const FormRef = formRef.value.getRef();
         const curData = options.props.formInline as FormItemProps;
         function chores() {
-          message(`您${title}了用户名称为${curData.username}的这条数据`, {
+          message(`Đã ${title} người dùng ${curData.username}`, {
             type: "success"
           });
           done(); // 关闭弹框

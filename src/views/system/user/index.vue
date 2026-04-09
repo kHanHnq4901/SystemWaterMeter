@@ -68,60 +68,63 @@ const {
         :model="form"
         class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto"
       >
-        <el-form-item label="用户名称：" prop="username">
+        <el-form-item label="Tên người dùng:" prop="username">
           <el-input
             v-model="form.username"
-            placeholder="请输入用户名称"
+            placeholder="Nhập tên người dùng"
             clearable
             class="w-45!"
           />
         </el-form-item>
-        <el-form-item label="手机号码：" prop="phone">
+        <el-form-item label="Số điện thoại:" prop="phone">
           <el-input
             v-model="form.phone"
-            placeholder="请输入手机号码"
+            placeholder="Nhập số điện thoại"
             clearable
             class="w-45!"
           />
         </el-form-item>
-        <el-form-item label="状态：" prop="status">
+        <el-form-item label="Trạng thái:" prop="status">
           <el-select
             v-model="form.status"
-            placeholder="请选择"
+            placeholder="Chọn"
             clearable
             class="w-45!"
           >
-            <el-option label="已开启" value="1" />
-            <el-option label="已关闭" value="0" />
+            <el-option label="Đã bật" value="1" />
+            <el-option label="Đã tắt" value="0" />
           </el-select>
         </el-form-item>
         <el-form-item>
           <el-button
             type="primary"
-            :icon="useRenderIcon('ri/search-line')"
+            :icon="useRenderIcon('ri:search-line')"
             :loading="loading"
             @click="onSearch"
           >
-            搜索
+            Tìm kiếm
           </el-button>
-          <el-button :icon="useRenderIcon(Refresh)" @click="resetForm(formRef)">
-            重置
+          <el-button
+            :icon="useRenderIcon('ri:refresh-line')"
+            @click="resetForm(formRef)"
+          >
+            Đặt lại
           </el-button>
         </el-form-item>
       </el-form>
 
       <PureTableBar
-        title="用户管理（仅演示，操作后不生效）"
+        title="Quản lý Người dùng"
         :columns="columns"
         @refresh="onSearch"
       >
         <template #buttons>
           <el-button
             type="primary"
-            :icon="useRenderIcon(AddFill)"
+            :icon="useRenderIcon('ri:add-circle-line')"
             @click="openDialog()"
           >
-            新增用户
+            Thêm mới
           </el-button>
         </template>
         <template v-slot="{ size, dynamicColumns }">
@@ -135,10 +138,10 @@ const {
                 style="font-size: var(--el-font-size-base)"
                 class="text-[rgba(42,46,54,0.5)] dark:text-[rgba(220,220,242,0.5)]"
               >
-                已选 {{ selectedNum }} 项
+                Đã chọn {{ selectedNum }} mục
               </span>
               <el-button type="primary" text @click="onSelectionCancel">
-                取消选择
+                Hủy chọn
               </el-button>
             </div>
             <el-popconfirm title="是否确认删除?" @confirm="onbatchDel">
@@ -181,7 +184,7 @@ const {
                 修改
               </el-button>
               <el-popconfirm
-                :title="`是否确认删除用户编号为${row.id}的这条数据`"
+                :title="`Xác nhận xóa người dùng ${row.id}?`"
                 @confirm="handleDelete(row)"
               >
                 <template #reference>
@@ -216,7 +219,7 @@ const {
                         :icon="useRenderIcon(Upload)"
                         @click="handleUpload(row)"
                       >
-                        上传头像
+                        Tải ảnh đại diện
                       </el-button>
                     </el-dropdown-item>
                     <el-dropdown-item>
@@ -228,7 +231,7 @@ const {
                         :icon="useRenderIcon(Password)"
                         @click="handleReset(row)"
                       >
-                        重置密码
+                        Đặt lại mật khẩu
                       </el-button>
                     </el-dropdown-item>
                     <el-dropdown-item>
@@ -240,7 +243,7 @@ const {
                         :icon="useRenderIcon(Role)"
                         @click="handleRole(row)"
                       >
-                        分配角色
+                        Gán vai trò
                       </el-button>
                     </el-dropdown-item>
                   </el-dropdown-menu>

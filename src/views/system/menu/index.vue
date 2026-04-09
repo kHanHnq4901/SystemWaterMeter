@@ -42,10 +42,10 @@ function onFullscreen() {
       :model="form"
       class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto"
     >
-      <el-form-item label="菜单名称：" prop="title">
+      <el-form-item label="Tên menu:" prop="title">
         <el-input
           v-model="form.title"
-          placeholder="请输入菜单名称"
+          placeholder="Nhập tên menu"
           clearable
           class="w-45!"
         />
@@ -53,20 +53,23 @@ function onFullscreen() {
       <el-form-item>
         <el-button
           type="primary"
-          :icon="useRenderIcon('ri/search-line')"
+          :icon="useRenderIcon('ri:search-line')"
           :loading="loading"
           @click="onSearch"
         >
-          搜索
+          Tìm kiếm
         </el-button>
-        <el-button :icon="useRenderIcon(Refresh)" @click="resetForm(formRef)">
-          重置
+        <el-button
+          :icon="useRenderIcon('ri:refresh-line')"
+          @click="resetForm(formRef)"
+        >
+          Đặt lại
         </el-button>
       </el-form-item>
     </el-form>
 
     <PureTableBar
-      title="菜单管理（仅演示，操作后不生效）"
+      title="Quản lý Menu"
       :columns="columns"
       :isExpandAll="false"
       :tableRef="tableRef?.getTableRef()"
@@ -76,10 +79,10 @@ function onFullscreen() {
       <template #buttons>
         <el-button
           type="primary"
-          :icon="useRenderIcon(AddFill)"
+          :icon="useRenderIcon('ri:add-circle-line')"
           @click="openDialog()"
         >
-          新增菜单
+          Thêm mới
         </el-button>
       </template>
       <template v-slot="{ size, dynamicColumns }">
@@ -124,7 +127,7 @@ function onFullscreen() {
               新增
             </el-button>
             <el-popconfirm
-              :title="`是否确认删除菜单名称为${transformI18n(row.title)}的这条数据${row?.children?.length > 0 ? '。注意下级菜单也会一并删除，请谨慎操作' : ''}`"
+              :title="`Xác nhận xóa menu ${transformI18n(row.title)}?${row?.children?.length > 0 ? '. Lưu ý: menu con sẽ bị xóa theo' : ''}`"
               @confirm="handleDelete(row)"
             >
               <template #reference>

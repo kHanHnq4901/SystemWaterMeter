@@ -1,265 +1,173 @@
 buttons:
   pureAccountSettings: Account
-  pureLoginOut: LoginOut
+  pureLoginOut: Logout
   pureLogin: Login
-  pureOpenSystemSet: Open System Configs
+  pureOpenSystemSet: Open System Settings
   pureReload: Reload
-  pureCloseCurrentTab: Close CurrentTab
-  pureCloseLeftTabs: Close LeftTabs
-  pureCloseRightTabs: Close RightTabs
-  pureCloseOtherTabs: Close OtherTabs
-  pureCloseAllTabs: Close AllTabs
-  pureContentFullScreen: Content FullScreen
-  pureContentExitFullScreen: Content ExitFullScreen
-  pureClickCollapse: Collapse
-  pureClickExpand: Expand
+  pureCloseCurrentTab: Close Current Tab
+  pureCloseLeftTabs: Close Left Tabs
+  pureCloseRightTabs: Close Right Tabs
+  pureCloseOtherTabs: Close Other Tabs
+  pureCloseAllTabs: Close All Tabs
+  pureContentFullScreen: Fullscreen Content
+  pureContentExitFullScreen: Exit Fullscreen
+  pureClickCollapse: Click to Collapse
+  pureClickExpand: Click to Expand
   pureConfirm: Confirm
   pureSwitch: Switch
   pureClose: Close
-  pureBackTop: BackTop
-  pureOpenText: Open
-  pureCloseText: Close
-  pureWatchMore: Watch More
-  pureMarkAsRead: Mark As Read
+  pureBackTop: Back to Top
+  pureOpenText: On
+  pureCloseText: Off
+  pureWatchMore: View More
+  pureMarkAsRead: Mark as Read
+
 search:
   pureTotal: Total
-  pureHistory: History
-  pureCollect: Collect
-  pureDragSort: （Drag Sort）
-  pureEmpty: Empty
-  purePlaceholder: Search Menu
+  pureHistory: Search History
+  pureCollect: Favorites
+  pureDragSort: (Drag to sort)
+  pureEmpty: No results found
+  purePlaceholder: Search menu (Pinyin supported)
+
 panel:
-  pureSystemSet: System Configs
-  pureCloseSystemSet: Close System Configs
-  pureClearCacheAndToLogin: Clear cache and return to login page
+  pureSystemSet: System Settings
+  pureCloseSystemSet: Close Settings
+  pureClearCacheAndToLogin: Clear cache and login
   pureClearCache: Clear Cache
   pureThemeMode: Theme Mode
   pureThemeModeLight: Light
-  pureThemeModeLightTip: Set sail freshly and light up the comfortable work interface
+  pureThemeModeLightTip: Fresh start, brighten workspace
   pureThemeModeDark: Dark
-  pureThemeModeDarkTip: Moonlight Overture, indulge in the tranquility and elegance of the night
-  pureThemeModeSystem: Auto
-  pureThemeModeSystemTip: Synchronize time, the interface naturally responds to morning and dusk
-  pureThemeColor: Theme Color
+  pureThemeModeDarkTip: Moonlight theme, immerse in tranquility
+  pureThemeModeSystem: System
+  pureThemeModeSystemTip: Sync time, interface changes with day/night
+  pureThemeColor: Primary Color
   pureMenuLayout: Menu Layout
-  pureVerticalTip: The menu on the left is familiar and friendly
-  pureHorizontalTip: Top menu, concise overview
-  pureMixTip: Mixed menu, flexible
-  pureStretch: Stretch Page
+  pureVerticalTip: Left menu, familiar and friendly
+  pureHorizontalTip: Top menu, simple and comprehensive
+  pureMixTip: Mix menu, flexible and diverse
+  pureStretch: Page Width
   pureStretchFixed: Fixed
-  pureStretchFixedTip: Compact pages make it easy to find the information you need
+  pureStretchFixedTip: Shrink page, easy to focus
   pureStretchCustom: Custom
-  pureStretchCustomTip: Minimum 1280, maximum 1600
+  pureStretchCustomTip: Min 1280, max 1600
   pureTagsStyle: Tags Style
   pureTagsStyleSmart: Smart
-  pureTagsStyleSmartTip: Smart tags add fun and brilliance
+  pureTagsStyleSmartTip: Smart tags, more vivid
   pureTagsStyleCard: Card
-  pureTagsStyleCardTip: Card tags for efficient browsing
-  pureTagsStyleChrome: Chrome
-  pureTagsStyleChromeTip: Chrome style is classic and elegant
-  pureFullScreenWatermark: FullScreen Watermark
-  pureEnableWatermark: Watermark
-  pureWatermarkText: Text
-  pureWatermarkTextPlaceholder: Please enter text
-  pureInterfaceDisplay: Interface Display
-  pureGreyModel: Grey Model
-  pureWeakModel: Weak Model
-  pureHiddenTags: Hidden Tags
+  pureTagsStyleCardTip: Card style, quick browse
+  pureTagsStyleChrome: Browser
+  pureTagsStyleChromeTip: Chrome style, classic and beautiful
+  pureFullScreenWatermark: Fullscreen Watermark
+  purePureWatermark: Copyright Watermark
+  purePageCache: Page Cache
+  purePageCacheTip: Keep data when switching tabs
+  pureHideTabs: Hide Tabs
+  pureHideTabsTip: Show/Hide tabs on top
+  pureHideMenu: Hide Menu
+  pureHideMenuTip: Hide left menu bar
+  pureBreadcrumb: Breadcrumb
+  pureBreadcrumbTip: Show/Hide breadcrumb
+  pureBreadcrumbIcon: Breadcrumb Icon
+  pureBreadcrumbIconTip: Show icon in breadcrumb
+  pureTagsStyleDot: Dot
   pureHiddenFooter: Hidden Footer
   pureMultiTagsCache: MultiTags Cache
+
 menus:
-  pureHome: Home
+  pureHome: Dashboard
   pureLogin: Login
   pureEmpty: Empty Page
-  pureTable: Table
-  pureSysManagement: System Manage
-  pureUser: User Manage
-  pureRole: Role Manage
-  pureSystemMenu: Menu Manage
-  pureDept: Dept Manage
+  pureSysManagement: System Management
+  pureUser: User Management
+  pureRole: Role Management
+  pureSystemMenu: Menu Management
+  pureDept: Department Management
   pureSysMonitor: System Monitor
-  pureOnlineUser: Online User
+  monitor: Monitor & Statistics
+  gateway: Gateway Management
+  meter: Meter Management
+  production: Water Production
+  loss: Water Loss
+  pureOnlineUser: Online Users
   pureLoginLog: Login Log
   pureOperationLog: Operation Log
   pureSystemLog: System Log
-  pureCodeMirror: CodeMirror
-  pureMarkdown: Markdown
-  pureEditor: Editor
-  pureAbnormal: Abnormal Page
   purePageNotFound: "404"
   pureAccessDenied: "403"
   pureServerError: "500"
-  pureComponents: Components
-  pureDialog: Dialog
-  pureDrawer: Drawer
-  pureMessage: Message Tips
-  pureVideo: Video
-  pureSegmented: Segmented
-  pureWaterfall: Waterfall
-  pureMap: Map
-  pureDraggable: Draggable
-  pureSplitPane: Split Pane
-  pureText: Text Ellipsis
-  pureSlider: Slider
-  pureElButton: Button
-  pureButton: Button Animation
-  pureCheckButton: Check Button
-  pureCropping: Picture Cropping
-  pureAnimatecss: AnimateCss Selector
-  pureCountTo: Digital Animation
-  pureSelector: Scope Selector
-  pureFlowChart: Flow Chart
-  pureSeamless: Seamless Scroll
-  pureContextmenu: Context Menu
-  pureTypeit: Typeit
-  pureJsonEditor: JSON Editor
-  pureColorPicker: Color Picker
-  pureColorPickerPanel: Color PickerPanel
-  pureDatePicker: Date Picker
-  pureDateTimePicker: DateTimePicker
-  pureTimePicker: TimePicker
-  pureTag: Tag
-  pureStatistic: Statistic
-  pureCollapse: Collapse
-  pureGanttastic: Gantt Chart
-  pureProgress: Progress
-  pureUpload: File Upload
-  pureCheckCard: CheckCard
-  pureMenus: MultiLevel Menu
-  pureMenu1: Menu1
-  pureMenu1-1: Menu1-1
-  pureMenu1-2: Menu1-2
-  pureMenu1-2-1: Menu1-2-1
-  pureMenu1-2-2: Menu1-2-2
-  pureMenu1-3: Menu1-3
-  pureMenu2: Menu2
-  purePermission: Permission Manage
-  purePermissionPage: Page Permission
-  purePermissionButton: Button Permission
-  purePermissionButtonRouter: Route return button permission
-  purePermissionButtonLogin: Login interface return button permission
-  pureTabs: Tabs Operate
-  pureGuide: Guide
-  pureAble: Able
-  pureMenuTree: Menu Tree
-  pureVideoFrame: Video Frame Capture
-  pureWavesurfer: Audio Visualization
-  pureRipple: Ripple
-  pureMqtt: Mqtt Client
-  pureOptimize: Debounce、Throttle、Copy、Longpress Directives
-  pureVerify: Captcha
-  pureWatermark: Water Mark
-  purePrint: Print
-  pureDownload: Download
-  pureExternalPage: External Page
-  pureExternalDoc: Docs External
-  pureEmbeddedDoc: Docs Embedded
-  pureExternalLink: Vue-Pure-Admin
-  pureUtilsLink: Pure-Admin-Utils
-  pureColorHuntDoc: ColorHunt
-  pureUiGradients: UiGradients
-  pureEpDoc: Element-Plus
-  pureTailwindcssDoc: Tailwindcss
-  pureVueDoc: Vue3
-  pureViteDoc: Vite
-  purePiniaDoc: Pinia
-  pureRouterDoc: Vue-Router
-  pureAbout: About
-  pureResult: Result Page
-  pureSuccess: Success Page
-  pureFail: Fail Page
-  pureIconSelect: Icon Select
-  pureTimeline: Time Line
-  pureLineTree: LineTree
-  pureList: List Page
-  pureCardList: Card List Page
-  pureDebounce: Debounce & Throttle
-  pureFormDesign: Form Design
-  pureBarcode: Barcode
-  pureQrcode: Qrcode
-  pureCascader: Area Cascader
-  pureSwiper: Swiper Plugin
-  pureVirtualList: Virtual List
-  purePdf: PDF Preview
-  pureExcel: Export Excel
-  pureInfiniteScroll: Table Infinite Scroll
-  pureSensitive: Sensitive Filter
-  purePinyin: PinYin
-  pureDanmaku: Danmaku
-  pureSchemaForm: Form
-  pureTableBase: Base Usage
-  pureTableHigh: High Usage
-  pureTableEdit: Edit Usage
-  pureVxeTable: Virtual Usage
-  pureBoard: Paint Board
-  pureMindMap: Mind Map
-  pureMenuOverflow: Menu Overflow Show Tooltip Text
-  pureChildMenuOverflow: Child Menu Overflow Show Tooltip Text
+
 status:
   pureLoad: Loading...
-  pureMessage: Message
-  pureNotify: Notify
-  pureTodo: Todo
-  pureNoMessage: No Message
-  pureNoNotify: No Notify
-  pureNoTodo: No Todo
-login:
-  pureUsername: Username
-  purePassword: Password
-  pureVerifyCode: VerifyCode
-  pureRemember: days no need to login
-  pureRememberInfo: After checking and logging in, will automatically log in to the system without entering your username and password within the specified number of days.
-  pureSure: Sure Password
-  pureForget: Forget Password?
-  pureLogin: Login
-  pureThirdLogin: Third Login
-  purePhoneLogin: Phone Login
-  pureQRCodeLogin: QRCode Login
-  pureRegister: Register
-  pureWeChatLogin: WeChat Login
-  pureAlipayLogin: Alipay Login
-  pureQQLogin: QQ Login
-  pureWeiBoLogin: Weibo Login
-  purePhone: Phone
-  pureSmsVerifyCode: SMS VerifyCode
-  pureBack: Back
-  pureTest: Mock Test
-  pureTip: After scanning the code, click "Confirm" to complete the login
-  pureDefinite: Definite
-  pureLoginSuccess: Login Success
-  pureLoginFail: Login Fail
-  pureRegisterSuccess: Regist Success
-  pureTickPrivacy: Please tick Privacy Policy
-  pureReadAccept: I have read it carefully and accept
-  purePrivacyPolicy: Privacy Policy
-  pureGetVerifyCode: Get VerifyCode
-  pureInfo: Seconds
-  pureUsernameReg: Please enter username
-  purePassWordReg: Please enter password
-  pureVerifyCodeReg: Please enter verify code
-  pureVerifyCodeCorrectReg: Please enter correct verify code
-  pureVerifyCodeSixReg: Please enter a 6-digit verify code
-  purePhoneReg: Please enter the phone
-  purePhoneCorrectReg: Please enter the correct phone number format
-  purePassWordRuleReg: The password format should be any combination of 8-18 digits
-  purePassWordSureReg: Please enter confirm password
-  purePassWordDifferentReg: The two passwords do not match!
-  purePassWordUpdateReg: Password has been updated
-  pureLoginExpired: Login expired, please login again
-tableBar:
-  pureList: List
-  pureLarge: Large
-  pureDefault: Default
-  pureSmall: Small
-  pureColumnSettings: ColumnSettings
-  pureCollapse: Collapse
-  pureExpand: Expand
-  pureRefresh: Refresh
-  pureDensity: Density
-  pureColumnDisplay: ColumnDisplay
+  pureLoginOut: Logout successful
+  pureLoginSuccess: Login successful
+  pureUpdateSuccess: Update successful
+  pureDeleteSuccess: Delete successful
+  pureCreateSuccess: Create successful
+  pureDelete: Are you sure to delete?
+  pureConfirmBtn: Confirm
+  pureCancelBtn: Cancel
+  pureClear: Clear
+  pureSave: Save
+  pureUpdate: Update
+  pureAdd: Add
+  pureEdit: Edit
+  pureDetail: Detail
+  pureSearch: Search
   pureReset: Reset
-  pureExitFullScreen: ExitFullScreen
-  pureFullScreen: FullScreen
-  purePinLeft: Pin Left
-  purePinRight: Pin Right
-  pureUnpin: Unpin
+  pureExport: Export
+  pureImport: Import
+  pureUpload: Upload
+  pureDownload: Download
+  pureSubmit: Submit
+  pureCancel: Cancel
+  pureClose: Close
+  pureConfirm: Confirm
+  pureSure: Sure
+  pureYes: Yes
+  pureNo: No
+  pureAll: All
+  pureYesOrNo: Yes/No
+  pureSelection: Please select
+  purePleaseInput: Please input
+  pureRefresh: Refresh
+  pureOperation: Operation
+  pureEnable: Enable
+  pureDisable: Disable
+  pureAllow: Allow
+  pureRefuse: Refuse
+  pureAuth: Permission
+  pureAction: Action
+  pureAddSub: Add Submenu
+  pureEditMenu: Edit Menu
+  pureDeleteMenu: Delete Menu
+  pureConfirmDelete: Confirm Delete
+  pureWarning: Warning
+  pureError: Error
+  pureSuccess: Success
+  pureInfo: Info
+  pureDanger: Danger
+  purePrimary: Primary
+  pure404: Page not found
+  pure500: Server error
+  pure403: Access denied
+  pureIframeLoading: Loading...
+  pureIframeLoadError: Load error, please retry
+
+theme:
+  themeSettings: Theme Settings
+  themeColor: Theme Color
+  themeMode: Theme Mode
+  lightMode: Light Mode
+  darkMode: Dark Mode
+  autoMode: Auto Mode
+  followSystem: Follow System
+
+info:
+  systemName: Water Meter Collection System
+  systemVersion: Version 1.0.0
+  developer: Developer
+  developerContact: contact{'@'}water-meter.vn
+  copyright: Copyright
+  footerCopyright: © 2026 Water Meter Collection System. All rights reserved.

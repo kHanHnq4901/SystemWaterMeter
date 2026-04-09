@@ -26,7 +26,7 @@ import { useTranslationLang } from "@/layout/hooks/useTranslationLang";
 import { useDataThemeChange } from "@/layout/hooks/useDataThemeChange";
 import { setToken } from "@/utils/auth"; // Dùng để lưu token sau khi API trả về
 
-import axios from "axios"; // Thêm axios để gọi API trực tiếp
+import { loginApi } from "@/api/auth"; // Import API chuẩn của template
 import dayIcon from "@/assets/svg/day.svg?component";
 import darkIcon from "@/assets/svg/dark.svg?component";
 import globalization from "@/assets/svg/globalization.svg?component";
@@ -67,17 +67,11 @@ const onLogin = async (formEl: FormInstance | undefined) => {
       disabled.value = true;
 
       try {
-        // 1. Gọi đến Backend Express của bạn (nhớ mở cổng 3000)
-        // Với cấu trúc mới: /api/auth/login
-        const response = await axios.post(
-          "http://localhost:3000/api/auth/login",
-          {
-            username: ruleForm.username,
-            password: ruleForm.password
-          }
-        );
-
-        const result = response.data;
+        // 1. Gọi API Login chuẩn theo cấu trúc của template
+        const result = await loginApi({
+          username: ruleForm.username.trim(),
+          password: ruleForm.password
+        });
 
         // 2. Kiểm tra cờ "success" mà API của bạn trả về
         if (result.success) {
@@ -87,6 +81,7 @@ const onLogin = async (formEl: FormInstance | undefined) => {
           // Do API hiện tại chưa sinh ra JWT Token, ta dùng dữ liệu này để bypass bảo vệ router
           const tokenData = {
             accessToken: "token-tam-thoi-cua-" + userData.username, // Token giả định
+            refreshToken: "",
             expires: new Date(
               new Date().getTime() + 24 * 60 * 60 * 1000
             ).getTime(), // Hết hạn sau 24h

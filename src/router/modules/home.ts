@@ -1,16 +1,15 @@
 import { $t } from "@/plugins/i18n";
 import { home } from "@/router/enums";
-const { VITE_HIDE_HOME } = import.meta.env;
 const Layout = () => import("@/layout/index.vue");
 
 export default {
   path: "/",
-  name: "Home",
+  name: "Dashboard",
   component: Layout,
   redirect: "/welcome",
   meta: {
-    icon: "ep/home-filled",
-    title: $t("menus.pureHome"),
+    icon: "ri:dashboard-line",
+    title: "Bảng điều khiển",
     rank: home
   },
   children: [
@@ -19,8 +18,8 @@ export default {
       name: "Welcome",
       component: () => import("@/views/welcome/index.vue"),
       meta: {
-        title: $t("menus.pureHome"),
-        showLink: VITE_HIDE_HOME === "true" ? false : true
+        title: "Bảng điều khiển",
+        showLink: true
       }
     }
   ]

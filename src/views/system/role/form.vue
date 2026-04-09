@@ -26,28 +26,28 @@ defineExpose({ getRef });
     ref="ruleFormRef"
     :model="newFormInline"
     :rules="formRules"
-    label-width="82px"
+    label-width="100px"
   >
-    <el-form-item label="角色名称" prop="name">
+    <el-form-item label="Tên vai trò" prop="name">
       <el-input
         v-model="newFormInline.name"
         clearable
-        placeholder="请输入角色名称"
+        placeholder="Nhập tên vai trò"
       />
     </el-form-item>
 
-    <el-form-item label="角色标识" prop="code">
+    <el-form-item label="Mã vai trò" prop="code">
       <el-input
         v-model="newFormInline.code"
         clearable
-        placeholder="请输入角色标识"
+        placeholder="Nhập mã vai trò"
       />
     </el-form-item>
 
-    <el-form-item label="备注">
+    <el-form-item label="Ghi chú">
       <el-input
         v-model="newFormInline.remark"
-        placeholder="请输入备注信息"
+        placeholder="Nhập ghi chú"
         type="textarea"
       />
     </el-form-item>

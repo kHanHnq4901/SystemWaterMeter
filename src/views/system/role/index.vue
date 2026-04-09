@@ -95,44 +95,47 @@ onMounted(() => {
       :model="form"
       class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto"
     >
-      <el-form-item label="角色名称：" prop="name">
+      <el-form-item label="Tên vai trò:" prop="name">
         <el-input
           v-model="form.name"
-          placeholder="请输入角色名称"
+          placeholder="Nhập tên vai trò"
           clearable
           class="w-45!"
         />
       </el-form-item>
-      <el-form-item label="角色标识：" prop="code">
+      <el-form-item label="Mã vai trò:" prop="code">
         <el-input
           v-model="form.code"
-          placeholder="请输入角色标识"
+          placeholder="Nhập mã vai trò"
           clearable
           class="w-45!"
         />
       </el-form-item>
-      <el-form-item label="状态：" prop="status">
+      <el-form-item label="Trạng thái:" prop="status">
         <el-select
           v-model="form.status"
-          placeholder="请选择状态"
+          placeholder="Chọn trạng thái"
           clearable
           class="w-45!"
         >
-          <el-option label="已启用" value="1" />
-          <el-option label="已停用" value="0" />
+          <el-option label="Đã bật" value="1" />
+          <el-option label="Đã tắt" value="0" />
         </el-select>
       </el-form-item>
       <el-form-item>
         <el-button
           type="primary"
-          :icon="useRenderIcon('ri/search-line')"
+          :icon="useRenderIcon('ri:search-line')"
           :loading="loading"
           @click="onSearch"
         >
-          搜索
+          Tìm kiếm
         </el-button>
-        <el-button :icon="useRenderIcon(Refresh)" @click="resetForm(formRef)">
-          重置
+        <el-button
+          :icon="useRenderIcon('ri:refresh-line')"
+          @click="resetForm(formRef)"
+        >
+          Đặt lại
         </el-button>
       </el-form-item>
     </el-form>
@@ -144,17 +147,17 @@ onMounted(() => {
       <PureTableBar
         :class="[isShow && !deviceDetection() ? 'w-[60vw]!' : 'w-full']"
         style="transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1)"
-        title="角色管理（仅演示，操作后不生效）"
+        title="Quản lý Vai trò"
         :columns="columns"
         @refresh="onSearch"
       >
         <template #buttons>
           <el-button
             type="primary"
-            :icon="useRenderIcon(AddFill)"
+            :icon="useRenderIcon('ri:add-circle-line')"
             @click="openDialog()"
           >
-            新增角色
+            Thêm mới
           </el-button>
         </template>
         <template v-slot="{ size, dynamicColumns }">
@@ -191,7 +194,7 @@ onMounted(() => {
                 修改
               </el-button>
               <el-popconfirm
-                :title="`是否确认删除角色名称为${row.name}的这条数据`"
+                :title="`Xác nhận xóa vai trò ${row.name}?`"
                 @confirm="handleDelete(row)"
               >
                 <template #reference>
@@ -235,7 +238,7 @@ onMounted(() => {
                       :icon="useRenderIcon(Menu)"
                       @click="handleMenu"
                     >
-                      菜单权限
+                      Quyền menu
                     </el-button>
                   </el-dropdown-item>
                   <el-dropdown-item>
@@ -247,7 +250,7 @@ onMounted(() => {
                       :icon="useRenderIcon(Database)"
                       @click="handleDatabase"
                     >
-                      数据权限
+                      Quyền dữ liệu
                     </el-button>
                   </el-dropdown-item>
                 </el-dropdown-menu>
@@ -267,7 +270,7 @@ onMounted(() => {
             <span :class="iconClass">
               <IconifyIconOffline
                 v-tippy="{
-                  content: '关闭'
+                  content: 'Đóng'
                 }"
                 class="dark:text-white"
                 width="18px"
@@ -279,7 +282,7 @@ onMounted(() => {
             <span :class="[iconClass, 'ml-2']">
               <IconifyIconOffline
                 v-tippy="{
-                  content: '保存菜单权限'
+                  content: 'Lưu quyền menu'
                 }"
                 class="dark:text-white"
                 width="18px"
@@ -290,21 +293,21 @@ onMounted(() => {
             </span>
           </div>
           <p class="font-bold truncate">
-            菜单权限
+            Quyền menu
             {{ `${curRow?.name ? `（${curRow.name}）` : ""}` }}
           </p>
         </div>
         <el-input
           v-model="treeSearchValue"
-          placeholder="请输入菜单进行搜索"
+          placeholder="Tìm kiếm menu"
           class="mb-1"
           clearable
           @input="onQueryChanged"
         />
         <div class="flex flex-wrap">
-          <el-checkbox v-model="isExpandAll" label="展开/折叠" />
-          <el-checkbox v-model="isSelectAll" label="全选/全不选" />
-          <el-checkbox v-model="isLinkage" label="父子联动" />
+          <el-checkbox v-model="isExpandAll" label="Mở rộng/Thu gọn" />
+          <el-checkbox v-model="isSelectAll" label="Chọn tất cả/Bỏ chọn" />
+          <el-checkbox v-model="isLinkage" label="Liên kết cha con" />
         </div>
         <el-tree-v2
           ref="treeRef"

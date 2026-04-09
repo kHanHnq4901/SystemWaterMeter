@@ -24,15 +24,15 @@ const newFormInline = ref(props.formInline);
         </el-form-item>
       </re-col> -->
       <re-col>
-        <el-form-item label="用户昵称" prop="nickname">
+        <el-form-item label="Biệt danh" prop="nickname">
           <el-input v-model="newFormInline.nickname" disabled />
         </el-form-item>
       </re-col>
       <re-col>
-        <el-form-item label="角色列表" prop="ids">
+        <el-form-item label="Danh sách vai trò" prop="ids">
           <el-select
             v-model="newFormInline.ids"
-            placeholder="请选择"
+            placeholder="Chọn vai trò"
             class="w-full"
             clearable
             multiple

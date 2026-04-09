@@ -21,19 +21,19 @@ export function useMenu() {
   const getMenuType = (type, text = false) => {
     switch (type) {
       case 0:
-        return text ? "菜单" : "primary";
+        return text ? "Menu" : "primary";
       case 1:
-        return text ? "iframe" : "warning";
+        return text ? "Iframe" : "warning";
       case 2:
-        return text ? "外链" : "danger";
+        return text ? "External" : "danger";
       case 3:
-        return text ? "按钮" : "info";
+        return text ? "Button" : "info";
     }
   };
 
   const columns: TableColumnList = [
     {
-      label: "菜单名称",
+      label: "Tên menu",
       prop: "title",
       align: "left",
       cellRenderer: ({ row }) => (
@@ -48,7 +48,7 @@ export function useMenu() {
       )
     },
     {
-      label: "菜单类型",
+      label: "Loại menu",
       prop: "menuType",
       width: 100,
       cellRenderer: ({ row, props }) => (
@@ -62,17 +62,17 @@ export function useMenu() {
       )
     },
     {
-      label: "路由路径",
+      label: "Đường dẫn",
       prop: "path"
     },
     {
-      label: "组件路径",
+      label: "Component",
       prop: "component",
       formatter: ({ path, component }) =>
         isAllEmpty(component) ? path : component
     },
     {
-      label: "权限标识",
+      label: "Mã quyền",
       prop: "auths"
     },
     {
@@ -136,7 +136,7 @@ export function useMenu() {
 
   function openDialog(title = "新增", row?: FormItemProps) {
     addDialog({
-      title: `${title}菜单`,
+      title: `${title} menu`,
       props: {
         formInline: {
           menuType: row?.menuType ?? 0,
@@ -173,12 +173,9 @@ export function useMenu() {
         const FormRef = formRef.value.getRef();
         const curData = options.props.formInline as FormItemProps;
         function chores() {
-          message(
-            `您${title}了菜单名称为${transformI18n(curData.title)}的这条数据`,
-            {
-              type: "success"
-            }
-          );
+          message(`Đã ${title} menu ${transformI18n(curData.title)}`, {
+            type: "success"
+          });
           done(); // 关闭弹框
           onSearch(); // 刷新表格数据
         }
@@ -200,7 +197,7 @@ export function useMenu() {
   }
 
   function handleDelete(row) {
-    message(`您删除了菜单名称为${transformI18n(row.title)}的这条数据`, {
+    message(`Đã xóa menu ${transformI18n(row.title)}`, {
       type: "success"
     });
     onSearch();

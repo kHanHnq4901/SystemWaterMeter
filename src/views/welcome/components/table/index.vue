@@ -24,7 +24,7 @@ const { loading, columns, dataList, pagination, Empty, onCurrentChange } =
     @page-current-change="onCurrentChange"
   >
     <template #empty>
-      <el-empty description="暂无数据" :image-size="60">
+      <el-empty description="Chưa có dữ liệu" :image-size="60">
         <template #image>
           <Empty />
         </template>

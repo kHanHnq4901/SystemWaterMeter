@@ -44,19 +44,19 @@ export function useRole(treeRef: Ref) {
   });
   const columns: TableColumnList = [
     {
-      label: "角色编号",
+      label: "Mã vai trò",
       prop: "id"
     },
     {
-      label: "角色名称",
+      label: "Tên vai trò",
       prop: "name"
     },
     {
-      label: "角色标识",
+      label: "Mã vai trò",
       prop: "code"
     },
     {
-      label: "状态",
+      label: "Trạng thái",
       cellRenderer: scope => (
         <el-switch
           size={scope.props.size === "small" ? "small" : "default"}
@@ -64,8 +64,8 @@ export function useRole(treeRef: Ref) {
           v-model={scope.row.status}
           active-value={1}
           inactive-value={0}
-          active-text="已启用"
-          inactive-text="已停用"
+          active-text="Bật"
+          inactive-text="Tắt"
           inline-prompt
           style={switchStyle.value}
           onChange={() => onChange(scope as any)}
@@ -74,19 +74,19 @@ export function useRole(treeRef: Ref) {
       minWidth: 90
     },
     {
-      label: "备注",
+      label: "Ghi chú",
       prop: "remark",
       minWidth: 160
     },
     {
-      label: "创建时间",
+      label: "Ngày tạo",
       prop: "createTime",
       minWidth: 160,
       formatter: ({ createTime }) =>
         dayjs(createTime).format("YYYY-MM-DD HH:mm:ss")
     },
     {
-      label: "操作",
+      label: "Thao tác",
       fixed: "right",
       width: 210,
       slot: "operation"
@@ -145,7 +145,7 @@ export function useRole(treeRef: Ref) {
   }
 
   function handleDelete(row) {
-    message(`您删除了角色名称为${row.name}的这条数据`, { type: "success" });
+    message(`Đã xóa vai trò ${row.name}`, { type: "success" });
     onSearch();
   }
 
@@ -184,7 +184,7 @@ export function useRole(treeRef: Ref) {
 
   function openDialog(title = "新增", row?: FormItemProps) {
     addDialog({
-      title: `${title}角色`,
+      title: `${title} vai trò`,
       props: {
         formInline: {
           name: row?.name ?? "",
@@ -202,7 +202,7 @@ export function useRole(treeRef: Ref) {
         const FormRef = formRef.value.getRef();
         const curData = options.props.formInline as FormItemProps;
         function chores() {
-          message(`您${title}了角色名称为${curData.name}的这条数据`, {
+          message(`Đã ${title} vai trò ${curData.name}`, {
             type: "success"
           });
           done(); // 关闭弹框

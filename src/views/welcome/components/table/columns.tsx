@@ -2,107 +2,132 @@ import { tableData } from "../../data";
 import { delay } from "@pureadmin/utils";
 import { ref, onMounted, reactive } from "vue";
 import type { PaginationProps } from "@pureadmin/table";
-import ThumbUp from "~icons/ri/thumb-up-line";
-import Hearts from "~icons/ri/hearts-line";
 import Empty from "./empty.svg?component";
 
 export function useColumns() {
   const dataList = ref([]);
   const loading = ref(true);
+
   const columns: TableColumnList = [
     {
+      label: "Mã Gateway / Trạm",
+      prop: "id",
       sortable: true,
-      label: "Mã Gateway / Trạm", // Gốc: 序号 (STT/ID)
-      prop: "id"
+      minWidth: 130
     },
     {
+      label: "Khu vực",
+      prop: "area",
       sortable: true,
-      label: "Sản lượng lượng (m³)", // Gốc: 需求人数 (Số lượng yêu cầu)
-      prop: "requiredNumber",
-      filterMultiple: false,
-      filterClassName: "pure-table-filter",
-      filters: [
-        { text: "Bất thường (≥16000)", value: "more" }, // Bộ lọc tùy chỉnh
-        { text: "Bình thường (<16000)", value: "less" }
-      ],
-      filterMethod: (value, { requiredNumber }) => {
-        return value === "more"
-          ? requiredNumber >= 16000
-          : requiredNumber < 16000;
-      }
-    },
-    {
-      sortable: true,
-      label: "Sự cố phát sinh", // Gốc: 提问数量 (Số câu hỏi)
-      prop: "questionNumber"
-    },
-    {
-      sortable: true,
-      label: "Đã xử lý (Offline -> Online)", // Gốc: 解决数量 (Số lượng đã giải quyết)
-      prop: "resolveNumber"
-    },
-    {
-      sortable: true,
-      label: "Mức Pin (%)", // Gốc: 用户满意度 (Độ hài lòng người dùng)
-      minWidth: 100,
-      prop: "satisfaction",
-      // Dùng JSX (tsx) để render giao diện tùy chỉnh cho ô hiển thị Pin
+      minWidth: 110,
       cellRenderer: ({ row }) => (
-        <div class="flex justify-center w-full">
-          <span class="flex items-center w-15">
-            <span class="ml-auto mr-2">{row.satisfaction}%</span>
-            {/* Đổi màu icon: Pin > 98% thì màu Xanh lá, thấp hơn thì màu Cam */}
-            <iconify-icon-offline
-              icon={row.satisfaction > 98 ? Hearts : ThumbUp}
-              color={row.satisfaction > 98 ? "#10b981" : "#e85f33"}
-            />
-          </span>
-        </div>
+        <el-tag size="small" type="info" round>
+          {row.area}
+        </el-tag>
       )
     },
     {
+      label: "Tổng ĐH",
+      prop: "meterCount",
       sortable: true,
-      label: "Cập nhật cuối", // Gốc: 统计日期 (Ngày thống kê)
-      prop: "date"
+      minWidth: 90
     },
     {
-      label: "Thao tác", // Gốc: 操作 (Thao tác)
+      label: "Online",
+      prop: "online",
+      sortable: true,
+      minWidth: 80,
+      cellRenderer: ({ row }) => (
+        <span class="font-semibold text-green-500">{row.online}</span>
+      )
+    },
+    {
+      label: "Offline",
+      prop: "offline",
+      sortable: true,
+      minWidth: 80,
+      cellRenderer: ({ row }) => (
+        <span class={`font-semibold ${row.offline > 0 ? "text-red-400" : "text-gray-400"}`}>
+          {row.offline}
+        </span>
+      )
+    },
+    {
+      label: "Tỷ lệ online",
+      prop: "online",
+      minWidth: 130,
+      cellRenderer: ({ row }) => {
+        const rate = Math.round((row.online / row.meterCount) * 100);
+        return (
+          <el-progress
+            percentage={rate}
+            stroke-width={10}
+            color={rate >= 95 ? "#10b981" : rate >= 80 ? "#f59e0b" : "#ef4444"}
+            text-inside={true}
+          />
+        );
+      }
+    },
+    {
+      label: "Trạng thái GW",
+      prop: "status",
+      sortable: true,
+      minWidth: 120,
+      cellRenderer: ({ row }) => (
+        <el-tag
+          type={row.status === "online" ? "success" : "danger"}
+          size="small"
+          round
+        >
+          {row.status === "online" ? "● Online" : "○ Offline"}
+        </el-tag>
+      )
+    },
+    {
+      label: "Pin (%)",
+      prop: "power",
+      sortable: true,
+      minWidth: 100,
+      cellRenderer: ({ row }) => (
+        <span class={`font-semibold ${row.power >= 80 ? "text-green-500" : row.power >= 30 ? "text-amber-500" : "text-red-500"}`}>
+          {row.power > 0 ? `${row.power}%` : "N/A"}
+        </span>
+      )
+    },
+    {
+      label: "Cập nhật cuối",
+      prop: "lastUpdate",
+      sortable: true,
+      minWidth: 110
+    },
+    {
+      label: "Thao tác",
       fixed: "right",
-      slot: "operation" // Bắn qua file index.vue cha để render các nút bấm
+      minWidth: 110,
+      slot: "operation"
     }
   ];
 
-  /** Cấu hình phân trang (Pagination) */
   const pagination = reactive<PaginationProps>({
-    pageSize: 10,
+    pageSize: 8,
     currentPage: 1,
     layout: "prev, pager, next",
     total: 0,
     align: "center"
   });
 
-  // Hàm mô phỏng độ trễ khi chuyển trang (Đợi API trả về)
-  function onCurrentChange(page: number) {
-    console.log("Đang chuyển sang trang: ", page);
+  function onCurrentChange(_page: number) {
     loading.value = true;
     delay(300).then(() => {
       loading.value = false;
     });
   }
 
-  // Khởi tạo data khi Component được nạp lên màn hình
   onMounted(() => {
-    dataList.value = tableData;
+    dataList.value = tableData as any;
     pagination.total = dataList.value.length;
     loading.value = false;
   });
 
-  return {
-    Empty,
-    loading,
-    columns,
-    dataList,
-    pagination,
-    onCurrentChange
-  };
+  return { Empty, loading, columns, dataList, pagination, onCurrentChange };
 }

@@ -79,7 +79,7 @@ function toggleRowExpansionAll(status) {
   }
 }
 
-/** 重置部门树状态（选中状态、搜索框值、树初始化） */
+/** Reset department tree state */
 function onTreeReset() {
   highlightMap.value = {};
   searchValue.value = "";
@@ -104,7 +104,7 @@ defineExpose({ onTreeReset });
         v-model="searchValue"
         class="ml-2"
         size="small"
-        placeholder="请输入部门名称"
+        placeholder="Nhập tên phòng ban"
         clearable
       >
         <template #suffix>
