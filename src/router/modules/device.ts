@@ -6,13 +6,23 @@ export default {
   path: "/device",
   name: "Device",
   component: Layout,
-  redirect: "/device/gateway",
+  redirect: "/device/unit",
   meta: {
     icon: "ri:wireless-charging-line",
     title: "Khai báo Thiết bị",
     rank: device
   },
   children: [
+    {
+      path: "/device/unit",
+      name: "DeviceUnit",
+      component: () => import("@/views/device/unit/index.vue"),
+      meta: {
+        icon: "ri:organisation-chart",
+        title: "Quản lý Đơn vị",
+        showLink: true
+      }
+    },
     {
       path: "/device/gateway",
       name: "DeviceGateway",
@@ -30,16 +40,6 @@ export default {
       meta: {
         icon: "ri:water-drop-line",
         title: "Quản lý Đồng hồ",
-        showLink: true
-      }
-    },
-    {
-      path: "/device/area",
-      name: "DeviceArea",
-      component: () => import("@/views/device/area/index.vue"),
-      meta: {
-        icon: "ri:map-pin-range-line",
-        title: "Quản lý Khu vực",
         showLink: true
       }
     },

@@ -189,7 +189,9 @@ const LayHeader = defineComponent({
       <el-scrollbar v-else>
         <el-backtop
           :title="t('buttons.pureBackTop')"
-          target=".main-container .el-scrollbar__wrap"
+          :visibility-height="100"
+          :right="40"
+          :bottom="40"
         >
           <BackTopIcon />
         </el-backtop>

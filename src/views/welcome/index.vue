@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, markRaw, computed } from "vue";
+import { ref, computed, markRaw, onMounted, reactive } from "vue";
 import ReCol from "@/components/ReCol";
 import { useDark, randomGradient } from "./utils";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
@@ -14,45 +14,365 @@ import {
 } from "./components/charts";
 import Segmented, { type OptionsType } from "@/components/ReSegmented";
 import {
-  kpiData,
-  statusMeterData,
-  statusGatewayData,
-  typeMeterData,
-  connectionGatewayData,
-  collectionRateData,
-  waterConsumptionData,
-  liveAlerts,
-  waterLossTrendData,
-  barChartData,
-  progressData
-} from "./data";
-
-// waterLossTrendData là { xAxis, series } - lấy series để hiển thị
-const waterLossValues = waterLossTrendData.series;
+  getWaterDashboard,
+  getMeterStatus,
+  getZoneConsumption,
+  getProvinces,
+  getDistricts,
+  getWards,
+  getZones,
+  getClusters,
+  getWaterAlerts
+} from "@/api/waterMeter";
 
 defineOptions({ name: "Welcome" });
 
 useDark();
-const selectedUnit = ref("all");
+
+const loading = ref(false);
+const selectedProvince = ref("");
+const selectedDistrict = ref("");
+const selectedWard = ref("");
+const selectedZone = ref("");
+const selectedCluster = ref("");
 const dateRange = ref("");
 let curWeek = ref(1);
 
-const optionsBasis: Array<OptionsType> = [
-  { label: "Tuần trước" },
-  { label: "Tuần này" }
-];
+const dashboardData = reactive({
+  meters: { totalMeters: 0, activeMeters: 0, inactiveMeters: 0 },
+  gateways: { totalGateways: 0, onlineGateways: 0, offlineGateways: 0 },
+  customers: { totalCustomers: 0, activeCustomers: 0 },
+  invoices: {
+    totalInvoices: 0,
+    collectedAmount: 0,
+    pendingAmount: 0,
+    overdueAmount: 0
+  },
+  consumption: {
+    todayConsumption: 0,
+    yesterdayConsumption: 0,
+    monthlyConsumption: 0
+  },
+  alerts: [] as any[]
+});
 
-const alertTypeTag = (type: string) => {
-  if (type === "danger") return "danger";
-  if (type === "warning") return "warning";
-  return "success";
+const meterStatusData = ref<any[]>([]);
+const zoneConsumptionData = ref<any[]>([]);
+const liveAlertsData = ref<any[]>([]);
+
+const provinceOptions = ref<any[]>([]);
+const districtOptions = computed(() => {
+  if (!selectedProvince.value) return [];
+  return districts.filter(
+    (d: any) => d.provinceId === parseInt(selectedProvince.value)
+  );
+});
+
+const wards = ref<any[]>([]);
+const zones = ref<any[]>([]);
+const clusters = ref<any[]>([]);
+
+const wardOptions = computed(() => {
+  if (!selectedDistrict.value) return [];
+  return wards.value.filter(
+    (w: any) => w.districtId === parseInt(selectedDistrict.value)
+  );
+});
+
+const zoneOptions = computed(() => {
+  if (!selectedWard.value) return [];
+  return zones.value.filter(
+    (z: any) => z.wardId === parseInt(selectedWard.value)
+  );
+});
+
+const clusterOptions = computed(() => {
+  if (!selectedZone.value) return [];
+  return clusters.value.filter(
+    (c: any) => c.zoneId === parseInt(selectedZone.value)
+  );
+});
+
+const districts = ref<any[]>([]);
+
+const fetchDashboardData = async () => {
+  loading.value = true;
+  try {
+    const [
+      summaryRes,
+      meterStatusRes,
+      zoneRes,
+      alertsRes,
+      provincesRes,
+      districtsRes,
+      wardsRes,
+      zonesRes,
+      clustersRes
+    ] = await Promise.allSettled([
+      getWaterDashboard(),
+      getMeterStatus(),
+      getZoneConsumption(),
+      getWaterAlerts({ pageSize: 10 }),
+      getProvinces(),
+      getDistricts(),
+      getWards(),
+      getZones(),
+      getClusters()
+    ]);
+
+    if (summaryRes?.status === "fulfilled" && summaryRes.value?.data?.success) {
+      const data = summaryRes.value.data.data;
+      dashboardData.meters = data.meters || {};
+      dashboardData.gateways = data.gateways || {};
+      dashboardData.customers = data.customers || {};
+      dashboardData.invoices = data.invoices || {};
+      dashboardData.consumption = data.consumption || {};
+      dashboardData.alerts = data.alerts || [];
+    }
+
+    if (
+      meterStatusRes?.status === "fulfilled" &&
+      meterStatusRes.value?.data?.success
+    ) {
+      meterStatusData.value = meterStatusRes.value.data.data || [];
+    }
+
+    if (zoneRes?.status === "fulfilled" && zoneRes.value?.data?.success) {
+      zoneConsumptionData.value = zoneRes.value.data.data || [];
+    }
+
+    if (alertsRes?.status === "fulfilled" && alertsRes.value?.data?.success) {
+      liveAlertsData.value = alertsRes.value.data.data?.list || [];
+    }
+
+    if (
+      provincesRes?.status === "fulfilled" &&
+      provincesRes.value?.data?.success
+    ) {
+      provinceOptions.value = [
+        { label: "Tất cả Tỉnh/TP", value: "" },
+        ...(provincesRes.value.data.data || []).map((p: any) => ({
+          label: p.provinceName,
+          value: p.id
+        }))
+      ];
+    }
+
+    if (
+      districtsRes?.status === "fulfilled" &&
+      districtsRes.value?.data?.success
+    ) {
+      districts.value = (districtsRes.value.data.data || []).map((d: any) => ({
+        label: d.districtName,
+        value: d.id,
+        provinceId: d.provinceId
+      }));
+    }
+
+    if (wardsRes?.status === "fulfilled" && wardsRes.value?.data?.success) {
+      wards.value = (wardsRes.value.data.data || []).map((w: any) => ({
+        label: w.wardName,
+        value: w.id,
+        districtId: w.districtId
+      }));
+    }
+
+    if (zonesRes?.status === "fulfilled" && zonesRes.value?.data?.success) {
+      zones.value = (zonesRes.value.data.data || []).map((z: any) => ({
+        label: z.zoneName,
+        value: z.id,
+        wardId: z.wardId
+      }));
+    }
+
+    if (
+      clustersRes?.status === "fulfilled" &&
+      clustersRes.value?.data?.success
+    ) {
+      clusters.value = (clustersRes.value.data.data || []).map((c: any) => ({
+        label: c.clusterName,
+        value: c.id,
+        zoneId: c.zoneId
+      }));
+    }
+
+    // If no data from API, use mock data
+    if (dashboardData.meters.totalMeters === 0) {
+      useMockData();
+    }
+  } catch (error) {
+    console.error("Error fetching dashboard data:", error);
+    useMockData();
+  } finally {
+    loading.value = false;
+  }
 };
 
-const waterLossAvg = computed(() =>
-  (waterLossValues.reduce((a, b) => a + b, 0) / waterLossValues.length).toFixed(
-    1
-  )
-);
+const useMockData = () => {
+  dashboardData.meters = {
+    totalMeters: 367,
+    activeMeters: 320,
+    inactiveMeters: 47
+  };
+  dashboardData.gateways = {
+    totalGateways: 15,
+    onlineGateways: 13,
+    offlineGateways: 2
+  };
+  dashboardData.customers = { totalCustomers: 350, activeCustomers: 320 };
+  dashboardData.invoices = {
+    totalInvoices: 350,
+    collectedAmount: 52500000,
+    pendingAmount: 5250000,
+    overdueAmount: 0
+  };
+  dashboardData.consumption = {
+    todayConsumption: 15200,
+    yesterdayConsumption: 14850,
+    monthlyConsumption: 456000
+  };
+  dashboardData.alerts = [
+    {
+      time: "15:30",
+      title: "Mất kết nối",
+      desc: "Gateway GW-CầuGiấy-02 mất tín hiệu 2 giờ.",
+      type: "danger",
+      color: "#ef4444"
+    },
+    {
+      time: "14:15",
+      title: "Pin yếu",
+      desc: "Đồng hồ CE-14A (MTR-1029) dung lượng pin < 15%.",
+      type: "warning",
+      color: "#f59e0b"
+    },
+    {
+      time: "13:00",
+      title: "Nghi ngờ rò rỉ",
+      desc: "Lưu lượng ban đêm khu vực Ba Đình tăng bất thường.",
+      type: "danger",
+      color: "#ef4444"
+    }
+  ];
+
+  provinceOptions.value = [
+    { label: "Tất cả Tỉnh/TP", value: "" },
+    { label: "TP. Hồ Chí Minh", value: 1 },
+    { label: "Tỉnh Đồng Nai", value: 2 },
+    { label: "Tỉnh Bình Dương", value: 3 }
+  ];
+
+  districts.value = [
+    { label: "Quận 1", value: 1, provinceId: 1 },
+    { label: "Quận 3", value: 2, provinceId: 1 },
+    { label: "Quận 5", value: 3, provinceId: 1 },
+    { label: "Quận 7", value: 4, provinceId: 1 },
+    { label: "Bình Thạnh", value: 5, provinceId: 1 }
+  ];
+
+  wards.value = [
+    { label: "Phường Bến Nghé", value: 1, districtId: 1 },
+    { label: "Phường Bến Thành", value: 2, districtId: 1 },
+    { label: "Phường 8", value: 3, districtId: 2 },
+    { label: "Phường 9", value: 4, districtId: 2 }
+  ];
+
+  zones.value = [
+    { label: "Khu vực A", value: 1, wardId: 1 },
+    { label: "Khu vực B", value: 2, wardId: 1 },
+    { label: "Khu vực C", value: 3, wardId: 2 }
+  ];
+
+  clusters.value = [
+    { label: "Cụm 1", value: 1, zoneId: 1 },
+    { label: "Cụm 2", value: 2, zoneId: 1 },
+    { label: "Cụm 3", value: 3, zoneId: 2 }
+  ];
+};
+
+const kpiData = computed(() => [
+  {
+    title: "Tổng số Đồng hồ",
+    value: dashboardData.meters.totalMeters || "0",
+    icon: "ri:water-drop-line",
+    color: "#3b82f6",
+    subValue: `${dashboardData.meters.activeMeters || 0} đang hoạt động`,
+    subColor: "#10b981"
+  },
+  {
+    title: "Tổng số Gateway",
+    value: dashboardData.gateways.totalGateways || "0",
+    icon: "ri:router-line",
+    color: "#14b8a6",
+    subValue: `${dashboardData.gateways.onlineGateways || 0} đang hoạt động`,
+    subColor: "#10b981"
+  },
+  {
+    title: "Tổng số Khách hàng",
+    value: dashboardData.customers.totalCustomers || "0",
+    icon: "ri:user-line",
+    color: "#8b5cf6",
+    subValue: `${dashboardData.customers.activeCustomers || 0} hoạt động`,
+    subColor: "#10b981"
+  },
+  {
+    title: "Tiêu thụ hôm nay (m³)",
+    value: dashboardData.consumption.todayConsumption || "0",
+    icon: "ri:water-flash-line",
+    color: "#10b981",
+    subValue: `${((dashboardData.consumption.todayConsumption || 0) - (dashboardData.consumption.yesterdayConsumption || 0)).toFixed(0)} m³ vs hôm qua`,
+    subColor: "#10b981"
+  }
+]);
+
+const statusMeterData = computed(() => {
+  if (meterStatusData.value.length > 0) {
+    return meterStatusData.value;
+  }
+  return [
+    {
+      name: "Đang hoạt động",
+      value: dashboardData.meters.activeMeters || 0,
+      itemStyle: { color: "#10b981" }
+    },
+    {
+      name: "Ngừng hoạt động",
+      value: dashboardData.meters.inactiveMeters || 0,
+      itemStyle: { color: "#64748b" }
+    }
+  ];
+});
+
+const statusGatewayData = computed(() => [
+  {
+    name: "Online",
+    value: dashboardData.gateways.onlineGateways || 0,
+    itemStyle: { color: "#10b981" }
+  },
+  {
+    name: "Offline",
+    value: dashboardData.gateways.offlineGateways || 0,
+    itemStyle: { color: "#ef4444" }
+  }
+]);
+
+const liveAlerts = computed(() => {
+  if (liveAlertsData.value.length > 0) {
+    return liveAlertsData.value.map((a: any) => ({
+      time: new Date(a.time).toLocaleTimeString("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit"
+      }),
+      title: a.alertTypeName || "Cảnh báo",
+      desc: a.message,
+      type:
+        a.isRead === 0 ? (a.alertType === 1 ? "danger" : "warning") : "success",
+      color:
+        a.isRead === 0 ? (a.alertType === 1 ? "#ef4444" : "#f59e0b") : "#10b981"
+    }));
+  }
+  return dashboardData.alerts;
+});
 
 const xAxis7days = Array.from({ length: 7 }).map((_, i) => {
   const d = new Date();
@@ -60,25 +380,225 @@ const xAxis7days = Array.from({ length: 7 }).map((_, i) => {
   return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}`;
 });
 
-const supplyData = [15200, 16100, 15800, 17200, 16900, 18100, 17950];
-const billedData = waterConsumptionData.series;
+const collectionRateData = computed(() => ({
+  xAxis: Array.from({ length: 30 }).map((_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (29 - i));
+    return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}`;
+  }),
+  series: Array.from({ length: 30 }).map(
+    () => Math.floor(Math.random() * 5) + 95
+  )
+}));
+
+const waterConsumptionData = computed(() => ({
+  xAxis: xAxis7days,
+  series: Array.from({ length: 7 }).map(
+    () => Math.floor(Math.random() * 3000) + 12000
+  )
+}));
+
+const waterLossTrendData = computed(() => ({
+  xAxis: xAxis7days,
+  series: Array.from({ length: 7 }).map(() =>
+    (Math.random() * 5 + 15).toFixed(1)
+  )
+}));
+
+const waterLossValues = computed(() => waterLossTrendData.value.series);
+
+const waterLossAvg = computed(() => {
+  const values = waterLossValues.value.map(Number);
+  return (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
+});
+
+const barChartData = computed(() => [
+  {
+    requireData: Array.from({ length: 7 }).map(
+      () => Math.floor(Math.random() * 5000) + 2000
+    ),
+    questionData: Array.from({ length: 7 }).map(
+      () => Math.floor(Math.random() * 3000) + 1000
+    )
+  },
+  {
+    requireData: Array.from({ length: 7 }).map(
+      () => Math.floor(Math.random() * 5000) + 2000
+    ),
+    questionData: Array.from({ length: 7 }).map(
+      () => Math.floor(Math.random() * 3000) + 1000
+    )
+  }
+]);
+
+const progressData = computed(() => {
+  const days = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+  return Array.from({ length: 7 }).map((_, i) => ({
+    week: days[i],
+    percentage: Math.floor(Math.random() * 20) + 80,
+    duration: 110 - i * 5,
+    color: "#10b981"
+  }));
+});
+
+const supplyData = computed(() =>
+  Array.from({ length: 7 }).map(() => Math.floor(Math.random() * 3000) + 15000)
+);
+const billedData = computed(() => waterConsumptionData.value.series);
+
+const optionsBasis: Array<OptionsType> = [
+  { label: "Tuần trước" },
+  { label: "Tuần này" }
+];
+
+const typeMeterData = computed(() => [
+  {
+    name: "WM-01",
+    value: Math.floor(Math.random() * 300) + 50,
+    itemStyle: { color: "#14c49d" }
+  },
+  {
+    name: "WM-01A",
+    value: Math.floor(Math.random() * 50) + 10,
+    itemStyle: { color: "#4ba3e3" }
+  },
+  {
+    name: "WM-02",
+    value: Math.floor(Math.random() * 20) + 5,
+    itemStyle: { color: "#f87171" }
+  },
+  {
+    name: "Khác",
+    value: Math.floor(Math.random() * 10) + 1,
+    itemStyle: { color: "#c084fc" }
+  }
+]);
+
+const connectionGatewayData = computed(() => [
+  {
+    name: "Online",
+    value: dashboardData.gateways.onlineGateways || 0,
+    itemStyle: { color: "#10b981" }
+  },
+  {
+    name: "Offline",
+    value: dashboardData.gateways.offlineGateways || 0,
+    itemStyle: { color: "#ef4444" }
+  }
+]);
+
+const alertTypeTag = (type: string) => {
+  if (type === "danger") return "danger";
+  if (type === "warning") return "warning";
+  return "success";
+};
+
+const onFilterChange = () => {
+  console.log("Filter changed:", {
+    province: selectedProvince.value,
+    district: selectedDistrict.value,
+    ward: selectedWard.value,
+    zone: selectedZone.value,
+    cluster: selectedCluster.value
+  });
+};
+
+onMounted(() => {
+  fetchDashboardData();
+});
 </script>
 
 <template>
   <div class="welcome-dashboard">
     <!-- ===== THANH LỌC ===== -->
     <el-card shadow="never" class="filter-bar mb-4">
-      <div class="flex flex-wrap gap-3 items-center">
+      <div class="flex flex-wrap gap-2 items-center">
+        <span class="text-sm font-medium text-gray-600">Lọc theo đơn vị:</span>
         <el-select
-          v-model="selectedUnit"
-          placeholder="Chọn đơn vị / trạm"
-          class="w-52"
+          v-model="selectedProvince"
+          placeholder="Tỉnh/TP"
+          clearable
+          class="w-36!"
+          @change="
+            selectedDistrict = '';
+            onFilterChange();
+          "
         >
-          <el-option label="Tất cả đơn vị" value="all" />
-          <el-option label="Khu vực Cầu Giấy" value="caugiay" />
-          <el-option label="Khu vực Ba Đình" value="badinh" />
-          <el-option label="Khu vực Đống Đa" value="dongda" />
-          <el-option label="Khu vực Hoàn Kiếm" value="hoankiem" />
+          <el-option
+            v-for="item in provinceOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+        <el-select
+          v-model="selectedDistrict"
+          placeholder="Quận/Huyện"
+          clearable
+          class="w-36!"
+          :disabled="!selectedProvince"
+          @change="
+            selectedWard = '';
+            onFilterChange();
+          "
+        >
+          <el-option
+            v-for="item in districtOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+        <el-select
+          v-model="selectedWard"
+          placeholder="Phường/Xã"
+          clearable
+          class="w-36!"
+          :disabled="!selectedDistrict"
+          @change="
+            selectedZone = '';
+            onFilterChange();
+          "
+        >
+          <el-option
+            v-for="item in wardOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+        <el-select
+          v-model="selectedZone"
+          placeholder="Khu vực"
+          clearable
+          class="w-36!"
+          :disabled="!selectedWard"
+          @change="
+            selectedCluster = '';
+            onFilterChange();
+          "
+        >
+          <el-option
+            v-for="item in zoneOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+        <el-select
+          v-model="selectedCluster"
+          placeholder="Cụm"
+          clearable
+          class="w-32!"
+          :disabled="!selectedZone"
+          @change="onFilterChange()"
+        >
+          <el-option
+            v-for="item in clusterOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
         </el-select>
         <el-date-picker
           v-model="dateRange"
@@ -86,7 +606,7 @@ const billedData = waterConsumptionData.series;
           range-separator="–"
           start-placeholder="Từ ngày"
           end-placeholder="Đến ngày"
-          class="w-68"
+          class="w-64"
         />
         <el-button type="primary" :icon="'Search'">Lọc dữ liệu</el-button>
         <el-button :icon="'Refresh'">Làm mới</el-button>

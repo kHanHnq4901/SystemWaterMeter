@@ -1,8 +1,90 @@
-import { tableData } from "../../data";
 import { delay } from "@pureadmin/utils";
 import { ref, onMounted, reactive } from "vue";
 import type { PaginationProps } from "@pureadmin/table";
 import Empty from "./empty.svg?component";
+
+const tableData = [
+  {
+    id: "GW-CG-01",
+    meterCount: 45,
+    online: 43,
+    offline: 2,
+    lastUpdate: "15:30",
+    power: 98,
+    status: "online",
+    area: "Cầu Giấy"
+  },
+  {
+    id: "GW-CG-02",
+    meterCount: 52,
+    online: 50,
+    offline: 2,
+    lastUpdate: "15:28",
+    power: 95,
+    status: "offline",
+    area: "Cầu Giấy"
+  },
+  {
+    id: "GW-BD-01",
+    meterCount: 48,
+    online: 47,
+    offline: 1,
+    lastUpdate: "15:30",
+    power: 92,
+    status: "online",
+    area: "Ba Đình"
+  },
+  {
+    id: "GW-BD-02",
+    meterCount: 50,
+    online: 48,
+    offline: 2,
+    lastUpdate: "15:25",
+    power: 88,
+    status: "online",
+    area: "Ba Đình"
+  },
+  {
+    id: "GW-DD-01",
+    meterCount: 47,
+    online: 45,
+    offline: 2,
+    lastUpdate: "15:29",
+    power: 97,
+    status: "online",
+    area: "Đống Đa"
+  },
+  {
+    id: "GW-DD-02",
+    meterCount: 40,
+    online: 38,
+    offline: 2,
+    lastUpdate: "15:20",
+    power: 90,
+    status: "online",
+    area: "Đống Đa"
+  },
+  {
+    id: "GW-HK-01",
+    meterCount: 57,
+    online: 53,
+    offline: 4,
+    lastUpdate: "15:30",
+    power: 85,
+    status: "online",
+    area: "Hoàn Kiếm"
+  },
+  {
+    id: "GW-HK-02",
+    meterCount: 28,
+    online: 0,
+    offline: 28,
+    lastUpdate: "08:15",
+    power: 0,
+    status: "offline",
+    area: "Hoàn Kiếm"
+  }
+];
 
 export function useColumns() {
   const dataList = ref([]);
@@ -47,7 +129,9 @@ export function useColumns() {
       sortable: true,
       minWidth: 80,
       cellRenderer: ({ row }) => (
-        <span class={`font-semibold ${row.offline > 0 ? "text-red-400" : "text-gray-400"}`}>
+        <span
+          class={`font-semibold ${row.offline > 0 ? "text-red-400" : "text-gray-400"}`}
+        >
           {row.offline}
         </span>
       )
@@ -89,7 +173,9 @@ export function useColumns() {
       sortable: true,
       minWidth: 100,
       cellRenderer: ({ row }) => (
-        <span class={`font-semibold ${row.power >= 80 ? "text-green-500" : row.power >= 30 ? "text-amber-500" : "text-red-500"}`}>
+        <span
+          class={`font-semibold ${row.power >= 80 ? "text-green-500" : row.power >= 30 ? "text-amber-500" : "text-red-500"}`}
+        >
           {row.power > 0 ? `${row.power}%` : "N/A"}
         </span>
       )

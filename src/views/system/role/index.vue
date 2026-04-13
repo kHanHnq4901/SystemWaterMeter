@@ -1,344 +1,269 @@
 <script setup lang="ts">
-import { useRole } from "./utils/hook";
-import { ref, computed, nextTick, onMounted } from "vue";
+import { ref, reactive, onMounted } from "vue";
 import { PureTableBar } from "@/components/RePureTableBar";
-import { useRenderIcon } from "@/components/ReIcon/src/hooks";
-import {
-  delay,
-  subBefore,
-  deviceDetection,
-  useResizeObserver
-} from "@pureadmin/utils";
 
-// import Database from "~icons/ri/database-2-line";
-// import More from "~icons/ep/more-filled";
-import Delete from "~icons/ep/delete";
-import EditPen from "~icons/ep/edit-pen";
-import Refresh from "~icons/ep/refresh";
-import Menu from "~icons/ep/menu";
-import AddFill from "~icons/ri/add-circle-line";
-import Close from "~icons/ep/close";
-import Check from "~icons/ep/check";
+defineOptions({ name: "SystemRole" });
 
-defineOptions({
-  name: "SystemRole"
+const loading = ref(false);
+
+const form = reactive({
+  name: "",
+  code: "",
+  status: ""
 });
 
-const iconClass = computed(() => {
-  return [
-    "size-5.5",
-    "flex-c",
-    "outline-hidden",
-    "rounded-sm",
-    "cursor-pointer",
-    "transition-colors",
-    "hover:bg-[#0000000f]",
-    "dark:hover:bg-[#ffffff1f]",
-    "dark:hover:text-[#ffffffd9]"
-  ];
+const dataList = ref([
+  {
+    id: 1,
+    name: "Quản trị viên",
+    code: "admin",
+    status: 1,
+    remark: "Toàn quyền hệ thống",
+    userCount: 3,
+    createTime: "2024-01-01 00:00:00"
+  },
+  {
+    id: 2,
+    name: "Quản lý",
+    code: "manager",
+    status: 1,
+    remark: "Quản lý phòng ban",
+    userCount: 5,
+    createTime: "2024-01-15 10:00:00"
+  },
+  {
+    id: 3,
+    name: "Kế toán",
+    code: "accountant",
+    status: 1,
+    remark: "Truy cập mục tài chính",
+    userCount: 4,
+    createTime: "2024-02-01 08:30:00"
+  },
+  {
+    id: 4,
+    name: "Nhân viên",
+    code: "staff",
+    status: 1,
+    remark: "Quyền hạn chế",
+    userCount: 20,
+    createTime: "2024-02-15 14:20:00"
+  },
+  {
+    id: 5,
+    name: "Khách hàng",
+    code: "customer",
+    status: 0,
+    remark: "Tài khoản khách",
+    userCount: 100,
+    createTime: "2024-03-01 09:15:00"
+  }
+]);
+
+const treeData = ref([
+  {
+    id: 100,
+    label: "Bản đồ",
+    children: [
+      { id: 101, label: "Tổng quan" },
+      { id: 102, label: "Bản đồ Gateway" },
+      { id: 103, label: "Bản đồ Đồng hồ" }
+    ]
+  },
+  {
+    id: 200,
+    label: "Thiết bị",
+    children: [
+      { id: 201, label: "Quản lý Gateway" },
+      { id: 202, label: "Quản lý Đồng hồ" },
+      { id: 203, label: "Quản lý Khu vực" }
+    ]
+  },
+  {
+    id: 300,
+    label: "Phân tích",
+    children: [
+      { id: 301, label: "Xem dữ liệu" },
+      { id: 302, label: "Sản lượng nước" },
+      { id: 303, label: "Tổn thất" },
+      { id: 304, label: "Cảnh báo" },
+      { id: 305, label: "Báo cáo" }
+    ]
+  },
+  {
+    id: 400,
+    label: "Hệ thống",
+    children: [
+      { id: 401, label: "Người dùng" },
+      { id: 402, label: "Vai trò" },
+      { id: 403, label: "Menu" },
+      { id: 404, label: "Phòng ban" }
+    ]
+  }
+]);
+
+const pagination = reactive({
+  total: 5,
+  pageSize: 10,
+  currentPage: 1,
+  background: true
 });
 
-const treeRef = ref();
-const formRef = ref();
-const tableRef = ref();
-const contentRef = ref();
-const treeHeight = ref();
+const columns = [
+  { type: "selection", width: 55 },
+  { label: "ID", prop: "id", width: 70 },
+  { label: "Tên vai trò", prop: "name", minWidth: 120 },
+  { label: "Mã vai trò", prop: "code", minWidth: 100 },
+  { label: "Số người dùng", prop: "userCount", width: 110, align: "center" },
+  { label: "Trạng thái", prop: "status", width: 90, align: "center" },
+  { label: "Ghi chú", prop: "remark", minWidth: 150 },
+  { label: "Ngày tạo", prop: "createTime", minWidth: 160 },
+  { label: "Thao tác", width: 180, fixed: "right", slot: "operation" }
+];
 
-const {
-  form,
-  isShow,
-  curRow,
-  loading,
-  columns,
-  rowStyle,
-  dataList,
-  treeData,
-  treeProps,
-  isLinkage,
-  pagination,
-  isExpandAll,
-  isSelectAll,
-  treeSearchValue,
-  // buttonClass,
-  onSearch,
-  resetForm,
-  openDialog,
-  handleMenu,
-  handleSave,
-  handleDelete,
-  filterMethod,
-  transformI18n,
-  onQueryChanged,
-  // handleDatabase,
-  handleSizeChange,
-  handleCurrentChange,
-  handleSelectionChange
-} = useRole(treeRef);
+const isShowMenu = ref(false);
+const curRole = ref(null);
+
+const onSearch = () => {
+  loading.value = true;
+  setTimeout(() => {
+    loading.value = false;
+  }, 300);
+};
+
+const resetForm = () => {
+  form.name = "";
+  form.code = "";
+  form.status = "";
+  onSearch();
+};
+
+const handleEdit = row => {
+  console.log("Sửa:", row);
+};
+
+const handleDelete = row => {
+  console.log("Xóa:", row);
+};
+
+const handleMenu = row => {
+  curRole.value = row;
+  isShowMenu.value = true;
+};
+
+const handleCloseMenu = () => {
+  isShowMenu.value = false;
+};
+
+const handleSaveMenu = () => {
+  console.log("Lưu quyền menu");
+  isShowMenu.value = false;
+};
 
 onMounted(() => {
-  useResizeObserver(contentRef, async () => {
-    await nextTick();
-    delay(60).then(() => {
-      treeHeight.value = parseFloat(
-        subBefore(tableRef.value.getTableDoms().tableWrapper.style.height, "px")
-      );
-    });
-  });
+  onSearch();
 });
 </script>
 
 <template>
-  <div class="main">
+  <div class="p-4">
     <el-form
-      ref="formRef"
       :inline="true"
       :model="form"
-      class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto"
+      class="search-form bg-bg_color w-full pl-8 pt-3 mb-4"
     >
-      <el-form-item label="Tên vai trò:" prop="name">
+      <el-form-item label="Tên vai trò:">
         <el-input
           v-model="form.name"
-          placeholder="Nhập tên vai trò"
+          placeholder="Nhập tên"
           clearable
-          class="w-45!"
+          class="w-40!"
         />
       </el-form-item>
-      <el-form-item label="Mã vai trò:" prop="code">
+      <el-form-item label="Mã vai trò:">
         <el-input
           v-model="form.code"
-          placeholder="Nhập mã vai trò"
+          placeholder="Nhập mã"
           clearable
-          class="w-45!"
+          class="w-40!"
         />
       </el-form-item>
-      <el-form-item label="Trạng thái:" prop="status">
+      <el-form-item label="Trạng thái:">
         <el-select
           v-model="form.status"
-          placeholder="Chọn trạng thái"
+          placeholder="Chọn"
           clearable
-          class="w-45!"
+          class="w-36!"
         >
-          <el-option label="Đã bật" value="1" />
-          <el-option label="Đã tắt" value="0" />
+          <el-option label="Hoạt động" :value="1" />
+          <el-option label="Ngừng" :value="0" />
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button
-          type="primary"
-          :icon="useRenderIcon('ri:search-line')"
-          :loading="loading"
-          @click="onSearch"
-        >
-          Tìm kiếm
-        </el-button>
-        <el-button
-          :icon="useRenderIcon('ri:refresh-line')"
-          @click="resetForm(formRef)"
-        >
-          Đặt lại
-        </el-button>
+        <el-button type="primary" @click="onSearch">Tìm kiếm</el-button>
+        <el-button @click="resetForm">Đặt lại</el-button>
       </el-form-item>
     </el-form>
 
-    <div
-      ref="contentRef"
-      :class="['flex', deviceDetection() ? 'flex-wrap' : '']"
-    >
-      <PureTableBar
-        :class="[isShow && !deviceDetection() ? 'w-[60vw]!' : 'w-full']"
-        style="transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1)"
-        title="Quản lý Vai trò"
-        :columns="columns"
-        @refresh="onSearch"
-      >
-        <template #buttons>
-          <el-button
-            type="primary"
-            :icon="useRenderIcon('ri:add-circle-line')"
-            @click="openDialog()"
-          >
-            Thêm mới
-          </el-button>
-        </template>
-        <template v-slot="{ size, dynamicColumns }">
-          <pure-table
-            ref="tableRef"
-            align-whole="center"
-            showOverflowTooltip
-            table-layout="auto"
-            :loading="loading"
-            :size="size"
-            adaptive
-            :row-style="rowStyle"
-            :adaptiveConfig="{ offsetBottom: 108 }"
-            :data="dataList"
-            :columns="dynamicColumns"
-            :pagination="{ ...pagination, size }"
-            :header-cell-style="{
-              background: 'var(--el-fill-color-light)',
-              color: 'var(--el-text-color-primary)'
-            }"
-            @selection-change="handleSelectionChange"
-            @page-size-change="handleSizeChange"
-            @page-current-change="handleCurrentChange"
-          >
-            <template #operation="{ row }">
-              <el-button
-                class="reset-margin"
-                link
-                type="primary"
-                :size="size"
-                :icon="useRenderIcon(EditPen)"
-                @click="openDialog('修改', row)"
-              >
-                修改
-              </el-button>
-              <el-popconfirm
-                :title="`Xác nhận xóa vai trò ${row.name}?`"
-                @confirm="handleDelete(row)"
-              >
-                <template #reference>
-                  <el-button
-                    class="reset-margin"
-                    link
-                    type="primary"
-                    :size="size"
-                    :icon="useRenderIcon(Delete)"
-                  >
-                    删除
-                  </el-button>
-                </template>
-              </el-popconfirm>
-              <el-button
-                class="reset-margin"
-                link
-                type="primary"
-                :size="size"
-                :icon="useRenderIcon(Menu)"
-                @click="handleMenu(row)"
-              >
-                权限
-              </el-button>
-              <!-- <el-dropdown>
-              <el-button
-                class="ml-3 mt-[2px]"
-                link
-                type="primary"
-                :size="size"
-                :icon="useRenderIcon(More)"
-              />
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item>
-                    <el-button
-                      :class="buttonClass"
-                      link
-                      type="primary"
-                      :size="size"
-                      :icon="useRenderIcon(Menu)"
-                      @click="handleMenu"
-                    >
-                      Quyền menu
-                    </el-button>
-                  </el-dropdown-item>
-                  <el-dropdown-item>
-                    <el-button
-                      :class="buttonClass"
-                      link
-                      type="primary"
-                      :size="size"
-                      :icon="useRenderIcon(Database)"
-                      @click="handleDatabase"
-                    >
-                      Quyền dữ liệu
-                    </el-button>
-                  </el-dropdown-item>
-                </el-dropdown-menu>
+    <div class="flex gap-2">
+      <div :class="isShowMenu ? 'w-[60%]' : 'w-full'">
+        <PureTableBar
+          title="Quản lý Vai trò"
+          :columns="columns"
+          @refresh="onSearch"
+        >
+          <template #buttons>
+            <el-button type="primary">Thêm mới</el-button>
+          </template>
+          <template #default>
+            <pure-table
+              :loading="loading"
+              :data="dataList"
+              :columns="columns"
+              :pagination="pagination"
+              row-key="id"
+            >
+              <template #status="{ row }">
+                <el-tag
+                  :type="row.status === 1 ? 'success' : 'danger'"
+                  size="small"
+                  >{{ row.status === 1 ? "Hoạt động" : "Ngừng" }}</el-tag
+                >
               </template>
-            </el-dropdown> -->
-            </template>
-          </pure-table>
-        </template>
-      </PureTableBar>
+              <template #operation="{ row }">
+                <el-button type="primary" link @click="handleEdit(row)"
+                  >Sửa</el-button
+                >
+                <el-button type="danger" link @click="handleDelete(row)"
+                  >Xóa</el-button
+                >
+                <el-button type="warning" link @click="handleMenu(row)"
+                  >Phân quyền</el-button
+                >
+              </template>
+            </pure-table>
+          </template>
+        </PureTableBar>
+      </div>
 
       <div
-        v-if="isShow"
-        class="min-w-[calc(100vw-60vw-268px)]! w-full mt-2 px-2 pb-2 bg-bg_color ml-2 overflow-auto"
+        v-if="isShowMenu"
+        class="w-[38%] bg-white dark:bg-gray-800 rounded-lg p-4"
       >
-        <div class="flex justify-between w-full px-3 pt-5 pb-4">
-          <div class="flex">
-            <span :class="iconClass">
-              <IconifyIconOffline
-                v-tippy="{
-                  content: 'Đóng'
-                }"
-                class="dark:text-white"
-                width="18px"
-                height="18px"
-                :icon="Close"
-                @click="handleMenu"
-              />
-            </span>
-            <span :class="[iconClass, 'ml-2']">
-              <IconifyIconOffline
-                v-tippy="{
-                  content: 'Lưu quyền menu'
-                }"
-                class="dark:text-white"
-                width="18px"
-                height="18px"
-                :icon="Check"
-                @click="handleSave"
-              />
-            </span>
-          </div>
-          <p class="font-bold truncate">
-            Quyền menu
-            {{ `${curRow?.name ? `（${curRow.name}）` : ""}` }}
-          </p>
+        <div class="flex justify-between items-center mb-4">
+          <span class="font-bold">Phân quyền menu - {{ curRole?.name }}</span>
+          <el-button type="primary" size="small" @click="handleSaveMenu"
+            >Lưu</el-button
+          >
         </div>
-        <el-input
-          v-model="treeSearchValue"
-          placeholder="Tìm kiếm menu"
-          class="mb-1"
-          clearable
-          @input="onQueryChanged"
-        />
-        <div class="flex flex-wrap">
-          <el-checkbox v-model="isExpandAll" label="Mở rộng/Thu gọn" />
-          <el-checkbox v-model="isSelectAll" label="Chọn tất cả/Bỏ chọn" />
-          <el-checkbox v-model="isLinkage" label="Liên kết cha con" />
-        </div>
-        <el-tree-v2
-          ref="treeRef"
-          show-checkbox
+        <el-input placeholder="Tìm kiếm menu" class="mb-2" />
+        <el-tree
           :data="treeData"
-          :props="treeProps"
-          :height="treeHeight"
-          :check-strictly="!isLinkage"
-          :filter-method="filterMethod"
-        >
-          <template #default="{ node }">
-            <span>{{ transformI18n(node.label) }}</span>
-          </template>
-        </el-tree-v2>
+          :props="{ label: 'label', children: 'children' }"
+          show-checkbox
+          default-expand-all
+        />
       </div>
     </div>
   </div>
 </template>
-
-<style lang="scss" scoped>
-:deep(.el-dropdown-menu__item i) {
-  margin: 0;
-}
-
-.main-content {
-  margin: 24px 24px 0 !important;
-}
-
-.search-form {
-  :deep(.el-form-item) {
-    margin-bottom: 12px;
-  }
-}
-</style>

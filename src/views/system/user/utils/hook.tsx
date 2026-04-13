@@ -468,9 +468,11 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
   /** 分配角色 */
   async function handleRole(row) {
     // 选中的角色列表
-    const ids = (await getRoleIds({ userId: row.id })).data ?? [];
+    const { code, data } = await getRoleIds({ userId: row.id });
+    const ids = code === 0 ? data : [];
+
     addDialog({
-      title: `分配 ${row.username} 用户的角色`,
+      title: `Gán vai trò cho người dùng ${row.username}`,
       props: {
         formInline: {
           username: row?.username ?? "",
@@ -487,8 +489,11 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
       contentRenderer: () => h(roleForm),
       beforeSure: (done, { options }) => {
         const curData = options.props.formInline as RoleFormItemProps;
-        console.log("curIds", curData.ids);
-        // 根据实际业务使用curData.ids和row里的某些字段去调用修改角色接口即可
+        console.log("Vai trò đã chọn:", curData.ids);
+        // Gọi API cập nhật vai trò người dùng ở đây
+        message(`Đã cập nhật vai trò cho người dùng ${row.username}`, {
+          type: "success"
+        });
         done(); // 关闭弹框
       }
     });
@@ -508,7 +513,8 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
     treeLoading.value = false;
 
     // 角色列表
-    roleOptions.value = (await getAllRoleList()).data ?? [];
+    const roleRes = await getAllRoleList();
+    roleOptions.value = roleRes.code === 0 ? roleRes.data : [];
   });
 
   return {

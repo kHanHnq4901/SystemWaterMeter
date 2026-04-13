@@ -1,175 +1,215 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { useDept } from "./utils/hook";
+import { ref, reactive, onMounted } from "vue";
 import { PureTableBar } from "@/components/RePureTableBar";
-import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 
-import Delete from "~icons/ep/delete";
-import EditPen from "~icons/ep/edit-pen";
-import Refresh from "~icons/ep/refresh";
-import AddFill from "~icons/ri/add-circle-line";
+defineOptions({ name: "SystemDept" });
 
-defineOptions({
-  name: "SystemDept"
+const loading = ref(false);
+
+const form = reactive({
+  name: "",
+  status: null
 });
 
-const formRef = ref();
-const tableRef = ref();
-const {
-  form,
-  loading,
-  columns,
-  dataList,
-  onSearch,
-  resetForm,
-  openDialog,
-  handleDelete,
-  handleSelectionChange
-} = useDept();
+const dataList = ref([
+  {
+    id: 100,
+    parentId: 0,
+    name: "Công ty A",
+    sort: 0,
+    status: 1,
+    leader: "Nguyễn Văn A",
+    phone: "0912345678",
+    email: "ctyA@example.com",
+    createTime: "2024-01-01 00:00:00",
+    remark: "Trụ sở chính"
+  },
+  {
+    id: 101,
+    parentId: 100,
+    name: "Chi nhánh 1",
+    sort: 1,
+    status: 1,
+    leader: "Trần Văn B",
+    phone: "0923456789",
+    email: "cn1@example.com",
+    createTime: "2024-01-15 10:00:00",
+    remark: "Chi nhánh miền Bắc"
+  },
+  {
+    id: 102,
+    parentId: 100,
+    name: "Chi nhánh 2",
+    sort: 2,
+    status: 1,
+    leader: "Lê Văn C",
+    phone: "0934567890",
+    email: "cn2@example.com",
+    createTime: "2024-02-01 08:30:00",
+    remark: "Chi nhánh miền Nam"
+  },
+  {
+    id: 103,
+    parentId: 101,
+    name: "Phòng IT",
+    sort: 1,
+    status: 1,
+    leader: "Phạm Văn D",
+    phone: "0945678901",
+    email: "it@example.com",
+    createTime: "2024-02-15 14:20:00",
+    remark: "Phòng công nghệ thông tin"
+  },
+  {
+    id: 104,
+    parentId: 101,
+    name: "Phòng Kế toán",
+    sort: 2,
+    status: 1,
+    leader: "Hoàng Thị E",
+    phone: "0956789012",
+    email: "ketoan@example.com",
+    createTime: "2024-03-01 09:15:00",
+    remark: "Phòng tài chính kế toán"
+  },
+  {
+    id: 105,
+    parentId: 102,
+    name: "Phòng Kinh doanh",
+    sort: 1,
+    status: 1,
+    leader: "Vũ Văn F",
+    phone: "0967890123",
+    email: "kd@example.com",
+    createTime: "2024-03-10 11:45:00",
+    remark: "Phòng kinh doanh"
+  },
+  {
+    id: 106,
+    parentId: 102,
+    name: "Phòng Nhân sự",
+    sort: 2,
+    status: 0,
+    leader: "Đặng Thị G",
+    phone: "0978901234",
+    email: "hr@example.com",
+    createTime: "2024-03-20 16:30:00",
+    remark: "Phòng nhân sự"
+  }
+]);
 
-function onFullscreen() {
-  // 重置表格高度
-  tableRef.value.setAdaptive();
-}
+const pagination = reactive({
+  total: 7,
+  pageSize: 10,
+  currentPage: 1,
+  background: true
+});
+
+const columns = [
+  { label: "Tên phòng ban", prop: "name", minWidth: 180 },
+  { label: "Sắp xếp", prop: "sort", width: 80, align: "center" },
+  { label: "Trạng thái", prop: "status", width: 90, align: "center" },
+  { label: "Người phụ trách", prop: "leader", minWidth: 130 },
+  { label: "Điện thoại", prop: "phone", width: 120 },
+  { label: "Ngày tạo", prop: "createTime", minWidth: 160 },
+  { label: "Thao tác", width: 150, fixed: "right", slot: "operation" }
+];
+
+const onSearch = () => {
+  loading.value = true;
+  setTimeout(() => {
+    loading.value = false;
+  }, 300);
+};
+
+const resetForm = () => {
+  form.name = "";
+  form.status = null;
+  onSearch();
+};
+
+const handleEdit = row => {
+  console.log("Sửa:", row);
+};
+
+const handleDelete = row => {
+  console.log("Xóa:", row);
+};
+
+const handleAdd = () => {
+  console.log("Thêm phòng ban");
+};
+
+onMounted(() => {
+  onSearch();
+});
 </script>
 
 <template>
-  <div class="main">
+  <div class="p-4">
     <el-form
-      ref="formRef"
       :inline="true"
       :model="form"
-      class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto"
+      class="search-form bg-bg_color w-full pl-8 pt-3 mb-4"
     >
-      <el-form-item label="Tên phòng ban:" prop="name">
+      <el-form-item label="Tên phòng ban:">
         <el-input
           v-model="form.name"
-          placeholder="Nhập tên phòng ban"
+          placeholder="Nhập tên"
           clearable
-          class="w-45!"
+          class="w-40!"
         />
       </el-form-item>
-      <el-form-item label="Trạng thái:" prop="status">
+      <el-form-item label="Trạng thái:">
         <el-select
           v-model="form.status"
           placeholder="Chọn"
           clearable
-          class="w-45!"
+          class="w-36!"
         >
-          <el-option label="Bật" :value="1" />
-          <el-option label="Tắt" :value="0" />
+          <el-option label="Hoạt động" :value="1" />
+          <el-option label="Ngừng" :value="0" />
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button
-          type="primary"
-          :icon="useRenderIcon('ri:search-line')"
-          :loading="loading"
-          @click="onSearch"
-        >
-          Tìm kiếm
-        </el-button>
-        <el-button
-          :icon="useRenderIcon('ri:refresh-line')"
-          @click="resetForm(formRef)"
-        >
-          Đặt lại
-        </el-button>
+        <el-button type="primary" @click="onSearch">Tìm kiếm</el-button>
+        <el-button @click="resetForm">Đặt lại</el-button>
       </el-form-item>
     </el-form>
 
     <PureTableBar
       title="Quản lý Phòng ban"
       :columns="columns"
-      :tableRef="tableRef?.getTableRef()"
       @refresh="onSearch"
-      @fullscreen="onFullscreen"
     >
       <template #buttons>
-        <el-button
-          type="primary"
-          :icon="useRenderIcon('ri:add-circle-line')"
-          @click="openDialog()"
-        >
-          Thêm mới
-        </el-button>
+        <el-button type="primary" @click="handleAdd">Thêm mới</el-button>
       </template>
-      <template v-slot="{ size, dynamicColumns }">
+      <template #default>
         <pure-table
-          ref="tableRef"
-          adaptive
-          :adaptiveConfig="{ offsetBottom: 45 }"
-          align-whole="center"
-          row-key="id"
-          showOverflowTooltip
-          table-layout="auto"
-          default-expand-all
           :loading="loading"
-          :size="size"
           :data="dataList"
-          :columns="dynamicColumns"
-          :header-cell-style="{
-            background: 'var(--el-fill-color-light)',
-            color: 'var(--el-text-color-primary)'
-          }"
-          @selection-change="handleSelectionChange"
+          :columns="columns"
+          :pagination="pagination"
+          row-key="id"
         >
+          <template #status="{ row }">
+            <el-tag
+              :type="row.status === 1 ? 'success' : 'danger'"
+              size="small"
+              >{{ row.status === 1 ? "Hoạt động" : "Ngừng" }}</el-tag
+            >
+          </template>
           <template #operation="{ row }">
-            <el-button
-              class="reset-margin"
-              link
-              type="primary"
-              :size="size"
-              :icon="useRenderIcon(EditPen)"
-              @click="openDialog('修改', row)"
+            <el-button type="primary" link @click="handleEdit(row)"
+              >Sửa</el-button
             >
-              修改
-            </el-button>
-            <el-button
-              class="reset-margin"
-              link
-              type="primary"
-              :size="size"
-              :icon="useRenderIcon(AddFill)"
-              @click="openDialog('新增', { parentId: row.id } as any)"
+            <el-button type="danger" link @click="handleDelete(row)"
+              >Xóa</el-button
             >
-              新增
-            </el-button>
-            <el-popconfirm
-              :title="`Xác nhận xóa phòng ban ${row.name}?`"
-              @confirm="handleDelete(row)"
-            >
-              <template #reference>
-                <el-button
-                  class="reset-margin"
-                  link
-                  type="primary"
-                  :size="size"
-                  :icon="useRenderIcon(Delete)"
-                >
-                  删除
-                </el-button>
-              </template>
-            </el-popconfirm>
           </template>
         </pure-table>
       </template>
     </PureTableBar>
   </div>
 </template>
-
-<style lang="scss" scoped>
-:deep(.el-table__inner-wrapper::before) {
-  height: 0;
-}
-
-.main-content {
-  margin: 24px 24px 0 !important;
-}
-
-.search-form {
-  :deep(.el-form-item) {
-    margin-bottom: 12px;
-  }
-}
-</style>

@@ -5,8 +5,17 @@ import dotenv from "dotenv";
 // Import routes
 import authRoutes from "./routes/auth.js";
 import usersRoutes from "./routes/users.js";
-import menusRoutes from "./routes/menus.js"; // THÊM MỚI: Import Menu
-import rolesRoutes from "./routes/roles.js"; // THÊM MỚI: Import Role
+import menusRoutes from "./routes/menus.js";
+import rolesRoutes from "./routes/roles.js";
+import deptsRoutes from "./routes/depts.js";
+import waterMetersRoutes from "./routes/water-meters.js";
+import customersRoutes from "./routes/customers.js";
+import invoicesRoutes from "./routes/invoices.js";
+import hierarchyRoutes from "./routes/hierarchy.js";
+import gatewaysRoutes from "./routes/gateways.js";
+import dashboardRoutes from "./routes/dashboard.js";
+import alertsRoutes from "./routes/alerts.js";
+import maintenanceRoutes from "./routes/maintenance.js";
 
 // Import database
 import { testConnection } from "./config/database.js";
@@ -37,12 +46,21 @@ app.get("/api/health", (req, res) => {
 // ==========================================
 // API Routes - chia theo module
 // ==========================================
-app.use("/api/auth", authRoutes); // Quản lý Đăng nhập, Refresh Token
-app.use("/api/users", usersRoutes); // Quản lý CRUD Người dùng
+app.use("/api/auth", authRoutes);
+app.use("/api/users", usersRoutes);
+app.use("/api/roles", rolesRoutes);
+app.use("/api/menus", menusRoutes);
+app.use("/api/depts", deptsRoutes);
 
-// THÊM MỚI 2 DÒNG NÀY VÀO:
-app.use("/api/roles", rolesRoutes); // Quản lý CRUD Vai trò
-app.use("/api/menus", menusRoutes); // Quản lý CRUD Menu & get-async-routes
+// Water Meter System APIs
+app.use("/api/water-meters", waterMetersRoutes);
+app.use("/api/customers", customersRoutes);
+app.use("/api/invoices", invoicesRoutes);
+app.use("/api/hierarchy", hierarchyRoutes);
+app.use("/api/gateways", gatewaysRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/alerts", alertsRoutes);
+app.use("/api/maintenance", maintenanceRoutes);
 
 // Start server
 app.listen(PORT, async () => {

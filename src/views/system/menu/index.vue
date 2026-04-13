@@ -1,166 +1,367 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { useMenu } from "./utils/hook";
-import { transformI18n } from "@/plugins/i18n";
+import { ref, reactive, onMounted } from "vue";
 import { PureTableBar } from "@/components/RePureTableBar";
-import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 
-import Delete from "~icons/ep/delete";
-import EditPen from "~icons/ep/edit-pen";
-import Refresh from "~icons/ep/refresh";
-import AddFill from "~icons/ri/add-circle-line";
+defineOptions({ name: "SystemMenu" });
 
-defineOptions({
-  name: "SystemMenu"
+const loading = ref(false);
+
+const form = reactive({
+  title: ""
 });
 
-const formRef = ref();
-const tableRef = ref();
-const {
-  form,
-  loading,
-  columns,
-  dataList,
-  onSearch,
-  resetForm,
-  openDialog,
-  handleDelete,
-  handleSelectionChange
-} = useMenu();
+const dataList = ref([
+  {
+    id: 1,
+    parentId: 0,
+    menuType: 0,
+    title: "Bản đồ",
+    icon: "ri:map-2-line",
+    path: "/map",
+    sort: 1,
+    isShow: 1,
+    status: 1
+  },
+  {
+    id: 2,
+    parentId: 0,
+    menuType: 0,
+    title: "Thiết bị",
+    icon: "ri:wireless-charging-line",
+    path: "/device",
+    sort: 2,
+    isShow: 1,
+    status: 1
+  },
+  {
+    id: 3,
+    parentId: 0,
+    menuType: 0,
+    title: "Phân tích",
+    icon: "ri:bar-chart-box-line",
+    path: "/analysis",
+    sort: 3,
+    isShow: 1,
+    status: 1
+  },
+  {
+    id: 4,
+    parentId: 0,
+    menuType: 0,
+    title: "Hệ thống",
+    icon: "ri:settings-3-line",
+    path: "/system",
+    sort: 4,
+    isShow: 1,
+    status: 1
+  },
+  {
+    id: 5,
+    parentId: 0,
+    menuType: 0,
+    title: "Nhật ký",
+    icon: "ri:file-history-line",
+    path: "/logs",
+    sort: 5,
+    isShow: 1,
+    status: 1
+  },
+  // Sub-items for Bản đồ
+  {
+    id: 11,
+    parentId: 1,
+    menuType: 0,
+    title: "Tổng quan",
+    icon: "ri:map-range-line",
+    path: "/map/overview",
+    sort: 1,
+    isShow: 1,
+    status: 1
+  },
+  {
+    id: 12,
+    parentId: 1,
+    menuType: 0,
+    title: "Gateway",
+    icon: "ri:router-line",
+    path: "/map/gateway",
+    sort: 2,
+    isShow: 1,
+    status: 1
+  },
+  {
+    id: 13,
+    parentId: 1,
+    menuType: 0,
+    title: "Đồng hồ",
+    icon: "ri:water-drop-line",
+    path: "/map/meter",
+    sort: 3,
+    isShow: 1,
+    status: 1
+  },
+  // Sub-items for Thiết bị
+  {
+    id: 21,
+    parentId: 2,
+    menuType: 0,
+    title: "Gateway",
+    icon: "ri:router-line",
+    path: "/device/gateway",
+    sort: 1,
+    isShow: 1,
+    status: 1
+  },
+  {
+    id: 22,
+    parentId: 2,
+    menuType: 0,
+    title: "Đồng hồ",
+    icon: "ri:gauge-line",
+    path: "/device/meter",
+    sort: 2,
+    isShow: 1,
+    status: 1
+  },
+  {
+    id: 23,
+    parentId: 2,
+    menuType: 0,
+    title: "Khu vực",
+    icon: "ri:map-pin-range-line",
+    path: "/device/area",
+    sort: 3,
+    isShow: 1,
+    status: 1
+  },
+  // Sub-items for Phân tích
+  {
+    id: 31,
+    parentId: 3,
+    menuType: 0,
+    title: "Dữ liệu",
+    icon: "ri:database-line",
+    path: "/analysis/data",
+    sort: 1,
+    isShow: 1,
+    status: 1
+  },
+  {
+    id: 32,
+    parentId: 3,
+    menuType: 0,
+    title: "Sản lượng",
+    icon: "ri:water-flash-line",
+    path: "/analysis/production",
+    sort: 2,
+    isShow: 1,
+    status: 1
+  },
+  {
+    id: 33,
+    parentId: 3,
+    menuType: 0,
+    title: "Tổn thất",
+    icon: "ri:alarm-warning-line",
+    path: "/analysis/loss",
+    sort: 3,
+    isShow: 1,
+    status: 1
+  },
+  {
+    id: 34,
+    parentId: 3,
+    menuType: 0,
+    title: "Cảnh báo",
+    icon: "ri:notification-3-line",
+    path: "/analysis/alert",
+    sort: 4,
+    isShow: 1,
+    status: 1
+  },
+  {
+    id: 35,
+    parentId: 3,
+    menuType: 0,
+    title: "Báo cáo",
+    icon: "ri:file-chart-line",
+    path: "/analysis/report",
+    sort: 5,
+    isShow: 1,
+    status: 1
+  },
+  // Sub-items for Hệ thống
+  {
+    id: 41,
+    parentId: 4,
+    menuType: 0,
+    title: "Người dùng",
+    icon: "ri:user-settings-line",
+    path: "/system/user",
+    sort: 1,
+    isShow: 1,
+    status: 1
+  },
+  {
+    id: 42,
+    parentId: 4,
+    menuType: 0,
+    title: "Vai trò",
+    icon: "ri:shield-user-line",
+    path: "/system/role",
+    sort: 2,
+    isShow: 1,
+    status: 1
+  },
+  {
+    id: 43,
+    parentId: 4,
+    menuType: 0,
+    title: "Menu",
+    icon: "ri:menu-2-line",
+    path: "/system/menu",
+    sort: 3,
+    isShow: 1,
+    status: 1
+  },
+  {
+    id: 44,
+    parentId: 4,
+    menuType: 0,
+    title: "Phòng ban",
+    icon: "ri:organisation-chart",
+    path: "/system/dept",
+    sort: 4,
+    isShow: 1,
+    status: 1
+  }
+]);
 
-function onFullscreen() {
-  // 重置表格高度
-  tableRef.value.setAdaptive();
-}
+const pagination = reactive({
+  total: 21,
+  pageSize: 10,
+  currentPage: 1,
+  background: true
+});
+
+const columns = [
+  { label: "Tên menu", prop: "title", minWidth: 180, align: "left" },
+  { label: "Icon", prop: "icon", width: 80, align: "center" },
+  { label: "Đường dẫn", prop: "path", minWidth: 150 },
+  { label: "Loại", prop: "menuType", width: 90, align: "center" },
+  { label: "Sắp xếp", prop: "sort", width: 80, align: "center" },
+  { label: "Hiển thị", prop: "isShow", width: 80, align: "center" },
+  { label: "Trạng thái", prop: "status", width: 90, align: "center" },
+  { label: "Thao tác", width: 150, fixed: "right", slot: "operation" }
+];
+
+const getMenuType = type => {
+  const types = { 0: "Menu", 1: "Iframe", 2: "External", 3: "Button" };
+  return types[type] || "Menu";
+};
+
+const onSearch = () => {
+  loading.value = true;
+  setTimeout(() => {
+    loading.value = false;
+  }, 300);
+};
+
+const resetForm = () => {
+  form.title = "";
+  onSearch();
+};
+
+const handleEdit = row => {
+  console.log("Sửa:", row);
+};
+
+const handleDelete = row => {
+  console.log("Xóa:", row);
+};
+
+const handleAdd = () => {
+  console.log("Thêm menu");
+};
+
+onMounted(() => {
+  onSearch();
+});
 </script>
 
 <template>
-  <div class="main">
+  <div class="p-4">
     <el-form
-      ref="formRef"
       :inline="true"
       :model="form"
-      class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto"
+      class="search-form bg-bg_color w-full pl-8 pt-3 mb-4"
     >
-      <el-form-item label="Tên menu:" prop="title">
+      <el-form-item label="Tên menu:">
         <el-input
           v-model="form.title"
-          placeholder="Nhập tên menu"
+          placeholder="Nhập tên"
           clearable
-          class="w-45!"
+          class="w-40!"
         />
       </el-form-item>
       <el-form-item>
-        <el-button
-          type="primary"
-          :icon="useRenderIcon('ri:search-line')"
-          :loading="loading"
-          @click="onSearch"
-        >
-          Tìm kiếm
-        </el-button>
-        <el-button
-          :icon="useRenderIcon('ri:refresh-line')"
-          @click="resetForm(formRef)"
-        >
-          Đặt lại
-        </el-button>
+        <el-button type="primary" @click="onSearch">Tìm kiếm</el-button>
+        <el-button @click="resetForm">Đặt lại</el-button>
       </el-form-item>
     </el-form>
 
-    <PureTableBar
-      title="Quản lý Menu"
-      :columns="columns"
-      :isExpandAll="false"
-      :tableRef="tableRef?.getTableRef()"
-      @refresh="onSearch"
-      @fullscreen="onFullscreen"
-    >
+    <PureTableBar title="Quản lý Menu" :columns="columns" @refresh="onSearch">
       <template #buttons>
-        <el-button
-          type="primary"
-          :icon="useRenderIcon('ri:add-circle-line')"
-          @click="openDialog()"
-        >
-          Thêm mới
-        </el-button>
+        <el-button type="primary" @click="handleAdd">Thêm mới</el-button>
       </template>
-      <template v-slot="{ size, dynamicColumns }">
+      <template #default>
         <pure-table
-          ref="tableRef"
-          adaptive
-          :adaptiveConfig="{ offsetBottom: 45 }"
-          align-whole="center"
-          row-key="id"
-          showOverflowTooltip
-          table-layout="auto"
           :loading="loading"
-          :size="size"
           :data="dataList"
-          :columns="dynamicColumns"
-          :header-cell-style="{
-            background: 'var(--el-fill-color-light)',
-            color: 'var(--el-text-color-primary)'
-          }"
-          @selection-change="handleSelectionChange"
+          :columns="columns"
+          :pagination="pagination"
+          row-key="id"
         >
+          <template #menuType="{ row }">
+            <el-tag
+              :type="
+                row.menuType === 0
+                  ? 'primary'
+                  : row.menuType === 1
+                    ? 'warning'
+                    : row.menuType === 2
+                      ? 'danger'
+                      : 'info'
+              "
+              size="small"
+            >
+              {{ getMenuType(row.menuType) }}
+            </el-tag>
+          </template>
+          <template #isShow="{ row }">
+            <el-tag
+              :type="row.isShow === 1 ? 'success' : 'info'"
+              size="small"
+              >{{ row.isShow === 1 ? "Hiện" : "Ẩn" }}</el-tag
+            >
+          </template>
+          <template #status="{ row }">
+            <el-tag
+              :type="row.status === 1 ? 'success' : 'danger'"
+              size="small"
+              >{{ row.status === 1 ? "Hoạt động" : "Ngừng" }}</el-tag
+            >
+          </template>
           <template #operation="{ row }">
-            <el-button
-              class="reset-margin"
-              link
-              type="primary"
-              :size="size"
-              :icon="useRenderIcon(EditPen)"
-              @click="openDialog('修改', row)"
+            <el-button type="primary" link @click="handleEdit(row)"
+              >Sửa</el-button
             >
-              修改
-            </el-button>
-            <el-button
-              v-show="row.menuType !== 3"
-              class="reset-margin"
-              link
-              type="primary"
-              :size="size"
-              :icon="useRenderIcon(AddFill)"
-              @click="openDialog('新增', { parentId: row.id } as any)"
+            <el-button type="danger" link @click="handleDelete(row)"
+              >Xóa</el-button
             >
-              新增
-            </el-button>
-            <el-popconfirm
-              :title="`Xác nhận xóa menu ${transformI18n(row.title)}?${row?.children?.length > 0 ? '. Lưu ý: menu con sẽ bị xóa theo' : ''}`"
-              @confirm="handleDelete(row)"
-            >
-              <template #reference>
-                <el-button
-                  class="reset-margin"
-                  link
-                  type="primary"
-                  :size="size"
-                  :icon="useRenderIcon(Delete)"
-                >
-                  删除
-                </el-button>
-              </template>
-            </el-popconfirm>
           </template>
         </pure-table>
       </template>
     </PureTableBar>
   </div>
 </template>
-
-<style lang="scss" scoped>
-:deep(.el-table__inner-wrapper::before) {
-  height: 0;
-}
-
-.main-content {
-  margin: 24px 24px 0 !important;
-}
-
-.search-form {
-  :deep(.el-form-item) {
-    margin-bottom: 12px;
-  }
-}
-</style>

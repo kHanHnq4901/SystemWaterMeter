@@ -102,4 +102,180 @@ router.get("/get-async-routes", async (req, res) => {
   }
 });
 
+// GET /api/menus - Lấy danh sách tất cả menu
+router.get("/", async (req, res) => {
+  try {
+    const connection = await pool.connect();
+    const result = await connection.request().query(`
+        SELECT 
+          MENU_ID as id,
+          PARENT_ID as parentId,
+          MENU_TYPE as menuType,
+          TITLE as title,
+          NAME as name,
+          PATH as path,
+          COMPONENT as component,
+          ICON as icon,
+          RANK as rank,
+          PERMISSION as permission,
+          IS_SHOW as isShow,
+          IS_KEEPALIVE as isKeepalive,
+          FRAME_SRC as frameSrc,
+          STATE as status,
+          REMARK as remark
+        FROM IAUDIT_MENU
+        ORDER BY RANK ASC
+      `);
+
+    res.json({
+      success: true,
+      data: result.recordset
+    });
+  } catch (error) {
+    console.error("Get menus error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/menus - Tạo menu mới
+router.post("/", async (req, res) => {
+  try {
+    const {
+      title,
+      name,
+      path,
+      component,
+      icon,
+      parentId,
+      menuType,
+      permission,
+      rank,
+      isShow,
+      isKeepalive,
+      frameSrc,
+      status,
+      remark
+    } = req.body;
+
+    const connection = await pool.connect();
+    const result = await connection
+      .request()
+      .input("TITLE", mssql.NVarChar, title)
+      .input("NAME", mssql.VarChar, name || "")
+      .input("PATH", mssql.VarChar, path || "")
+      .input("COMPONENT", mssql.VarChar, component || "")
+      .input("ICON", mssql.VarChar, icon || "")
+      .input("PARENT_ID", mssql.Int, parentId || 0)
+      .input("MENU_TYPE", mssql.Int, menuType || 1)
+      .input("PERMISSION", mssql.VarChar, permission || "")
+      .input("RANK", mssql.Int, rank || 0)
+      .input("IS_SHOW", mssql.Bit, isShow ?? 1)
+      .input("IS_KEEPALIVE", mssql.Bit, isKeepalive ?? 0)
+      .input("FRAME_SRC", mssql.VarChar, frameSrc || "")
+      .input("STATE", mssql.Int, status || 1)
+      .input("REMARK", mssql.NVarChar, remark || "").query(`
+        INSERT INTO IAUDIT_MENU (TITLE, NAME, PATH, COMPONENT, ICON, PARENT_ID, MENU_TYPE, PERMISSION, RANK, IS_SHOW, IS_KEEPALIVE, FRAME_SRC, STATE, REMARK)
+        VALUES (@TITLE, @NAME, @PATH, @COMPONENT, @ICON, @PARENT_ID, @MENU_TYPE, @PERMISSION, @RANK, @IS_SHOW, @IS_KEEPALIVE, @FRAME_SRC, @STATE, @REMARK);
+        SELECT SCOPE_IDENTITY() as id;
+      `);
+
+    res.status(201).json({
+      success: true,
+      data: { id: result.recordset[0].id },
+      message: "Đã tạo menu thành công"
+    });
+  } catch (error) {
+    console.error("Create menu error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PUT /api/menus/:id - Cập nhật menu
+router.put("/:id", async (req, res) => {
+  try {
+    const {
+      title,
+      name,
+      path,
+      component,
+      icon,
+      parentId,
+      menuType,
+      permission,
+      rank,
+      isShow,
+      isKeepalive,
+      frameSrc,
+      status,
+      remark
+    } = req.body;
+
+    const connection = await pool.connect();
+    await connection
+      .request()
+      .input("id", mssql.Int, req.params.id)
+      .input("TITLE", mssql.NVarChar, title)
+      .input("NAME", mssql.VarChar, name || "")
+      .input("PATH", mssql.VarChar, path || "")
+      .input("COMPONENT", mssql.VarChar, component || "")
+      .input("ICON", mssql.VarChar, icon || "")
+      .input("PARENT_ID", mssql.Int, parentId || 0)
+      .input("MENU_TYPE", mssql.Int, menuType || 1)
+      .input("PERMISSION", mssql.VarChar, permission || "")
+      .input("RANK", mssql.Int, rank || 0)
+      .input("IS_SHOW", mssql.Bit, isShow ?? 1)
+      .input("IS_KEEPALIVE", mssql.Bit, isKeepalive ?? 0)
+      .input("FRAME_SRC", mssql.VarChar, frameSrc || "")
+      .input("STATE", mssql.Int, status || 1)
+      .input("REMARK", mssql.NVarChar, remark || "").query(`
+        UPDATE IAUDIT_MENU
+        SET TITLE = @TITLE, NAME = @NAME, PATH = @PATH, COMPONENT = @COMPONENT, ICON = @ICON, PARENT_ID = @PARENT_ID,
+            MENU_TYPE = @MENU_TYPE, PERMISSION = @PERMISSION, RANK = @RANK, IS_SHOW = @IS_SHOW, IS_KEEPALIVE = @IS_KEEPALIVE,
+            FRAME_SRC = @FRAME_SRC, STATE = @STATE, REMARK = @REMARK
+        WHERE MENU_ID = @id
+      `);
+
+    res.json({
+      success: true,
+      message: "Cập nhật menu thành công"
+    });
+  } catch (error) {
+    console.error("Update menu error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// DELETE /api/menus/:id - Xóa menu
+router.delete("/:id", async (req, res) => {
+  try {
+    const connection = await pool.connect();
+    const transaction = new mssql.Transaction(connection);
+    await transaction.begin();
+
+    try {
+      // Xóa các quyền liên quan ở ROLE_MENU
+      await new mssql.Request(transaction)
+        .input("id", mssql.Int, req.params.id)
+        .query(`DELETE FROM IAUDIT_ROLE_MENU WHERE MENU_ID = @id`);
+
+      // Xóa menu
+      await new mssql.Request(transaction)
+        .input("id", mssql.Int, req.params.id)
+        .query(`DELETE FROM IAUDIT_MENU WHERE MENU_ID = @id`);
+
+      await transaction.commit();
+      res.json({
+        success: true,
+        message: "Đã xóa menu thành công"
+      });
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+  } catch (error) {
+    console.error("Delete menu error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;
