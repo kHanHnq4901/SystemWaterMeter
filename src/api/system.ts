@@ -10,78 +10,110 @@ type ResultTable = {
   code: number;
   message: string;
   data?: {
-    /** 列表数据 */
+    /** Dữ liệu danh sách */
     list: Array<any>;
-    /** 总条目数 */
+    /** Tổng số bản ghi */
     total?: number;
-    /** 每页显示条目个数 */
+    /** Số bản ghi trên 1 trang */
     pageSize?: number;
-    /** 当前页数 */
+    /** Trang hiện tại */
     currentPage?: number;
   };
 };
 
-/** 获取系统管理-用户管理列表 */
+// ==========================================
+// API QUẢN LÝ NGƯỜI DÙNG (USERS)
+// ==========================================
+
+/** Lấy danh sách người dùng (Có phân trang) */
 export const getUserList = (data?: object) => {
-  return http.request<ResultTable>("post", "/user", { data });
+  return http.request<ResultTable>("post", "/api/users/list", { data });
 };
 
-/** 系统管理-用户管理-获取所有角色列表 */
-export const getAllRoleList = () => {
-  return http.request<Result>("get", "/list-all-role");
+// THÊM 3 HÀM NÀY ĐỂ XỬ LÝ THÊM, SỬA, XÓA NGƯỜI DÙNG
+export const addUser = (data?: object) => {
+  return http.request<Result>("post", "/api/users/add", { data });
 };
 
-/** 系统管理-用户管理-根据userId，获取对应角色id列表（userId：用户id） */
+export const updateUser = (id: number, data?: object) => {
+  return http.request<Result>("put", `/api/users/update/${id}`, { data });
+};
+
+export const deleteUser = (id: number) => {
+  return http.request<Result>("delete", `/api/users/${id}`);
+};
+
+// Hàm xóa hàng loạt (dùng cho mảng ID)
+export const batchDeleteUser = (data?: object) => {
+  return http.request<Result>("post", "/api/users/batch-delete", { data });
+};
+/** Lấy danh sách Role IDs mà user đang sở hữu (Dùng cho Popup phân quyền) */
 export const getRoleIds = (data?: object) => {
-  return http.request<Result>("post", "/list-role-ids", { data });
+  // Lưu ý: Cần đảm bảo Backend có API này (VD: POST /api/users/role-ids)
+  return http.request<Result>("post", "/api/users/role-ids", { data });
 };
 
-/** 获取系统管理-角色管理列表 */
+// ==========================================
+// API QUẢN LÝ VAI TRÒ (ROLES) & PHÒNG BAN
+// ==========================================
+
+/** Lấy tất cả danh sách vai trò (Không phân trang - Đổ vào dropdown) */
+export const getAllRoleList = () => {
+  return http.request<Result>("get", "/api/roles/list-all");
+};
+
+/** Lấy danh sách vai trò (Có phân trang - Cho màn hình Quản lý Role) */
 export const getRoleList = (data?: object) => {
-  return http.request<ResultTable>("post", "/role", { data });
+  return http.request<ResultTable>("post", "/api/roles/list", { data });
 };
 
-/** 获取系统管理-菜单管理列表 */
-export const getMenuList = (data?: object) => {
-  return http.request<Result>("post", "/menu", { data });
-};
-
-/** 获取系统管理-部门管理列表 */
+/** Lấy danh sách cây phòng ban (Đã đổi sang gọi Role để vẽ cây theo Role) */
 export const getDeptList = (data?: object) => {
-  return http.request<Result>("post", "/dept", { data });
+  // Đổi từ POST "/dept" sang GET "/api/roles/list-all"
+  return http.request<Result>("get", "/api/roles/list-all", { params: data });
 };
 
-/** 获取系统监控-在线用户列表 */
-export const getOnlineLogsList = (data?: object) => {
-  return http.request<ResultTable>("post", "/online-logs", { data });
+// ==========================================
+// CÁC API KHÁC (MENU, LOGS...) 
+// (Tạm thời trỏ về /api/... để chuẩn bị cho tương lai)
+// ==========================================
+
+/** Lấy danh sách Menu */
+export const getMenuList = (data?: object) => {
+  return http.request<Result>("post", "/api/menus/list", { data });
 };
 
-/** 获取系统监控-登录日志列表 */
-export const getLoginLogsList = (data?: object) => {
-  return http.request<ResultTable>("post", "/login-logs", { data });
-};
-
-/** 获取系统监控-操作日志列表 */
-export const getOperationLogsList = (data?: object) => {
-  return http.request<ResultTable>("post", "/operation-logs", { data });
-};
-
-/** 获取系统监控-系统日志列表 */
-export const getSystemLogsList = (data?: object) => {
-  return http.request<ResultTable>("post", "/system-logs", { data });
-};
-
-/** 获取系统监控-系统日志-根据 id 查日志详情 */
-export const getSystemLogsDetail = (data?: object) => {
-  return http.request<Result>("post", "/system-logs-detail", { data });
-};
-
-/** 获取角色管理-权限-菜单权限 */
+/** Lấy danh sách Menu của Role (Phân quyền) */
 export const getRoleMenu = (data?: object) => {
-  return http.request<Result>("post", "/role-menu", { data });
+  return http.request<Result>("post", "/api/roles/menu", { data });
 };
 
-/** 获取角色管理-权限-菜单权限-根据角色 id 查对应菜单 */
+/** Lấy danh sách ID Menu mà Role đang giữ */
 export const getRoleMenuIds = (data?: object) => {
-  return http.request<Result>("post", "/role-menu-ids", { data });
+  return http.request<Result>("post", "/api/roles/menu-ids", { data });
+};
+
+/** Quản lý Log - User Online */
+export const getOnlineLogsList = (data?: object) => {
+  return http.request<ResultTable>("post", "/api/logs/online", { data });
+};
+
+/** Quản lý Log - Đăng nhập */
+export const getLoginLogsList = (data?: object) => {
+  return http.request<ResultTable>("post", "/api/logs/login", { data });
+};
+
+/** Quản lý Log - Thao tác */
+export const getOperationLogsList = (data?: object) => {
+  return http.request<ResultTable>("post", "/api/logs/operation", { data });
+};
+
+/** Quản lý Log - Hệ thống */
+export const getSystemLogsList = (data?: object) => {
+  return http.request<ResultTable>("post", "/api/logs/system", { data });
+};
+
+/** Chi tiết Log hệ thống */
+export const getSystemLogsDetail = (data?: object) => {
+  return http.request<Result>("post", "/api/logs/system-detail", { data });
 };

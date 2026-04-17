@@ -17,12 +17,19 @@ import {
   hideTextAtIndex,
   deviceDetection
 } from "@pureadmin/utils";
+
+// SỬA: Import thêm các hàm API Thêm, Sửa, Xóa từ file system.ts
 import {
   getRoleIds,
   getDeptList,
   getUserList,
-  getAllRoleList
+  getAllRoleList,
+  addUser,
+  updateUser,
+  deleteUser,
+  batchDeleteUser
 } from "@/api/system";
+
 import {
   ElForm,
   ElInput,
@@ -43,8 +50,7 @@ import {
 
 export function useUser(tableRef: Ref, treeRef: Ref) {
   const form = reactive({
-    // 左侧部门树的id
-    deptId: "",
+    roleId: "",
     username: "",
     phone: "",
     status: ""
@@ -53,7 +59,6 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
   const ruleFormRef = ref();
   const dataList = ref([]);
   const loading = ref(true);
-  // 上传头像信息
   const avatarInfo = ref();
   const switchLoadMap = ref({});
   const { switchStyle } = usePublicHooks();
@@ -67,6 +72,7 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
     currentPage: 1,
     background: true
   });
+
   const columns: TableColumnList = [
     {
       label: "Chọn",
@@ -75,7 +81,7 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
       reserveSelection: true
     },
     {
-      label: "Mã người dùng",
+      label: "ID",
       prop: "id",
       width: 90
     },
@@ -91,7 +97,7 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
           class="size-6 rounded-full align-middle"
         />
       ),
-      width: 90
+      width: 100
     },
     {
       label: "Tên đăng nhập",
@@ -99,39 +105,26 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
       minWidth: 130
     },
     {
-      label: "Biệt danh",
+      label: "Tên hiển thị",
       prop: "nickname",
       minWidth: 130
     },
     {
-      label: "Giới tính",
-      prop: "sex",
-      minWidth: 90,
-      cellRenderer: ({ row, props }) => (
-        <el-tag
-          size={props.size}
-          type={row.sex === 1 ? "danger" : null}
-          effect="plain"
-        >
-          {row.sex === 1 ? "Nữ" : "Nam"}
-        </el-tag>
-      )
-    },
-    {
-      label: "Phòng ban",
-      prop: "dept.name",
-      minWidth: 90
+      label: "Email",
+      prop: "email",
+      minWidth: 150
     },
     {
       label: "Số điện thoại",
       prop: "phone",
-      minWidth: 90,
-      formatter: ({ phone }) => hideTextAtIndex(phone, { start: 3, end: 6 })
+      minWidth: 120,
+      formatter: ({ phone }) =>
+        phone ? hideTextAtIndex(phone, { start: 3, end: 6 }) : "Chưa cập nhật"
     },
     {
       label: "Trạng thái",
       prop: "status",
-      minWidth: 90,
+      minWidth: 100,
       cellRenderer: scope => (
         <el-switch
           size={scope.props.size === "small" ? "small" : "default"}
@@ -139,8 +132,8 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
           v-model={scope.row.status}
           active-value={1}
           inactive-value={0}
-          active-text="Bật"
-          inactive-text="Tắt"
+          active-text="Hoạt động"
+          inactive-text="Đã khóa"
           inline-prompt
           style={switchStyle.value}
           onChange={() => onChange(scope as any)}
@@ -149,18 +142,19 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
     },
     {
       label: "Ngày tạo",
-      minWidth: 90,
+      minWidth: 160,
       prop: "createTime",
       formatter: ({ createTime }) =>
-        dayjs(createTime).format("YYYY-MM-DD HH:mm:ss")
+        dayjs(createTime).format("DD-MM-YYYY HH:mm:ss")
     },
     {
-      label: "操作",
+      label: "Thao tác",
       fixed: "right",
       width: 180,
       slot: "operation"
     }
   ];
+
   const buttonClass = computed(() => {
     return [
       "h-5!",
@@ -170,57 +164,61 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
       "dark:hover:text-primary!"
     ];
   });
-  // 重置的新密码
-  const pwdForm = reactive({
-    newPwd: ""
-  });
+
+  const pwdForm = reactive({ newPwd: "" });
   const pwdProgress = [
-    { color: "#e74242", text: "非常弱" },
-    { color: "#EFBD47", text: "弱" },
-    { color: "#ffa500", text: "一般" },
-    { color: "#1bbf1b", text: "强" },
-    { color: "#008000", text: "非常强" }
+    { color: "#e74242", text: "Rất yếu" },
+    { color: "#EFBD47", text: "Yếu" },
+    { color: "#ffa500", text: "Trung bình" },
+    { color: "#1bbf1b", text: "Mạnh" },
+    { color: "#008000", text: "Rất mạnh" }
   ];
-  // 当前密码强度（0-4）
   const curScore = ref();
   const roleOptions = ref([]);
 
+  // SỬA: Cập nhật trạng thái trực tiếp xuống DB
   function onChange({ row, index }) {
     ElMessageBox.confirm(
-      `确认要<strong>${
-        row.status === 0 ? "停用" : "启用"
-      }</strong><strong style='color:var(--el-color-primary)'>${
+      `Bạn có chắc chắn muốn <strong>${
+        row.status === 0 ? "khóa" : "kích hoạt"
+      }</strong> tài khoản <strong style='color:var(--el-color-primary)'>${
         row.username
-      }</strong>用户吗?`,
-      "系统提示",
+      }</strong> không?`,
+      "Xác nhận hệ thống",
       {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
+        confirmButtonText: "Đồng ý",
+        cancelButtonText: "Hủy",
         type: "warning",
         dangerouslyUseHTMLString: true,
         draggable: true
       }
     )
-      .then(() => {
+      .then(async () => {
         switchLoadMap.value[index] = Object.assign(
           {},
           switchLoadMap.value[index],
-          {
-            loading: true
-          }
+          { loading: true }
         );
-        setTimeout(() => {
+
+        try {
+          // Gọi API cập nhật để đổi trạng thái
+          const res = await updateUser(row.id, { ...row, status: row.status });
+          if (res.code === 0) {
+            message("Cập nhật trạng thái thành công", { type: "success" });
+          } else {
+            message(res.message || "Có lỗi xảy ra", { type: "error" });
+            row.status === 0 ? (row.status = 1) : (row.status = 0); // Đảo lại nếu lỗi
+          }
+        } catch (error) {
+          message("Lỗi kết nối máy chủ", { type: "error" });
+          row.status === 0 ? (row.status = 1) : (row.status = 0);
+        } finally {
           switchLoadMap.value[index] = Object.assign(
             {},
             switchLoadMap.value[index],
-            {
-              loading: false
-            }
+            { loading: false }
           );
-          message("已成功修改用户状态", {
-            type: "success"
-          });
-        }, 300);
+        }
       })
       .catch(() => {
         row.status === 0 ? (row.status = 1) : (row.status = 0);
@@ -228,78 +226,107 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
   }
 
   function handleUpdate(row) {
-    console.log(row);
+    // Chức năng này của template thường trỏ vào openDialog, đã xử lý bên HTML
+    openDialog("Sửa", row);
   }
 
-  function handleDelete(row) {
-    message(`Đã xóa người dùng ${row.id}`, { type: "success" });
-    onSearch();
+  // SỬA: Xóa 1 người dùng
+  async function handleDelete(row) {
+    try {
+      const res = await deleteUser(row.id);
+      if (res.code === 0) {
+        message(`Đã xóa người dùng: ${row.username}`, { type: "success" });
+        onSearch(); // Tải lại bảng sau khi xóa
+      } else {
+        message(res.message || "Xóa thất bại", { type: "error" });
+      }
+    } catch (error) {
+      message("Lỗi kết nối khi xóa", { type: "error" });
+    }
   }
 
   function handleSizeChange(val: number) {
-    console.log(`${val} items per page`);
+    pagination.pageSize = val;
+    onSearch();
   }
 
   function handleCurrentChange(val: number) {
-    console.log(`current page: ${val}`);
+    pagination.currentPage = val;
+    onSearch();
   }
 
-  /** 当CheckBox选择项发生变化时会触发该事件 */
   function handleSelectionChange(val) {
     selectedNum.value = val.length;
-    // 重置表格高度
     tableRef.value.setAdaptive();
   }
 
-  /** 取消选择 */
   function onSelectionCancel() {
     selectedNum.value = 0;
-    // 用于多选表格，清空用户的选择
     tableRef.value.getTableRef().clearSelection();
   }
 
-  /** 批量删除 */
-  function onbatchDel() {
-    // 返回当前选中的行
+  // SỬA: Xóa hàng loạt
+  async function onbatchDel() {
     const curSelected = tableRef.value.getTableRef().getSelectionRows();
-    // 接下来根据实际业务，通过选中行的某项数据，比如下面的id，调用接口进行批量删除
-    message(`Đã xóa ${getKeyList(curSelected, "id")} người dùng`, {
-      type: "success"
-    });
-    tableRef.value.getTableRef().clearSelection();
-    onSearch();
+    const ids = getKeyList(curSelected, "id");
+
+    if (ids.length === 0)
+      return message("Vui lòng chọn dữ liệu", { type: "warning" });
+
+    try {
+      const res = await batchDeleteUser({ ids });
+      if (res.code === 0) {
+        message(`Đã xóa thành công ${ids.length} người dùng`, {
+          type: "success"
+        });
+        tableRef.value.getTableRef().clearSelection();
+        onSearch();
+      } else {
+        message(res.message || "Xóa thất bại", { type: "error" });
+      }
+    } catch (error) {
+      message("Lỗi kết nối khi xóa hàng loạt", { type: "error" });
+    }
   }
 
   async function onSearch() {
     loading.value = true;
-    const { code, data } = await getUserList(toRaw(form));
-    if (code === 0) {
-      dataList.value = data.list;
-      pagination.total = data.total;
-      pagination.pageSize = data.pageSize;
-      pagination.currentPage = data.currentPage;
-    }
+    const queryParams = {
+      ...toRaw(form),
+      currentPage: pagination.currentPage,
+      pageSize: pagination.pageSize
+    };
 
-    setTimeout(() => {
-      loading.value = false;
-    }, 500);
+    try {
+      const { code, data } = await getUserList(queryParams);
+      if (code === 0 && data) {
+        dataList.value = data.list;
+        pagination.total = data.total;
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setTimeout(() => {
+        loading.value = false;
+      }, 500);
+    }
   }
 
   const resetForm = formEl => {
     if (!formEl) return;
     formEl.resetFields();
-    form.deptId = "";
+    form.roleId = "";
     treeRef.value.onTreeReset();
     onSearch();
   };
 
   function onTreeSelect({ id, selected }) {
-    form.deptId = selected ? id : "";
+    form.roleId = selected ? id : "";
+    pagination.currentPage = 1;
     onSearch();
   }
 
   function formatHigherDeptOptions(treeList) {
-    // 根据返回数据的status字段值判断追加是否禁用disabled字段，返回处理后的树结构，用于上级部门级联选择器的展示（实际开发中也是如此，不可能前端需要的每个字段后端都会返回，这时需要前端自行根据后端返回的某些字段做逻辑处理）
     if (!treeList || !treeList.length) return;
     const newTreeList = [];
     for (let i = 0; i < treeList.length; i++) {
@@ -310,20 +337,21 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
     return newTreeList;
   }
 
-  function openDialog(title = "新增", row?: FormItemProps) {
+  // SỬA: Xử lý Thêm mới / Cập nhật
+  function openDialog(title = "Thêm mới", row?: FormItemProps) {
     addDialog({
-      title: `${title}用户`,
+      title: `${title} người dùng`,
       props: {
         formInline: {
           title,
+          id: row?.id ?? "", // CHÚ Ý: Bắt buộc truyền ID vào form để biết Update ai
           higherDeptOptions: formatHigherDeptOptions(higherDeptOptions.value),
-          parentId: row?.dept.id ?? 0,
+          parentId: row?.dept?.id ?? 0,
           nickname: row?.nickname ?? "",
           username: row?.username ?? "",
           password: row?.password ?? "",
           phone: row?.phone ?? "",
           email: row?.email ?? "",
-          sex: row?.sex ?? "",
           status: row?.status ?? 1,
           remark: row?.remark ?? ""
         }
@@ -337,23 +365,39 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
       beforeSure: (done, { options }) => {
         const FormRef = formRef.value.getRef();
         const curData = options.props.formInline as FormItemProps;
-        function chores() {
-          message(`Đã ${title} người dùng ${curData.username}`, {
-            type: "success"
-          });
-          done(); // 关闭弹框
-          onSearch(); // 刷新表格数据
-        }
-        FormRef.validate(valid => {
+
+        FormRef.validate(async valid => {
           if (valid) {
-            console.log("curData", curData);
-            // 表单规则校验通过
-            if (title === "新增") {
-              // 实际开发先调用新增接口，再进行下面操作
-              chores();
-            } else {
-              // 实际开发先调用修改接口，再进行下面操作
-              chores();
+            try {
+              if (title === "Thêm mới") {
+                // Gọi API Thêm
+                const res = await addUser(curData);
+                if (res.code === 0) {
+                  message(`Đã thêm thành công ${curData.username}`, {
+                    type: "success"
+                  });
+                  done();
+                  onSearch();
+                } else {
+                  message(res.message || "Thêm thất bại", { type: "error" });
+                }
+              } else {
+                // Gọi API Sửa
+                const res = await updateUser(curData.id, curData);
+                if (res.code === 0) {
+                  message(`Đã cập nhật ${curData.username}`, {
+                    type: "success"
+                  });
+                  done();
+                  onSearch();
+                } else {
+                  message(res.message || "Cập nhật thất bại", {
+                    type: "error"
+                  });
+                }
+              }
+            } catch (error) {
+              message("Lỗi kết nối máy chủ", { type: "error" });
             }
           }
         });
@@ -362,10 +406,9 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
   }
 
   const cropRef = ref();
-  /** 上传头像 */
   function handleUpload(row) {
     addDialog({
-      title: "裁剪、上传头像",
+      title: "Cắt và tải ảnh lên",
       width: "40%",
       closeOnClickModal: false,
       fullscreen: deviceDetection(),
@@ -376,10 +419,8 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
           onCropper: info => (avatarInfo.value = info)
         }),
       beforeSure: done => {
-        console.log("裁剪后的图片信息：", avatarInfo.value);
-        // 根据实际业务使用avatarInfo.value和row里的某些字段去调用上传头像接口即可
-        done(); // 关闭弹框
-        onSearch(); // 刷新表格数据
+        done();
+        onSearch();
       },
       closeCallBack: () => cropRef.value.hidePopover()
     });
@@ -391,10 +432,9 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
       (curScore.value = isAllEmpty(newPwd) ? -1 : zxcvbn(newPwd).score)
   );
 
-  /** 重置密码 */
   function handleReset(row) {
     addDialog({
-      title: `重置 ${row.username} 用户的密码`,
+      title: `Đặt lại mật khẩu cho ${row.username}`,
       width: "30%",
       draggable: true,
       closeOnClickModal: false,
@@ -407,7 +447,7 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
               rules={[
                 {
                   required: true,
-                  message: "请输入新密码",
+                  message: "Vui lòng nhập mật khẩu mới",
                   trigger: "blur"
                 }
               ]}
@@ -417,7 +457,7 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
                 show-password
                 type="password"
                 v-model={pwdForm.newPwd}
-                placeholder="请输入新密码"
+                placeholder="Nhập mật khẩu mới"
               />
             </ElFormItem>
           </ElForm>
@@ -451,28 +491,22 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
       beforeSure: done => {
         ruleFormRef.value.validate(valid => {
           if (valid) {
-            // 表单规则校验通过
-            message(`已成功重置 ${row.username} 用户的密码`, {
+            // Tương lai bạn viết thêm API Reset Mật khẩu rồi gọi vào đây nhé
+            message(`Đã đặt lại mật khẩu cho ${row.username}`, {
               type: "success"
             });
-            console.log(pwdForm.newPwd);
-            // 根据实际业务使用pwdForm.newPwd和row里的某些字段去调用重置用户密码接口即可
-            done(); // 关闭弹框
-            onSearch(); // 刷新表格数据
+            done();
+            onSearch();
           }
         });
       }
     });
   }
 
-  /** 分配角色 */
   async function handleRole(row) {
-    // 选中的角色列表
-    const { code, data } = await getRoleIds({ userId: row.id });
-    const ids = code === 0 ? data : [];
-
+    const ids = (await getRoleIds({ userId: row.id })).data ?? [];
     addDialog({
-      title: `Gán vai trò cho người dùng ${row.username}`,
+      title: `Phân quyền cho ${row.username}`,
       props: {
         formInline: {
           username: row?.username ?? "",
@@ -488,13 +522,7 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
       closeOnClickModal: false,
       contentRenderer: () => h(roleForm),
       beforeSure: (done, { options }) => {
-        const curData = options.props.formInline as RoleFormItemProps;
-        console.log("Vai trò đã chọn:", curData.ids);
-        // Gọi API cập nhật vai trò người dùng ở đây
-        message(`Đã cập nhật vai trò cho người dùng ${row.username}`, {
-          type: "success"
-        });
-        done(); // 关闭弹框
+        done();
       }
     });
   }
@@ -503,18 +531,18 @@ export function useUser(tableRef: Ref, treeRef: Ref) {
     treeLoading.value = true;
     onSearch();
 
-    // 归属部门
     const { code, data } = await getDeptList();
-    if (code === 0) {
+    if (code === 0 && data) {
       higherDeptOptions.value = handleTree(data);
       treeData.value = handleTree(data);
     }
 
     treeLoading.value = false;
 
-    // 角色列表
-    const roleRes = await getAllRoleList();
-    roleOptions.value = roleRes.code === 0 ? roleRes.data : [];
+    const rolesRes = await getAllRoleList();
+    if (rolesRes.code === 0) {
+      roleOptions.value = rolesRes.data ?? [];
+    }
   });
 
   return {

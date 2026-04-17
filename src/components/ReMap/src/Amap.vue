@@ -1,138 +1,154 @@
 <script setup lang="ts">
-import { reactive, getCurrentInstance, onBeforeMount, onUnmounted } from "vue";
+import { reactive, onMounted, onUnmounted, ref } from "vue";
 import { deviceDetection } from "@pureadmin/utils";
-import AMapLoader from "@amap/amap-jsapi-loader";
+import trackasiagl from "trackasia-gl";
+import "trackasia-gl/dist/trackasia-gl.css";
 import { mapJson } from "@/api/mock";
 import car from "@/assets/car.png";
 
-export interface MapConfigureInter {
-  on: Fn;
-  destroy?: Fn;
-  clearEvents?: Fn;
-  addControl?: Fn;
-  setCenter?: Fn;
-  setZoom?: Fn;
-  plugin?: Fn;
-}
+defineOptions({ name: "TrackAsiaFullFeatures" });
 
-defineOptions({
-  name: "Amap"
-});
-
-let MarkerCluster;
-let map: MapConfigureInter;
-
-const instance = getCurrentInstance();
+const mapview = ref(null);
+let map: trackasiagl.Map | null = null;
 
 const mapSet = reactive({
-  loading: deviceDetection() ? false : true
+  loading: true
 });
 
-// 地图创建完成(动画关闭)
-const complete = (): void => {
-  if (map) {
-    map.on("complete", () => {
-      mapSet.loading = false;
-    });
-  }
-};
+onMounted(() => {
+  if (!mapview.value) return;
 
-onBeforeMount(() => {
-  if (!instance) return;
-  const { MapConfigure } = instance.appContext.config.globalProperties.$config;
-  const { options } = MapConfigure;
+  // 1. Khởi tạo Map
+  map = new trackasiagl.Map({
+    container: mapview.value,
+    style:
+      "https://maps.track-asia.com/styles/v2/streets.json?key=f4a6c08959b47211756357354b1b73ac74",
+    center: [105.8342, 21.0278],
+    zoom: 12,
+    pitch: 45
+  });
 
-  AMapLoader.load({
-    key: MapConfigure.amapKey,
-    version: "2.0",
-    plugins: ["AMap.MarkerCluster"]
-  })
-    .then(AMap => {
-      // 创建地图实例
-      map = new AMap.Map(instance.refs.mapview, options);
+  // 2. Thêm Controls
+  map.addControl(new trackasiagl.NavigationControl(), "top-right");
+  map.addControl(new trackasiagl.FullscreenControl(), "top-right");
 
-      //地图中添加地图操作ToolBar插件
-      map.plugin(["AMap.ToolBar", "AMap.MapType"], () => {
-        map.addControl(new AMap.ToolBar());
-        //地图类型切换
-        map.addControl(
-          new AMap.MapType({
-            defaultType: 0
-          })
-        );
+  map.on("load", async () => {
+    if (!map) return;
+
+    try {
+      // 3. Load Ảnh Xe (Dùng try-catch để tránh lỗi chết App nếu thiếu file ảnh)
+      const image = await map.loadImage(car);
+      if (!map.hasImage("car-icon")) map.addImage("car-icon", image.data);
+
+      // 4. Lấy dữ liệu (Xử lý lỗi API)
+      const response = await mapJson();
+      const vehicleData = response.data || [];
+
+      const geojsonData = {
+        type: "FeatureCollection",
+        features: vehicleData.map(v => ({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [v.lng, v.lat] },
+          properties: { ...v }
+        }))
+      };
+
+      // 5. Thêm Source & Layers (Clustering)
+      map.addSource("cars-source", {
+        type: "geojson",
+        data: geojsonData,
+        cluster: true,
+        clusterMaxZoom: 14,
+        clusterRadius: 50
       });
 
-      MarkerCluster = new AMap.MarkerCluster(map, [], {
-        // 聚合网格像素大小
-        gridSize: 80,
-        maxZoom: 14,
-        renderMarker(ctx) {
-          const { marker, data } = ctx;
-          if (Array.isArray(data) && data[0]) {
-            const { driver, plateNumber, orientation } = data[0];
-            const content = `<img style="transform: scale(1) rotate(${
-              360 - Number(orientation)
-            }deg);" src='${car}' />`;
-            marker.setContent(content);
-            marker.setLabel({
-              direction: "bottom",
-              //设置文本标注偏移量
-              offset: new AMap.Pixel(-4, 0),
-              //设置文本标注内容
-              content: `<div> ${plateNumber}(${driver})</div>`
-            });
-            marker.setOffset(new AMap.Pixel(-18, -10));
-            marker.on("click", ({ lnglat }) => {
-              map.setZoom(13); //设置地图层级
-              map.setCenter(lnglat);
-            });
-          }
+      // Layer cụm xe
+      map.addLayer({
+        id: "clusters",
+        type: "circle",
+        source: "cars-source",
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-color": [
+            "step",
+            ["get", "point_count"],
+            "#51bbd6",
+            10,
+            "#f1f075",
+            50,
+            "#f28cb1"
+          ],
+          "circle-radius": ["step", ["get", "point_count"], 20, 10, 30, 50, 40]
         }
       });
 
-      // 获取模拟车辆信息
-      mapJson()
-        .then(({ code, data }) => {
-          if (code === 0) {
-            const points: object = data.map(v => {
-              return {
-                lnglat: [v.lng, v.lat],
-                ...v
-              };
-            });
-            if (MarkerCluster) MarkerCluster.setData(points);
-          }
-        })
-        .catch(err => {
-          console.log("err:", err);
-        });
+      map.addLayer({
+        id: "cluster-count",
+        type: "symbol",
+        source: "cars-source",
+        filter: ["has", "point_count"],
+        layout: { "text-field": "{point_count_abbreviated}", "text-size": 12 }
+      });
 
-      complete();
-    })
-    .catch(() => {
+      // Layer từng xe lẻ
+      map.addLayer({
+        id: "unclustered-point",
+        type: "symbol",
+        source: "cars-source",
+        filter: ["!", ["has", "point_count"]],
+        layout: {
+          "icon-image": "car-icon",
+          "icon-size": 0.5,
+          "icon-rotate": ["get", "orientation"],
+          "icon-allow-overlap": true,
+          "text-field": ["get", "plateNumber"],
+          "text-offset": [0, 1.5],
+          "text-anchor": "top",
+          "text-size": 10
+        },
+        paint: {
+          "text-color": "#000",
+          "text-halo-color": "#fff",
+          "text-halo-width": 1
+        }
+      });
+
+      // 6. Click Popup
+      map.on("click", "unclustered-point", (e: any) => {
+        const props = e.features[0].properties;
+        new trackasiagl.Popup()
+          .setLngLat(e.features[0].geometry.coordinates)
+          .setHTML(
+            `<b>Xe:</b> ${props.plateNumber}<br><b>Tài xế:</b> ${props.driver}`
+          )
+          .addTo(map!);
+      });
+    } catch (err) {
+      console.error("Lỗi khi tải dữ liệu bản đồ:", err);
+    } finally {
       mapSet.loading = false;
-      throw "地图加载失败，请重新加载";
-    });
+    }
+  });
 });
 
 onUnmounted(() => {
-  if (map) {
-    // 销毁地图实例
-    map.destroy() && map.clearEvents("click");
-  }
+  map?.remove();
 });
 </script>
 
 <template>
-  <div id="mapview" ref="mapview" v-loading="mapSet.loading" />
+  <div class="main-content" v-loading="mapSet.loading">
+    <div ref="mapview" class="map-wrapper" />
+  </div>
 </template>
 
 <style lang="scss" scoped>
-#mapview {
+.main-content {
+  width: 100%;
   height: calc(100vh - 86px);
 }
-
-:deep(.amap-marker-label) {
-  border: none !important;
+.map-wrapper {
+  width: 100%;
+  height: 100%;
 }
 </style>

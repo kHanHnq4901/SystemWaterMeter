@@ -8,7 +8,7 @@ const config = {
   port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 1433,
   user: process.env.DB_USER || "sa",
   password: process.env.DB_PASSWORD || "gelex@123",
-  database: process.env.DB_NAME || "SONGDA",
+  database: process.env.DB_NAME || "WS02",
   options: {
     encrypt: true,
     trustServerCertificate: true

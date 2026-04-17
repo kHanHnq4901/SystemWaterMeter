@@ -17,20 +17,6 @@ type ResultTable = {
   };
 };
 
-// Dashboard
-export const getWaterDashboard = () =>
-  http.request<Result>("get", "/api/dashboard/summary");
-export const getConsumptionChart = (data?: any) =>
-  http.request<ResultTable>("get", "/api/dashboard/consumption-chart", {
-    data
-  });
-export const getZoneConsumption = () =>
-  http.request<Result>("get", "/api/dashboard/zone-consumption");
-export const getMeterStatus = () =>
-  http.request<Result>("get", "/api/dashboard/meter-status");
-export const getRealtimeData = () =>
-  http.request<Result>("get", "/api/dashboard/realtime");
-
 // Water Meters
 export const getWaterMeterList = (data?: object) =>
   http.request<ResultTable>("get", "/api/water-meters", { params: data });
@@ -79,21 +65,6 @@ export const payInvoice = (id: number, data: object) =>
 export const getBillingStats = () =>
   http.request<Result>("get", "/api/invoices/stats/summary");
 
-// Hierarchy
-export const getProvinces = (data?: object) =>
-  http.request<Result>("get", "/api/hierarchy/provinces", { params: data });
-export const getProvince = (id: number) =>
-  http.request<Result>("get", `/api/hierarchy/provinces/${id}`);
-export const getDistricts = (data?: object) =>
-  http.request<Result>("get", "/api/hierarchy/districts", { params: data });
-export const getDistrict = (id: number) =>
-  http.request<Result>("get", `/api/hierarchy/districts/${id}`);
-export const getWards = (data?: object) =>
-  http.request<Result>("get", "/api/hierarchy/wards", { params: data });
-export const getZones = (data?: object) =>
-  http.request<Result>("get", "/api/hierarchy/zones", { params: data });
-export const getClusters = (data?: object) =>
-  http.request<Result>("get", "/api/hierarchy/clusters", { params: data });
 
 export const createProvince = (data: object) =>
   http.request<Result>("post", "/api/hierarchy/provinces", { data });
@@ -117,12 +88,10 @@ export const updateGateway = (id: number, data: object) =>
   http.request<Result>("put", `/api/gateways/${id}`, { data });
 export const deleteGateway = (id: number) =>
   http.request<Result>("delete", `/api/gateways/${id}`);
-export const getGatewayStats = () =>
-  http.request<Result>("get", "/api/gateways/stats/summary");
+
 
 // Alerts
-export const getWaterAlerts = (data?: object) =>
-  http.request<ResultTable>("get", "/api/alerts", { params: data });
+
 export const getAlert = (id: number) =>
   http.request<Result>("get", `/api/alerts/${id}`);
 export const markAlertRead = (id: number) =>

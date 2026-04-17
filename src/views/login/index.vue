@@ -59,6 +59,7 @@ const ruleForm = reactive({
   password: ""
 });
 
+// Tìm đến hàm onLogin và thay thế toàn bộ logic bên trong
 const onLogin = async (formEl: FormInstance | undefined) => {
   if (!formEl) return;
   await formEl.validate(async valid => {
@@ -67,47 +68,40 @@ const onLogin = async (formEl: FormInstance | undefined) => {
       disabled.value = true;
 
       try {
-        // 1. Gọi API Login chuẩn theo cấu trúc của template
         const result = await loginApi({
           username: ruleForm.username.trim(),
           password: ruleForm.password
         });
+        console.log("Login result:", result);
+        if (result.success && result.data) {
+          const userData = result.data;
 
-        // 2. Kiểm tra cờ "success" mà API của bạn trả về
-        if (result.success) {
-          const userData = result.data; // Dữ liệu từ IAUDIT_USER
-
-          // 3. TẠO TOKEN GIẢ CHO VUE-PURE-ADMIN
-          // Do API hiện tại chưa sinh ra JWT Token, ta dùng dữ liệu này để bypass bảo vệ router
-          const tokenData = {
-            accessToken: "token-tam-thoi-cua-" + userData.username, // Token giả định
+          // Lưu token và thông tin cần thiết cho Template
+          setToken({
+            accessToken: userData.accessToken,
             refreshToken: "",
-            expires: new Date(
-              new Date().getTime() + 24 * 60 * 60 * 1000
-            ).getTime(), // Hết hạn sau 24h
-            roles: [userData.roleId] // Truyền role từ Database vào (nếu template có check role)
-          };
+            // Bọc toàn bộ phép tính thời gian vào new Date()
+            expires: new Date(new Date().getTime() + 24 * 60 * 60 * 1000),
+            roles: userData.roles
+          });
 
-          // 4. Lưu thông tin đăng nhập vào hệ thống
-          setToken(tokenData);
-          useUserStoreHook().SET_USERNAME(userData.name || userData.username);
+          // Tận dụng NICK_NAME để hiển thị lời chào
+          const displayName = userData.NICK_NAME || userData.NAME;
+          useUserStoreHook().SET_USERNAME(displayName);
 
-          // 5. Khởi tạo lại menu và chuyển hướng vào trang chủ
+          // Khởi tạo Router và chuyển trang
           await initRouter();
           router.push(getTopMenu(true).path).then(() => {
-            message("Đăng nhập thành công!", { type: "success" });
+            message(`Chào mừng ${displayName} đã đăng nhập!`, {
+              type: "success"
+            });
           });
         } else {
-          // Trường hợp API trả về success: false
-          message(result.message || "Tài khoản hoặc mật khẩu không đúng!", {
-            type: "error"
-          });
+          message(result.message || "Đăng nhập thất bại", { type: "error" });
           disabled.value = false;
         }
       } catch (error: any) {
-        // Xử lý lỗi từ Backend (Lỗi 401, 403, 500 hoặc mất mạng)
-        const errorMsg =
-          error.response?.data?.message || "Không thể kết nối đến Server!";
+        const errorMsg = error.response?.data?.message || "Lỗi kết nối Server";
         message(errorMsg, { type: "error" });
         disabled.value = false;
       } finally {

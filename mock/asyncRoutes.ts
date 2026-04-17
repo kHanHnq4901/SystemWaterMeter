@@ -197,7 +197,7 @@ const systemRouter = {
       component: "system/dept/index",
       meta: {
         icon: "ri:organisation-chart",
-        title: "Quản lý Phòng ban",
+        title: "Quản lý Vùng",
         roles: ["admin"]
       }
     },

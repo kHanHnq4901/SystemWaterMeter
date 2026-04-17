@@ -39,7 +39,7 @@ export default {
       component: () => import("@/views/system/dept/index.vue"),
       meta: {
         icon: "ri:organisation-chart",
-        title: "Quản lý Phòng ban",
+        title: "Quản lý Vùng",
         showLink: true
       }
     },

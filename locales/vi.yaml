@@ -21,7 +21,22 @@ buttons:
   pureCloseText: Tắt
   pureWatchMore: Xem thêm
   pureMarkAsRead: Đánh dấu đã đọc
-
+login:
+  pureUsername: "Tên đăng nhập"
+  purePassword: "Mật khẩu"
+  pureRemember: "Ghi nhớ mật khẩu"
+  pureRememberInfo: "Ghi nhớ thông tin đăng nhập trong 7 ngày"
+  pureForget: "Quên mật khẩu?"
+  pureLogin: "Đăng nhập"
+  pureUsernameReg: "Vui lòng nhập tên đăng nhập"
+  purePasswordReg: "Vui lòng nhập mật khẩu"
+  purePassWordRuleReg: "Mật khẩu phải từ 8-18 vị, bao gồm ít nhất 2 loại: chữ cái, số hoặc ký hiệu"
+  # Thêm thông báo lỗi cho Backend
+  userNotFound: "Tài khoản không tồn tại"
+  userLocked: "Tài khoản đang bị khóa"
+  passwordError: "Mật khẩu không chính xác"
+  loginSuccess: "Đăng nhập thành công"
+  serverError: "Lỗi kết nối máy chủ"
 search:
   pureTotal: Tổng
   pureHistory: Lịch sử tìm kiếm

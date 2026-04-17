@@ -21,7 +21,22 @@ buttons:
   pureCloseText: Off
   pureWatchMore: View More
   pureMarkAsRead: Mark as Read
-
+login:
+  pureUsername: "Username"
+  purePassword: "Password"
+  pureRemember: "Remember Me"
+  pureRememberInfo: "Remember login information for 7 days"
+  pureForget: "Forgot password?"
+  pureLogin: "Login"
+  pureUsernameReg: "Please input username"
+  purePasswordReg: "Please input password"
+  purePassWordRuleReg: "Password must be 8-18 characters, including at least two types of letters, numbers, or symbols"
+  # Backend messages
+  userNotFound: "User does not exist"
+  userLocked: "Account is currently locked"
+  passwordError: "Incorrect password"
+  loginSuccess: "Login successful"
+  serverError: "Internal server error"
 search:
   pureTotal: Total
   pureHistory: Search History

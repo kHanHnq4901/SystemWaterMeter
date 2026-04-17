@@ -5,11 +5,6 @@ import { PureTableBar } from "@/components/RePureTableBar";
 import {
   getGateways,
   getGatewayStats,
-  getProvinces,
-  getDistricts,
-  getWards,
-  getZones,
-  getClusters
 } from "@/api/waterMeter";
 
 defineOptions({ name: "DeviceGateway" });

@@ -2,15 +2,7 @@
 import { ref, reactive, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { PureTableBar } from "@/components/RePureTableBar";
-import {
-  getWaterMeterList,
-  getWaterMeterStats,
-  getProvinces,
-  getDistricts,
-  getWards,
-  getZones,
-  getClusters
-} from "@/api/waterMeter";
+import { getWaterMeterList, getWaterMeterStats } from "@/api/waterMeter";
 
 defineOptions({ name: "DeviceMeter" });
 

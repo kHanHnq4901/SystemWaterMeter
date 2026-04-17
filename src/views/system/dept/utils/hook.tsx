@@ -2,7 +2,15 @@ import dayjs from "dayjs";
 import editForm from "../form.vue";
 import { handleTree } from "@/utils/tree";
 import { message } from "@/utils/message";
-import { getDeptList } from "@/api/system";
+
+// SỬA 1: Import các hàm API mới từ file region.ts
+import {
+  getRegionList,
+  addRegion,
+  updateRegion,
+  deleteRegion
+} from "@/api/region";
+
 import { usePublicHooks } from "../../hooks";
 import { addDialog } from "@/components/ReDialog";
 import { reactive, ref, onMounted, h } from "vue";
@@ -12,7 +20,7 @@ import { cloneDeep, isAllEmpty, deviceDetection } from "@pureadmin/utils";
 export function useDept() {
   const form = reactive({
     name: "",
-    status: null
+    status: null // Tạm giữ nếu sau này bác thêm cột STATUS vào SYS_REGION
   });
 
   const formRef = ref();
@@ -20,39 +28,38 @@ export function useDept() {
   const loading = ref(true);
   const { tagStyle } = usePublicHooks();
 
+  // SỬA 2: Khớp cột hiển thị với dữ liệu thực tế của bảng SYS_REGION
   const columns: TableColumnList = [
     {
-      label: "Tên phòng ban",
+      label: "Tên trạm / Nhánh",
       prop: "name",
-      width: 180,
+      width: 250,
       align: "left"
     },
     {
       label: "Sắp xếp",
-      prop: "sort",
+      prop: "orderNum",
       minWidth: 70
     },
     {
-      label: "Trạng thái",
-      prop: "status",
+      label: "Cấp điện áp",
+      prop: "voltageCode",
       minWidth: 100,
-      cellRenderer: ({ row, props }) => (
-        <el-tag size={props.size} style={tagStyle.value(row.status)}>
-          {row.status === 1 ? "Bật" : "Tắt"}
-        </el-tag>
-      )
+      formatter: ({ voltageCode }) =>
+        voltageCode ? `${voltageCode} kV` : "---"
+    },
+    {
+      label: "Công suất",
+      prop: "capacity",
+      minWidth: 100,
+      formatter: ({ capacity }) => (capacity ? `${capacity} MVA/MW` : "---")
     },
     {
       label: "Ngày tạo",
-      minWidth: 200,
+      minWidth: 180,
       prop: "createTime",
       formatter: ({ createTime }) =>
-        dayjs(createTime).format("YYYY-MM-DD HH:mm:ss")
-    },
-    {
-      label: "Ghi chú",
-      prop: "remark",
-      minWidth: 320
+        dayjs(createTime).format("DD-MM-YYYY HH:mm:ss")
     },
     {
       label: "Thao tác",
@@ -72,29 +79,27 @@ export function useDept() {
     onSearch();
   }
 
+  // SỬA 3: Tìm kiếm gọi trực tiếp API Backend
   async function onSearch() {
     loading.value = true;
-    const { code, data } = await getDeptList(); // 这里是返回一维数组结构，前端自行处理成树结构，返回格式要求：唯一id加父节点parentId，parentId取父节点id
-    if (code === 0) {
-      let newData = data;
-      if (!isAllEmpty(form.name)) {
-        // 前端搜索部门名称
-        newData = newData.filter(item => item.name.includes(form.name));
-      }
-      if (!isAllEmpty(form.status)) {
-        // 前端搜索状态
-        newData = newData.filter(item => item.status === form.status);
-      }
-      dataList.value = handleTree(newData); // 处理成树结构
-    }
+    try {
+      // Gửi form tìm kiếm lên Backend
+      const { code, data } = await getRegionList({ name: form.name });
 
-    setTimeout(() => {
-      loading.value = false;
-    }, 500);
+      if (code === 0 && data) {
+        // Backend trả về mảng phẳng, Frontend dùng handleTree cuộn thành cây 5 Level
+        dataList.value = handleTree(data.list);
+      }
+    } catch (error) {
+      console.error("Lỗi tải danh sách:", error);
+    } finally {
+      setTimeout(() => {
+        loading.value = false;
+      }, 500);
+    }
   }
 
   function formatHigherDeptOptions(treeList) {
-    // 根据返回数据的status字段值判断追加是否禁用disabled字段，返回处理后的树结构，用于上级部门级联选择器的展示（实际开发中也是如此，不可能前端需要的每个字段后端都会返回，这时需要前端自行根据后端返回的某些字段做逻辑处理）
     if (!treeList || !treeList.length) return;
     const newTreeList = [];
     for (let i = 0; i < treeList.length; i++) {
@@ -105,20 +110,22 @@ export function useDept() {
     return newTreeList;
   }
 
+  // SỬA 4: Mở Form và Xử lý Lưu dữ liệu (Thêm / Sửa)
   function openDialog(title = "新增", row?: FormItemProps) {
+    // Đổi chữ "新增" (Thêm mới) và "修改" (Sửa) sang tiếng Việt nếu cần
+    const vnTitle = title === "新增" ? "Thêm mới" : "Cập nhật";
+
     addDialog({
-      title: `${title} phòng ban`,
+      title: `${vnTitle} Trạm/Mạng lưới`,
       props: {
         formInline: {
+          id: row?.id ?? "", // Quan trọng: Có ID để biết đang Sửa dòng nào
           higherDeptOptions: formatHigherDeptOptions(cloneDeep(dataList.value)),
           parentId: row?.parentId ?? 0,
           name: row?.name ?? "",
-          principal: row?.principal ?? "",
-          phone: row?.phone ?? "",
-          email: row?.email ?? "",
-          sort: row?.sort ?? 0,
-          status: row?.status ?? 1,
-          remark: row?.remark ?? ""
+          orderNum: row?.orderNum ?? 0,
+          voltageCode: row?.voltageCode ?? "",
+          capacity: row?.capacity ?? ""
         }
       },
       width: "40%",
@@ -130,23 +137,37 @@ export function useDept() {
       beforeSure: (done, { options }) => {
         const FormRef = formRef.value.getRef();
         const curData = options.props.formInline as FormItemProps;
-        function chores() {
-          message(`Đã ${title} phòng ban ${curData.name}`, {
-            type: "success"
-          });
-          done(); // 关闭弹框
-          onSearch(); // 刷新表格数据
-        }
-        FormRef.validate(valid => {
+
+        FormRef.validate(async valid => {
           if (valid) {
-            console.log("curData", curData);
-            // 表单规则校验通过
-            if (title === "新增") {
-              // 实际开发先调用新增接口，再进行下面操作
-              chores();
-            } else {
-              // 实际开发先调用修改接口，再进行下面操作
-              chores();
+            try {
+              if (title === "新增") {
+                // GỌI API THÊM
+                const res = await addRegion(curData);
+                if (res.code === 0) {
+                  message(`Đã thêm thành công ${curData.name}`, {
+                    type: "success"
+                  });
+                  done();
+                  onSearch();
+                } else {
+                  message(res.message || "Thêm thất bại", { type: "error" });
+                }
+              } else {
+                // GỌI API SỬA
+                const res = await updateRegion(curData.id, curData);
+                if (res.code === 0) {
+                  message(`Đã cập nhật ${curData.name}`, { type: "success" });
+                  done();
+                  onSearch();
+                } else {
+                  message(res.message || "Cập nhật thất bại", {
+                    type: "error"
+                  });
+                }
+              }
+            } catch (error) {
+              message("Lỗi kết nối máy chủ", { type: "error" });
             }
           }
         });
@@ -154,9 +175,19 @@ export function useDept() {
     });
   }
 
-  function handleDelete(row) {
-    message(`Đã xóa phòng ban ${row.name}`, { type: "success" });
-    onSearch();
+  // SỬA 5: Gọi API Xóa dữ liệu
+  async function handleDelete(row) {
+    try {
+      const res = await deleteRegion(row.id);
+      if (res.code === 0) {
+        message(`Đã xóa ${row.name}`, { type: "success" });
+        onSearch(); // Tải lại bảng sau khi xóa thành công
+      } else {
+        message(res.message || "Không thể xóa", { type: "error" });
+      }
+    } catch (error) {
+      message("Lỗi kết nối khi xóa", { type: "error" });
+    }
   }
 
   onMounted(() => {
@@ -168,13 +199,9 @@ export function useDept() {
     loading,
     columns,
     dataList,
-    /** 搜索 */
     onSearch,
-    /** 重置 */
     resetForm,
-    /** 新增、修改部门 */
     openDialog,
-    /** 删除部门 */
     handleDelete,
     handleSelectionChange
   };

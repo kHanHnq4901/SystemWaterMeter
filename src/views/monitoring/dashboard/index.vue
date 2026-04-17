@@ -6,7 +6,7 @@ import {
   getWaterAlerts,
   getMeterStatus,
   getGatewayStats
-} from "@/api/waterMeter";
+} from "@/api/dashboard";
 
 defineOptions({ name: "MonitoringDashboard" });
 
