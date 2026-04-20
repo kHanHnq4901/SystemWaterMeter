@@ -5,18 +5,18 @@ type LoginData = {
   password: string;
 };
 
-// Sửa lại interface LoginResult
 export interface LoginResult {
-  success: boolean;
+  code: number;
   message?: string;
   data?: {
-    ID: number;        // Hoặc userId tùy theo Backend bạn trả về
-    NAME: string;
-    NICK_NAME: string;
-    accessToken: string; // THÊM DÒNG NÀY
-    roles: string[];     // THÊM DÒNG NÀY
-    COM_ID: string;
-    expires: number | Date; // Đọc tiếp lỗi 2 bên dưới
+    username: string;
+    nickname: string;
+    avatar: string;
+    roles: string[];
+    permissions: string[];
+    accessToken: string;
+    refreshToken: string;
+    expires: number | Date;
   };
 }
 

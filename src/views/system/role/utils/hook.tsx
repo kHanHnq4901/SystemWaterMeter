@@ -10,9 +10,11 @@ import type { FormItemProps } from "../utils/types";
 import type { PaginationProps } from "@pureadmin/table";
 import { getKeyList, deviceDetection } from "@pureadmin/utils";
 import { getRoleList, getRoleMenu, getRoleMenuIds } from "@/api/system";
-import { type Ref, reactive, ref, onMounted, h, toRaw, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import { type Ref, reactive, ref, onMounted, computed, h, toRaw, watch } from "vue";
 
 export function useRole(treeRef: Ref) {
+  const { t } = useI18n();
   const form = reactive({
     name: "",
     code: "",
@@ -42,21 +44,21 @@ export function useRole(treeRef: Ref) {
     currentPage: 1,
     background: true
   });
-  const columns: TableColumnList = [
+  const columns = computed<TableColumnList>(() => [
     {
-      label: "角色编号",
+      label: t("system.role.roleId"),
       prop: "id"
     },
     {
-      label: "角色名称",
+      label: t("system.role.roleName"),
       prop: "name"
     },
     {
-      label: "角色标识",
+      label: t("system.role.roleCode"),
       prop: "code"
     },
     {
-      label: "状态",
+      label: t("system.role.status"),
       cellRenderer: scope => (
         <el-switch
           size={scope.props.size === "small" ? "small" : "default"}
@@ -64,8 +66,8 @@ export function useRole(treeRef: Ref) {
           v-model={scope.row.status}
           active-value={1}
           inactive-value={0}
-          active-text="已启用"
-          inactive-text="已停用"
+          active-text={t("system.role.enabled")}
+          inactive-text={t("system.role.disabled")}
           inline-prompt
           style={switchStyle.value}
           onChange={() => onChange(scope as any)}
@@ -74,24 +76,24 @@ export function useRole(treeRef: Ref) {
       minWidth: 90
     },
     {
-      label: "备注",
+      label: t("system.role.remark"),
       prop: "remark",
       minWidth: 160
     },
     {
-      label: "创建时间",
+      label: t("system.role.createTime"),
       prop: "createTime",
       minWidth: 160,
       formatter: ({ createTime }) =>
         dayjs(createTime).format("YYYY-MM-DD HH:mm:ss")
     },
     {
-      label: "操作",
+      label: t("status.pureOperation"),
       fixed: "right",
       width: 210,
       slot: "operation"
     }
-  ];
+  ]);
   // const buttonClass = computed(() => {
   //   return [
   //     "h-5!",
@@ -103,16 +105,13 @@ export function useRole(treeRef: Ref) {
   // });
 
   function onChange({ row, index }) {
+    const action = row.status === 0 ? t("system.role.confirmDisable") : t("system.role.confirmEnable");
     ElMessageBox.confirm(
-      `确认要<strong>${
-        row.status === 0 ? "停用" : "启用"
-      }</strong><strong style='color:var(--el-color-primary)'>${
-        row.name
-      }</strong>吗?`,
-      "系统提示",
+      `${t("status.pureConfirm")} <strong>${action}</strong> <strong style='color:var(--el-color-primary)'>${row.name}</strong>?`,
+      t("system.role.systemPrompt"),
       {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
+        confirmButtonText: t("status.pureConfirmBtn"),
+        cancelButtonText: t("status.pureCancelBtn"),
         type: "warning",
         dangerouslyUseHTMLString: true,
         draggable: true
@@ -134,7 +133,7 @@ export function useRole(treeRef: Ref) {
               loading: false
             }
           );
-          message(`已${row.status === 0 ? "停用" : "启用"}${row.name}`, {
+          message(`${action} ${row.name}`, {
             type: "success"
           });
         }, 300);
@@ -145,7 +144,7 @@ export function useRole(treeRef: Ref) {
   }
 
   function handleDelete(row) {
-    message(`您删除了角色名称为${row.name}的这条数据`, { type: "success" });
+    message(`${t("status.pureDeleteSuccess")}: ${row.name}`, { type: "success" });
     onSearch();
   }
 
@@ -182,9 +181,9 @@ export function useRole(treeRef: Ref) {
     onSearch();
   };
 
-  function openDialog(title = "新增", row?: FormItemProps) {
+  function openDialog(title = t("status.pureAdd"), row?: FormItemProps) {
     addDialog({
-      title: `${title}角色`,
+      title: `${title} ${t("system.role.roleName")}`,
       props: {
         formInline: {
           name: row?.name ?? "",
@@ -202,17 +201,16 @@ export function useRole(treeRef: Ref) {
         const FormRef = formRef.value.getRef();
         const curData = options.props.formInline as FormItemProps;
         function chores() {
-          message(`您${title}了角色名称为${curData.name}的这条数据`, {
+          message(`${title} ${t("system.role.roleName")}: ${curData.name}`, {
             type: "success"
           });
-          done(); // 关闭弹框
-          onSearch(); // 刷新表格数据
+          done();
+          onSearch();
         }
         FormRef.validate(valid => {
           if (valid) {
             console.log("curData", curData);
-            // 表单规则校验通过
-            if (title === "新增") {
+            if (title === t("status.pureAdd")) {
               // 实际开发先调用新增接口，再进行下面操作
               chores();
             } else {
@@ -249,12 +247,10 @@ export function useRole(treeRef: Ref) {
     };
   }
 
-  /** 菜单权限-保存 */
   function handleSave() {
     const { id, name } = curRow.value;
-    // 根据用户 id 调用实际项目中菜单权限修改接口
     console.log(id, treeRef.value.getCheckedKeys());
-    message(`角色名称为${name}的菜单权限修改成功`, {
+    message(`${t("system.role.saveMenuPerm")}: ${name}`, {
       type: "success"
     });
   }

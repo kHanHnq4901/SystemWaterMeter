@@ -164,88 +164,10 @@ router.delete("/:id", async (req: Request, res: Response) => {
     res.status(500).json({ code: 500, message: error.message });
   }
 });
-router.get("/get-async-routes", async (req: Request, res: Response) => {
-  try {
-    const connection = await pool.connect();
-    
-    // Tạm thời lấy TẤT CẢ menu (Sau này phân quyền thì thêm WHERE RoleID vào đây)
-    const result = await connection.request().query(`
-        SELECT 
-          ID as id,
-          PARENT_ID as parentId,
-          TYPE as menuType,
-          NAME as title,
-          KEY_NAME as name,
-          URL as path,
-          COMPONENT as component,
-          ICON as icon,
-          ORDER_NUM as rank,
-          PERMS as auths
-        FROM SYS_MENU
-        WHERE DEL_FLAG = 0
-        ORDER BY ORDER_NUM ASC
-    `);
-
-    const flatMenus = result.recordset;
-
-    // THUẬT TOÁN ĐỆ QUY TẠO CÂY ROUTER CHUẨN VUE-PURE-ADMIN
-    const buildRouterTree = (parentId: number) => {
-      const tree: any[] = [];
-      // Lọc các menu là con của parentId hiện tại và không phải là nút bấm (menuType !== 2)
-      const children = flatMenus.filter(m => m.parentId === parentId && m.menuType !== 2);
-
-      for (const item of children) {
-        // Lấy danh sách quyền (auths) của các nút bấm nằm trong menu này
-        const buttonAuths = flatMenus
-          .filter(m => m.parentId === item.id && m.menuType === 2)
-          .map(m => m.auths)
-          .filter(a => a); // Loại bỏ null/empty
-
-        // Nặn Object theo cấu trúc RouteConfigsTable của Frontend
-        const routeObj: any = {
-          path: item.path,
-          name: item.name || undefined,
-          meta: {
-            title: item.title,
-            icon: item.icon || undefined,
-            rank: item.rank || 0,
-            showLink: true
-          }
-        };
-
-        // Nếu có Component thì gán (Thường thư mục cha sẽ không có Component)
-        if (item.component) {
-          routeObj.component = item.component;
-        }
-
-        // Nếu trang này có các nút bấm phân quyền, nhét vào meta.auths
-        if (buttonAuths.length > 0) {
-          routeObj.meta.auths = buttonAuths;
-        }
-
-        // Đệ quy tìm tiếp con của nó
-        const subChildren = buildRouterTree(item.id);
-        if (subChildren.length > 0) {
-          routeObj.children = subChildren;
-        }
-
-        tree.push(routeObj);
-      }
-      return tree;
-    };
-
-    // Khởi chạy đệ quy từ gốc (parentId = 0)
-    const asyncRoutes = buildRouterTree(0);
-
-    // Trả về đúng cấu trúc { success, data } mà file src/api/routes.ts của Vue cần
-    res.json({
-      success: true,
-      data: asyncRoutes
-    });
-
-  } catch (error: any) {
-    console.error("Lỗi get-async-routes:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
+// Tất cả routes đã được định nghĩa tĩnh trong src/router/modules/ của frontend.
+// API này trả về mảng rỗng để tránh xung đột/trùng lặp với static routes.
+// Menu sidebar được build từ constantMenus (static routes) trong permission store.
+router.get("/get-async-routes", async (_req: Request, res: Response) => {
+  res.json({ code: 0, message: "Thành công", data: [] });
 });
 export default router;

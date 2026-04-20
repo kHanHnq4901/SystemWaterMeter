@@ -399,7 +399,7 @@ function getTopMenu(tag = false): menuType {
   const topMenu = handleTopMenu(
     usePermissionStoreHook().wholeMenus[0]?.children[0]
   );
-  tag && useMultiTagsStoreHook().handleTags("push", topMenu);
+  tag && topMenu && useMultiTagsStoreHook().handleTags("push", topMenu);
   return topMenu;
 }
 

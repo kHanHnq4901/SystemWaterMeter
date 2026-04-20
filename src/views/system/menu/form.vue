@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 import ReCol from "@/components/ReCol";
 import { formRules } from "./utils/rule";
 import { FormProps } from "./utils/types";
@@ -17,6 +18,7 @@ import {
   frameLoadingOptions
 } from "./utils/enums";
 
+const { t } = useI18n();
 const props = withDefaults(defineProps<FormProps>(), {
   formInline: () => ({
     menuType: 0,
@@ -207,7 +209,7 @@ defineExpose({ getRef });
         </el-form-item>
       </re-col>
       <re-col v-show="newFormInline.menuType < 2" :value="12" :xs="24" :sm="24">
-        <el-form-item label="离场动画">
+        <el-form-item :label="t('system.menu.leaveAnimation')">
           <ReAnimateSelector
             v-model="newFormInline.leaveTransition"
             placeholder="Chọn hiệu ứng ra"

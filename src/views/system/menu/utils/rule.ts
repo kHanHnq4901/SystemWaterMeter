@@ -1,10 +1,38 @@
 import { reactive } from "vue";
 import type { FormRules } from "element-plus";
+import { i18n } from "@/plugins/i18n";
 
-/** 自定义表单规则校验 */
 export const formRules = reactive(<FormRules>{
-  title: [{ required: true, message: "菜单名称为必填项", trigger: "blur" }],
-  name: [{ required: true, message: "路由名称为必填项", trigger: "blur" }],
-  path: [{ required: true, message: "路由路径为必填项", trigger: "blur" }],
-  auths: [{ required: true, message: "权限标识为必填项", trigger: "blur" }]
+  title: [{
+    required: true,
+    validator: (_rule, value, callback) => {
+      if (!value) callback(new Error(i18n.global.t("system.menu.titleRequired")));
+      else callback();
+    },
+    trigger: "blur"
+  }],
+  name: [{
+    required: true,
+    validator: (_rule, value, callback) => {
+      if (!value) callback(new Error(i18n.global.t("system.menu.nameRequired")));
+      else callback();
+    },
+    trigger: "blur"
+  }],
+  path: [{
+    required: true,
+    validator: (_rule, value, callback) => {
+      if (!value) callback(new Error(i18n.global.t("system.menu.pathRequired")));
+      else callback();
+    },
+    trigger: "blur"
+  }],
+  auths: [{
+    required: true,
+    validator: (_rule, value, callback) => {
+      if (!value) callback(new Error(i18n.global.t("system.menu.authRequired")));
+      else callback();
+    },
+    trigger: "blur"
+  }]
 });

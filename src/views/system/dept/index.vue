@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { useDept } from "./utils/hook";
 import { PureTableBar } from "@/components/RePureTableBar";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
@@ -13,6 +14,7 @@ defineOptions({
   name: "SystemDept"
 });
 
+const { t } = useI18n();
 const formRef = ref();
 const tableRef = ref();
 const {
@@ -41,23 +43,23 @@ function onFullscreen() {
       :model="form"
       class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto"
     >
-      <el-form-item label="部门名称：" prop="name">
+      <el-form-item :label="t('system.dept.deptName') + '：'" prop="name">
         <el-input
           v-model="form.name"
-          placeholder="请输入部门名称"
+          :placeholder="t('system.dept.deptName')"
           clearable
           class="w-45!"
         />
       </el-form-item>
-      <el-form-item label="状态：" prop="status">
+      <el-form-item :label="t('system.dept.status') + '：'" prop="status">
         <el-select
           v-model="form.status"
-          placeholder="请选择状态"
+          :placeholder="t('status.pureSelection')"
           clearable
           class="w-45!"
         >
-          <el-option label="启用" :value="1" />
-          <el-option label="停用" :value="0" />
+          <el-option :label="t('system.dept.enabled')" :value="1" />
+          <el-option :label="t('system.dept.disabled')" :value="0" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -67,16 +69,16 @@ function onFullscreen() {
           :loading="loading"
           @click="onSearch"
         >
-          搜索
+          {{ t('status.pureSearch') }}
         </el-button>
         <el-button :icon="useRenderIcon(Refresh)" @click="resetForm(formRef)">
-          重置
+          {{ t('status.pureReset') }}
         </el-button>
       </el-form-item>
     </el-form>
 
     <PureTableBar
-      title="部门管理（仅演示，操作后不生效）"
+      :title="t('system.dept.deptManagement')"
       :columns="columns"
       :tableRef="tableRef?.getTableRef()"
       @refresh="onSearch"
@@ -88,7 +90,7 @@ function onFullscreen() {
           :icon="useRenderIcon(AddFill)"
           @click="openDialog()"
         >
-          新增部门
+          {{ t('system.dept.addDept') }}
         </el-button>
       </template>
       <template v-slot="{ size, dynamicColumns }">
@@ -118,9 +120,9 @@ function onFullscreen() {
               type="primary"
               :size="size"
               :icon="useRenderIcon(EditPen)"
-              @click="openDialog('修改', row)"
+              @click="openDialog(t('status.pureEdit'), row)"
             >
-              修改
+              {{ t('status.pureEdit') }}
             </el-button>
             <el-button
               class="reset-margin"
@@ -128,12 +130,12 @@ function onFullscreen() {
               type="primary"
               :size="size"
               :icon="useRenderIcon(AddFill)"
-              @click="openDialog('新增', { parentId: row.id } as any)"
+              @click="openDialog(t('status.pureAdd'), { parentId: row.id } as any)"
             >
-              新增
+              {{ t('status.pureAdd') }}
             </el-button>
             <el-popconfirm
-              :title="`是否确认删除部门名称为${row.name}的这条数据`"
+              :title="`${t('status.pureDelete')} ${t('system.dept.deptName')}: ${row.name}?`"
               @confirm="handleDelete(row)"
             >
               <template #reference>
@@ -144,7 +146,7 @@ function onFullscreen() {
                   :size="size"
                   :icon="useRenderIcon(Delete)"
                 >
-                  删除
+                  {{ t('status.pureDelete') }}
                 </el-button>
               </template>
             </el-popconfirm>

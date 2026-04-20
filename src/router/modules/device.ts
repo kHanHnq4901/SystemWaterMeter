@@ -1,4 +1,3 @@
-import { $t } from "@/plugins/i18n";
 import { device } from "@/router/enums";
 const Layout = () => import("@/layout/index.vue");
 
@@ -20,6 +19,56 @@ export default {
       meta: {
         icon: "ri:organisation-chart",
         title: "Quản lý Đơn vị",
+        showLink: true
+      }
+    },
+    {
+      path: "/device/province",
+      name: "DeviceProvince",
+      component: () => import("@/views/device/province/index.vue"),
+      meta: {
+        icon: "ri:map-pin-2-line",
+        title: "Quản lý Tỉnh/TP",
+        showLink: true
+      }
+    },
+    {
+      path: "/device/district",
+      name: "DeviceDistrict",
+      component: () => import("@/views/device/district/index.vue"),
+      meta: {
+        icon: "ri:map-pin-line",
+        title: "Quản lý Quận/Huyện",
+        showLink: true
+      }
+    },
+    {
+      path: "/device/ward",
+      name: "DeviceWard",
+      component: () => import("@/views/device/ward/index.vue"),
+      meta: {
+        icon: "ri:map-2-line",
+        title: "Quản lý Phường/Xã",
+        showLink: true
+      }
+    },
+    {
+      path: "/device/zone",
+      name: "DeviceZone",
+      component: () => import("@/views/device/zone/index.vue"),
+      meta: {
+        icon: "ri:focus-3-line",
+        title: "Quản lý Khu vực",
+        showLink: true
+      }
+    },
+    {
+      path: "/device/cluster",
+      name: "DeviceCluster",
+      component: () => import("@/views/device/cluster/index.vue"),
+      meta: {
+        icon: "ri:apps-line",
+        title: "Quản lý Cụm",
         showLink: true
       }
     },
@@ -48,7 +97,7 @@ export default {
       name: "DeviceModel",
       component: () => import("@/views/device/model/index.vue"),
       meta: {
-        icon: "ri:apps-line",
+        icon: "ri:server-line",
         title: "Quản lý Model",
         showLink: true
       }

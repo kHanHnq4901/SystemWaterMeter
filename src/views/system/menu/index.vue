@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { useMenu } from "./utils/hook";
 import { transformI18n } from "@/plugins/i18n";
 import { PureTableBar } from "@/components/RePureTableBar";
@@ -14,6 +15,7 @@ defineOptions({
   name: "SystemMenu"
 });
 
+const { t } = useI18n();
 const formRef = ref();
 const tableRef = ref();
 const {
@@ -42,10 +44,10 @@ function onFullscreen() {
       :model="form"
       class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto"
     >
-      <el-form-item label="菜单名称：" prop="title">
+      <el-form-item :label="t('system.menu.menuName') + '：'" prop="title">
         <el-input
           v-model="form.title"
-          placeholder="请输入菜单名称"
+          :placeholder="t('system.menu.menuName')"
           clearable
           class="w-45!"
         />
@@ -57,16 +59,16 @@ function onFullscreen() {
           :loading="loading"
           @click="onSearch"
         >
-          搜索
+          {{ t('status.pureSearch') }}
         </el-button>
         <el-button :icon="useRenderIcon(Refresh)" @click="resetForm(formRef)">
-          重置
+          {{ t('status.pureReset') }}
         </el-button>
       </el-form-item>
     </el-form>
 
     <PureTableBar
-      title="菜单管理（仅演示，操作后不生效）"
+      :title="t('system.menu.menuManagement')"
       :columns="columns"
       :isExpandAll="false"
       :tableRef="tableRef?.getTableRef()"
@@ -79,7 +81,7 @@ function onFullscreen() {
           :icon="useRenderIcon(AddFill)"
           @click="openDialog()"
         >
-          新增菜单
+          {{ t('system.menu.addMenu') }}
         </el-button>
       </template>
       <template v-slot="{ size, dynamicColumns }">
@@ -108,9 +110,9 @@ function onFullscreen() {
               type="primary"
               :size="size"
               :icon="useRenderIcon(EditPen)"
-              @click="openDialog('修改', row)"
+              @click="openDialog(t('status.pureEdit'), row)"
             >
-              修改
+              {{ t('status.pureEdit') }}
             </el-button>
             <el-button
               v-show="row.menuType !== 3"
@@ -119,12 +121,12 @@ function onFullscreen() {
               type="primary"
               :size="size"
               :icon="useRenderIcon(AddFill)"
-              @click="openDialog('新增', { parentId: row.id } as any)"
+              @click="openDialog(t('status.pureAdd'), { parentId: row.id } as any)"
             >
-              新增
+              {{ t('status.pureAdd') }}
             </el-button>
             <el-popconfirm
-              :title="`是否确认删除菜单名称为${transformI18n(row.title)}的这条数据${row?.children?.length > 0 ? '。注意下级菜单也会一并删除，请谨慎操作' : ''}`"
+              :title="`${t('status.pureDelete')} ${t('system.menu.menuName')}: ${transformI18n(row.title)}${row?.children?.length > 0 ? ` (${t('status.pureWarning')})` : ''}`"
               @confirm="handleDelete(row)"
             >
               <template #reference>
@@ -135,7 +137,7 @@ function onFullscreen() {
                   :size="size"
                   :icon="useRenderIcon(Delete)"
                 >
-                  删除
+                  {{ t('status.pureDelete') }}
                 </el-button>
               </template>
             </el-popconfirm>

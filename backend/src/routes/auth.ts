@@ -20,7 +20,7 @@ router.post("/login", async (req, res) => {
     const user = result.recordset[0];
 
     if (!user) {
-      return res.status(401).json({ success: false, message: "login.userNotFound" });
+      return res.status(401).json({ code: 401, message: "login.userNotFound" });
     }
 
     // Thực hiện băm mật khẩu nhập vào
@@ -34,25 +34,29 @@ router.post("/login", async (req, res) => {
 
     if (inputPasswordHash !== user.PASSWORD) {
       console.log("=> Lỗi: Mật khẩu không khớp!");
-      return res.status(401).json({ success: false, message: "login.passwordError" });
+      return res.status(401).json({ code: 401, message: "login.passwordError" });
     }
 
     console.log("=> Đăng nhập thành công!");
+    const now = Date.now();
+    const expires = new Date(now + 2 * 60 * 60 * 1000); // accessToken hết hạn sau 2 giờ
     res.json({
-      success: true,
+      code: 0,
       message: "login.loginSuccess",
       data: {
-        ID: user.ID,
-        NAME: user.NAME,
-        NICK_NAME: user.NICK_NAME,
-        COM_ID: user.COM_ID,
-        accessToken: `JWT_TOKEN_${user.ID}_${Date.now()}`,
-        roles: ["admin"]
+        username: user.NAME,
+        nickname: user.NICK_NAME || user.NAME,
+        avatar: "",
+        roles: ["admin"],
+        permissions: [],
+        accessToken: `AT_${user.ID}_${now}`,
+        refreshToken: `RT_${user.ID}_${now}`,
+        expires
       }
     });
   } catch (error: any) {
     console.error("Login Error:", error);
-    res.status(500).json({ success: false, message: "login.serverError" });
+    res.status(500).json({ code: 500, message: "login.serverError" });
   }
 });
 

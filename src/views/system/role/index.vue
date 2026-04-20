@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRole } from "./utils/hook";
+import { useI18n } from "vue-i18n";
 import { ref, computed, nextTick, onMounted } from "vue";
 import { PureTableBar } from "@/components/RePureTableBar";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
@@ -23,6 +24,8 @@ import Check from "~icons/ep/check";
 defineOptions({
   name: "SystemRole"
 });
+
+const { t } = useI18n();
 
 const iconClass = computed(() => {
   return [
@@ -95,31 +98,31 @@ onMounted(() => {
       :model="form"
       class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto"
     >
-      <el-form-item label="角色名称：" prop="name">
+      <el-form-item :label="t('system.role.roleName') + '：'" prop="name">
         <el-input
           v-model="form.name"
-          placeholder="请输入角色名称"
+          :placeholder="t('system.role.roleName')"
           clearable
           class="w-45!"
         />
       </el-form-item>
-      <el-form-item label="角色标识：" prop="code">
+      <el-form-item :label="t('system.role.roleCode') + '：'" prop="code">
         <el-input
           v-model="form.code"
-          placeholder="请输入角色标识"
+          :placeholder="t('system.role.roleCode')"
           clearable
           class="w-45!"
         />
       </el-form-item>
-      <el-form-item label="状态：" prop="status">
+      <el-form-item :label="t('system.role.status') + '：'" prop="status">
         <el-select
           v-model="form.status"
-          placeholder="请选择状态"
+          :placeholder="t('status.pureSelection')"
           clearable
           class="w-45!"
         >
-          <el-option label="已启用" value="1" />
-          <el-option label="已停用" value="0" />
+          <el-option :label="t('system.role.enabled')" value="1" />
+          <el-option :label="t('system.role.disabled')" value="0" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -129,10 +132,10 @@ onMounted(() => {
           :loading="loading"
           @click="onSearch"
         >
-          搜索
+          {{ t('status.pureSearch') }}
         </el-button>
         <el-button :icon="useRenderIcon(Refresh)" @click="resetForm(formRef)">
-          重置
+          {{ t('status.pureReset') }}
         </el-button>
       </el-form-item>
     </el-form>
@@ -144,7 +147,7 @@ onMounted(() => {
       <PureTableBar
         :class="[isShow && !deviceDetection() ? 'w-[60vw]!' : 'w-full']"
         style="transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1)"
-        title="角色管理（仅演示，操作后不生效）"
+        :title="t('system.role.roleManagement')"
         :columns="columns"
         @refresh="onSearch"
       >
@@ -154,7 +157,7 @@ onMounted(() => {
             :icon="useRenderIcon(AddFill)"
             @click="openDialog()"
           >
-            新增角色
+            {{ t('system.role.addRole') }}
           </el-button>
         </template>
         <template v-slot="{ size, dynamicColumns }">
@@ -186,12 +189,12 @@ onMounted(() => {
                 type="primary"
                 :size="size"
                 :icon="useRenderIcon(EditPen)"
-                @click="openDialog('修改', row)"
+                @click="openDialog(t('status.pureEdit'), row)"
               >
-                修改
+                {{ t('status.pureEdit') }}
               </el-button>
               <el-popconfirm
-                :title="`是否确认删除角色名称为${row.name}的这条数据`"
+                :title="`${t('status.pureDelete')} ${t('system.role.roleName')}: ${row.name}?`"
                 @confirm="handleDelete(row)"
               >
                 <template #reference>
@@ -202,7 +205,7 @@ onMounted(() => {
                     :size="size"
                     :icon="useRenderIcon(Delete)"
                   >
-                    删除
+                    {{ t('status.pureDelete') }}
                   </el-button>
                 </template>
               </el-popconfirm>
@@ -214,7 +217,7 @@ onMounted(() => {
                 :icon="useRenderIcon(Menu)"
                 @click="handleMenu(row)"
               >
-                权限
+                {{ t('system.role.permission') }}
               </el-button>
               <!-- <el-dropdown>
               <el-button
@@ -267,7 +270,7 @@ onMounted(() => {
             <span :class="iconClass">
               <IconifyIconOffline
                 v-tippy="{
-                  content: '关闭'
+                  content: t('system.role.closePanel')
                 }"
                 class="dark:text-white"
                 width="18px"
@@ -279,7 +282,7 @@ onMounted(() => {
             <span :class="[iconClass, 'ml-2']">
               <IconifyIconOffline
                 v-tippy="{
-                  content: '保存菜单权限'
+                  content: t('system.role.saveMenuPerm')
                 }"
                 class="dark:text-white"
                 width="18px"
@@ -290,21 +293,21 @@ onMounted(() => {
             </span>
           </div>
           <p class="font-bold truncate">
-            菜单权限
+            {{ t('system.role.menuPermission') }}
             {{ `${curRow?.name ? `（${curRow.name}）` : ""}` }}
           </p>
         </div>
         <el-input
           v-model="treeSearchValue"
-          placeholder="请输入菜单进行搜索"
+          :placeholder="t('system.role.searchMenu')"
           class="mb-1"
           clearable
           @input="onQueryChanged"
         />
         <div class="flex flex-wrap">
-          <el-checkbox v-model="isExpandAll" label="展开/折叠" />
-          <el-checkbox v-model="isSelectAll" label="全选/全不选" />
-          <el-checkbox v-model="isLinkage" label="父子联动" />
+          <el-checkbox v-model="isExpandAll" :label="t('system.role.expandCollapse')" />
+          <el-checkbox v-model="isSelectAll" :label="t('system.role.selectAll')" />
+          <el-checkbox v-model="isLinkage" :label="t('system.role.parentLink')" />
         </div>
         <el-tree-v2
           ref="treeRef"

@@ -73,36 +73,38 @@ const onLogin = async (formEl: FormInstance | undefined) => {
           password: ruleForm.password
         });
         console.log("Login result:", result);
-        if (result.success && result.data) {
+        if (result.code === 0 && result.data) {
           const userData = result.data;
 
-          // Lưu token và thông tin cần thiết cho Template
           setToken({
             accessToken: userData.accessToken,
-            refreshToken: "",
-            // Bọc toàn bộ phép tính thời gian vào new Date()
+            refreshToken: userData.refreshToken ?? "",
             expires: new Date(new Date().getTime() + 24 * 60 * 60 * 1000),
             roles: userData.roles
           });
 
-          // Tận dụng NICK_NAME để hiển thị lời chào
-          const displayName = userData.NICK_NAME || userData.NAME;
+          const displayName = userData.nickname || userData.username;
           useUserStoreHook().SET_USERNAME(displayName);
 
           // Khởi tạo Router và chuyển trang
           await initRouter();
-          router.push(getTopMenu(true).path).then(() => {
+          const topMenu = getTopMenu(true);
+          router.push(topMenu?.path ?? "/").then(() => {
             message(`Chào mừng ${displayName} đã đăng nhập!`, {
               type: "success"
             });
           });
         } else {
-          message(result.message || "Đăng nhập thất bại", { type: "error" });
+          const errKey = result.message || "login.pureLoginFail";
+          message(transformI18n($t(errKey as any)) || "Đăng nhập thất bại", {
+            type: "error"
+          });
           disabled.value = false;
         }
       } catch (error: any) {
-        const errorMsg = error.response?.data?.message || "Lỗi kết nối Server";
-        message(errorMsg, { type: "error" });
+        const errKey =
+          error.response?.data?.message || error.message || "login.pureLoginFail";
+        message(transformI18n($t(errKey as any)) || errKey, { type: "error" });
         disabled.value = false;
       } finally {
         loading.value = false;

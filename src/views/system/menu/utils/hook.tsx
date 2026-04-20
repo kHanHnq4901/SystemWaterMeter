@@ -4,12 +4,14 @@ import { message } from "@/utils/message";
 import { getMenuList } from "@/api/system";
 import { transformI18n } from "@/plugins/i18n";
 import { addDialog } from "@/components/ReDialog";
-import { reactive, ref, onMounted, h } from "vue";
+import { useI18n } from "vue-i18n";
+import { reactive, ref, onMounted, computed, h } from "vue";
 import type { FormItemProps } from "../utils/types";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { cloneDeep, isAllEmpty, deviceDetection } from "@pureadmin/utils";
 
 export function useMenu() {
+  const { t } = useI18n();
   const form = reactive({
     title: ""
   });
@@ -31,9 +33,9 @@ export function useMenu() {
     }
   };
 
-  const columns: TableColumnList = [
+  const columns = computed<TableColumnList>(() => [
     {
-      label: "Tên menu",
+      label: t("system.menu.menuName"),
       prop: "title",
       align: "left",
       cellRenderer: ({ row }) => (
@@ -48,7 +50,7 @@ export function useMenu() {
       )
     },
     {
-      label: "Loại menu",
+      label: t("menus.pureSystemMenu"),
       prop: "menuType",
       width: 100,
       cellRenderer: ({ row, props }) => (
@@ -62,7 +64,7 @@ export function useMenu() {
       )
     },
     {
-      label: "Đường dẫn",
+      label: "Path",
       prop: "path"
     },
     {
@@ -72,27 +74,27 @@ export function useMenu() {
         isAllEmpty(component) ? path : component
     },
     {
-      label: "Mã quyền",
+      label: t("status.pureAuth"),
       prop: "auths"
     },
     {
-      label: "排序",
+      label: t("system.menu.rank"),
       prop: "rank",
       width: 100
     },
     {
-      label: "隐藏",
+      label: t("system.menu.hidden"),
       prop: "showLink",
-      formatter: ({ showLink }) => (showLink ? "否" : "是"),
+      formatter: ({ showLink }) => (showLink ? t("status.pureNo") : t("status.pureYes")),
       width: 100
     },
     {
-      label: "操作",
+      label: t("status.pureOperation"),
       fixed: "right",
       width: 210,
       slot: "operation"
     }
-  ];
+  ]);
 
   function handleSelectionChange(val) {
     console.log("handleSelectionChange", val);
@@ -134,9 +136,9 @@ export function useMenu() {
     return newTreeList;
   }
 
-  function openDialog(title = "新增", row?: FormItemProps) {
+  function openDialog(title = t("status.pureAdd"), row?: FormItemProps) {
     addDialog({
-      title: `${title} menu`,
+      title: `${title} ${t("system.menu.menuName")}`,
       props: {
         formInline: {
           menuType: row?.menuType ?? 0,
@@ -183,13 +185,7 @@ export function useMenu() {
           if (valid) {
             console.log("curData", curData);
             // 表单规则校验通过
-            if (title === "新增") {
-              // 实际开发先调用新增接口，再进行下面操作
-              chores();
-            } else {
-              // 实际开发先调用修改接口，再进行下面操作
-              chores();
-            }
+            chores();
           }
         });
       }

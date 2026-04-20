@@ -2,8 +2,8 @@ import dayjs from "dayjs";
 import editForm from "../form.vue";
 import { handleTree } from "@/utils/tree";
 import { message } from "@/utils/message";
+import { useI18n } from "vue-i18n";
 
-// SỬA 1: Import các hàm API mới từ file region.ts
 import {
   getRegionList,
   addRegion,
@@ -18,6 +18,7 @@ import type { FormItemProps } from "../utils/types";
 import { cloneDeep, isAllEmpty, deviceDetection } from "@pureadmin/utils";
 
 export function useDept() {
+  const { t } = useI18n();
   const form = reactive({
     name: "",
     status: null // Tạm giữ nếu sau này bác thêm cột STATUS vào SYS_REGION
@@ -111,12 +112,9 @@ export function useDept() {
   }
 
   // SỬA 4: Mở Form và Xử lý Lưu dữ liệu (Thêm / Sửa)
-  function openDialog(title = "新增", row?: FormItemProps) {
-    // Đổi chữ "新增" (Thêm mới) và "修改" (Sửa) sang tiếng Việt nếu cần
-    const vnTitle = title === "新增" ? "Thêm mới" : "Cập nhật";
-
+  function openDialog(title = t("status.pureAdd"), row?: FormItemProps) {
     addDialog({
-      title: `${vnTitle} Trạm/Mạng lưới`,
+      title: `${title} ${t("system.dept.deptName")}`,
       props: {
         formInline: {
           id: row?.id ?? "", // Quan trọng: Có ID để biết đang Sửa dòng nào
@@ -141,7 +139,7 @@ export function useDept() {
         FormRef.validate(async valid => {
           if (valid) {
             try {
-              if (title === "新增") {
+              if (title === t("status.pureAdd")) {
                 // GỌI API THÊM
                 const res = await addRegion(curData);
                 if (res.code === 0) {

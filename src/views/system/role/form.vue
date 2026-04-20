@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { formRules } from "./utils/rule";
+
+const { t } = useI18n();
 import { FormProps } from "./utils/types";
 
 const props = withDefaults(defineProps<FormProps>(), {
@@ -28,26 +31,26 @@ defineExpose({ getRef });
     :rules="formRules"
     label-width="82px"
   >
-    <el-form-item label="角色名称" prop="name">
+    <el-form-item :label="t('system.role.roleName')" prop="name">
       <el-input
         v-model="newFormInline.name"
         clearable
-        placeholder="请输入角色名称"
+        :placeholder="t('system.role.roleName')"
       />
     </el-form-item>
 
-    <el-form-item label="角色标识" prop="code">
+    <el-form-item :label="t('system.role.roleCode')" prop="code">
       <el-input
         v-model="newFormInline.code"
         clearable
-        placeholder="请输入角色标识"
+        :placeholder="t('system.role.roleCode')"
       />
     </el-form-item>
 
-    <el-form-item label="备注">
+    <el-form-item :label="t('system.role.remark')">
       <el-input
         v-model="newFormInline.remark"
-        placeholder="请输入备注信息"
+        :placeholder="t('system.role.remark')"
         type="textarea"
       />
     </el-form-item>

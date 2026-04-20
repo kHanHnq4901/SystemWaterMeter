@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 import tree from "./tree.vue";
 import { useUser } from "./utils/hook";
 import { PureTableBar } from "@/components/RePureTableBar";
@@ -18,6 +19,7 @@ defineOptions({
   name: "SystemUser"
 });
 
+const { t } = useI18n();
 const treeRef = ref();
 const formRef = ref();
 const tableRef = ref();
@@ -68,31 +70,31 @@ const {
         :model="form"
         class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto"
       >
-        <el-form-item label="用户名称：" prop="username">
+        <el-form-item :label="t('system.user.username') + '：'" prop="username">
           <el-input
             v-model="form.username"
-            placeholder="请输入用户名称"
+            :placeholder="t('system.user.username')"
             clearable
             class="w-45!"
           />
         </el-form-item>
-        <el-form-item label="手机号码：" prop="phone">
+        <el-form-item :label="t('system.user.phone') + '：'" prop="phone">
           <el-input
             v-model="form.phone"
-            placeholder="请输入手机号码"
+            :placeholder="t('system.user.phone')"
             clearable
             class="w-45!"
           />
         </el-form-item>
-        <el-form-item label="状态：" prop="status">
+        <el-form-item :label="t('system.user.status') + '：'" prop="status">
           <el-select
             v-model="form.status"
-            placeholder="请选择"
+            :placeholder="t('status.pureSelection')"
             clearable
             class="w-45!"
           >
-            <el-option label="已开启" value="1" />
-            <el-option label="已关闭" value="0" />
+            <el-option :label="t('system.user.enabled')" value="1" />
+            <el-option :label="t('system.user.disabled')" value="0" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -102,16 +104,16 @@ const {
             :loading="loading"
             @click="onSearch"
           >
-            搜索
+            {{ t('status.pureSearch') }}
           </el-button>
           <el-button :icon="useRenderIcon(Refresh)" @click="resetForm(formRef)">
-            重置
+            {{ t('status.pureReset') }}
           </el-button>
         </el-form-item>
       </el-form>
 
       <PureTableBar
-        title="用户管理（仅演示，操作后不生效）"
+        :title="t('system.user.userManagement')"
         :columns="columns"
         @refresh="onSearch"
       >
@@ -121,7 +123,7 @@ const {
             :icon="useRenderIcon(AddFill)"
             @click="openDialog()"
           >
-            新增用户
+            {{ t('system.user.addUser') }}
           </el-button>
         </template>
         <template v-slot="{ size, dynamicColumns }">
@@ -135,16 +137,16 @@ const {
                 style="font-size: var(--el-font-size-base)"
                 class="text-[rgba(42,46,54,0.5)] dark:text-[rgba(220,220,242,0.5)]"
               >
-                已选 {{ selectedNum }} 项
+                {{ t('status.pureSelection') }}: {{ selectedNum }}
               </span>
               <el-button type="primary" text @click="onSelectionCancel">
-                取消选择
+                {{ t('system.user.cancelSelect') }}
               </el-button>
             </div>
-            <el-popconfirm title="是否确认删除?" @confirm="onbatchDel">
+            <el-popconfirm :title="t('system.user.confirmBatchDelete')" @confirm="onbatchDel">
               <template #reference>
                 <el-button type="danger" text class="mr-1!">
-                  批量删除
+                  {{ t('system.user.batchDelete') }}
                 </el-button>
               </template>
             </el-popconfirm>
@@ -176,12 +178,12 @@ const {
                 type="primary"
                 :size="size"
                 :icon="useRenderIcon(EditPen)"
-                @click="openDialog('修改', row)"
+                @click="openDialog(t('status.pureEdit'), row)"
               >
-                修改
+                {{ t('status.pureEdit') }}
               </el-button>
               <el-popconfirm
-                :title="`是否确认删除用户编号为${row.id}的这条数据`"
+                :title="`${t('status.pureDelete')} ID: ${row.id}?`"
                 @confirm="handleDelete(row)"
               >
                 <template #reference>
@@ -192,7 +194,7 @@ const {
                     :size="size"
                     :icon="useRenderIcon(Delete)"
                   >
-                    删除
+                    {{ t('status.pureDelete') }}
                   </el-button>
                 </template>
               </el-popconfirm>
@@ -216,7 +218,7 @@ const {
                         :icon="useRenderIcon(Upload)"
                         @click="handleUpload(row)"
                       >
-                        上传头像
+                        {{ t('system.user.uploadAvatar') }}
                       </el-button>
                     </el-dropdown-item>
                     <el-dropdown-item>
@@ -228,7 +230,7 @@ const {
                         :icon="useRenderIcon(Password)"
                         @click="handleReset(row)"
                       >
-                        重置密码
+                        {{ t('system.user.resetPassword') }}
                       </el-button>
                     </el-dropdown-item>
                     <el-dropdown-item>
@@ -240,7 +242,7 @@ const {
                         :icon="useRenderIcon(Role)"
                         @click="handleRole(row)"
                       >
-                        分配角色
+                        {{ t('system.user.assignRole') }}
                       </el-button>
                     </el-dropdown-item>
                   </el-dropdown-menu>
