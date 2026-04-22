@@ -97,7 +97,7 @@ class PureHttp {
                       .catch(_err => {
                         PureHttp.requests = [];
                         useUserStoreHook().logOut();
-                        message(transformI18n($t("login.pureLoginExpired")), {
+                        message(transformI18n($t("login.loginExpired")), {
                           type: "warning"
                         });
                       })

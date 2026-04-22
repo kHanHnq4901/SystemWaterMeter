@@ -1,169 +1,145 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import mssql from "mssql";
 import pool from "../config/database.js";
 
 const router = express.Router();
 
-// GET /api/gateways - Get all gateways (distinct GATEWAY_NO from HIS_INSTANT_METER)
-router.get("/", async (req, res) => {
+// POST /api/gateways/list — Danh sách Gateway (phân trang + tìm kiếm)
+router.post("/list", async (req: Request, res: Response) => {
   try {
-    const { page = 1, pageSize = 20, status, search } = req.query;
-    const offset = (parseInt(page as string) - 1) * parseInt(pageSize as string);
-
-    let havingClause = "";
-    const params = [];
-
-    if (search) {
-      params.push({ name: "search", value: `%${search}%` });
-      havingClause += " AND GATEWAY_NO LIKE @search";
-    }
-
+    const { keyword, gatewayType, currentPage = 1, pageSize = 20 } = req.body;
+    const offset = (Number(currentPage) - 1) * Number(pageSize);
     const connection = await pool.connect();
 
-    const countRequest = connection.request();
-    params.forEach(p => countRequest.input(p.name, p.value));
-    const countResult = await countRequest.query(`
-      SELECT COUNT(*) as total FROM (
-        SELECT GATEWAY_NO
-        FROM HIS_INSTANT_METER
-        WHERE GATEWAY_NO IS NOT NULL AND GATEWAY_NO != ''
-        GROUP BY GATEWAY_NO
-        HAVING 1=1 ${havingClause}
-      ) g
-    `);
+    const conditions: string[] = [];
+    if (keyword) conditions.push("(GATEWAY_NO LIKE @keyword OR GATEWAY_NAME LIKE @keyword)");
+    if (gatewayType !== undefined && gatewayType !== "") conditions.push("GATEWAY_TYPE = @gatewayType");
+    const where = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
 
-    const request = connection.request();
-    params.forEach(p => request.input(p.name, p.value));
+    const addParams = (r: mssql.Request) => {
+      if (keyword) r.input("keyword", mssql.NVarChar, `%${keyword}%`);
+      if (gatewayType !== undefined && gatewayType !== "") r.input("gatewayType", mssql.Int, Number(gatewayType));
+      return r;
+    };
 
-    const result = await request.query(`
+    const countResult = await addParams(connection.request()).query(
+      `SELECT COUNT(*) as total FROM INFO_GATEWAY ${where}`
+    );
+
+    const dataReq = addParams(connection.request());
+    dataReq.input("offset", mssql.Int, offset);
+    dataReq.input("pageSize", mssql.Int, Number(pageSize));
+
+    const dataResult = await dataReq.query(`
       SELECT
-        g.GATEWAY_NO as gatewayNo,
-        g.meterCount,
-        g.lastOnline,
-        g.avgSignal,
-        g.avgVoltage,
-        CASE WHEN g.lastOnline >= DATEADD(hour, -24, GETDATE()) THEN 1 ELSE 0 END as isOnline
-      FROM (
-        SELECT
-          GATEWAY_NO,
-          COUNT(DISTINCT METER_NO) as meterCount,
-          MAX(CREATED) as lastOnline,
-          AVG(CAST(SIGNAL as float)) as avgSignal,
-          AVG(CAST(VOLTAGE as float)) as avgVoltage
-        FROM HIS_INSTANT_METER
-        WHERE GATEWAY_NO IS NOT NULL AND GATEWAY_NO != ''
-        GROUP BY GATEWAY_NO
-        HAVING 1=1 ${havingClause}
-      ) g
-      ORDER BY g.lastOnline DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${parseInt(pageSize as string)} ROWS ONLY
+        GATEWAY_NO        as gatewayNo,
+        GATEWAY_NAME      as gatewayName,
+        GATEWAY_MODEL_ID  as gatewayModelId,
+        GATEWAY_TYPE      as gatewayType,
+        SIM_CARD_NO       as simCardNo,
+        LINE_ID           as lineId,
+        ADDRESS           as address,
+        NOTE              as note,
+        GROUP_ID          as groupId,
+        IMEI              as imei,
+        VERSION           as version,
+        COORDINATE        as coordinate,
+        CREATED           as created,
+        LASTTIME_CONNECT  as lasttimeConnect,
+        LASTTIME_RECORD   as lasttimeRecord
+      FROM INFO_GATEWAY
+      ${where}
+      ORDER BY CREATED DESC
+      OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
     `);
 
     res.json({
-      success: true,
+      code: 0,
+      message: "common.success",
       data: {
-        list: result.recordset,
+        list: dataResult.recordset,
         total: countResult.recordset[0].total,
-        page: parseInt(page as string),
-        pageSize: parseInt(pageSize as string)
+        pageSize: Number(pageSize),
+        currentPage: Number(currentPage)
       }
     });
-  } catch (error) {
-    console.error("Get gateways error:", error);
-    res.status(500).json({ success: false, message: error.message });
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
   }
 });
 
-// GET /api/gateways/:gatewayNo - Get gateway detail + connected meters
-router.get("/:gatewayNo", async (req, res) => {
+// POST /api/gateways/add — Thêm mới Gateway
+router.post("/add", async (req: Request, res: Response) => {
   try {
+    const { gatewayNo, gatewayName, gatewayModelId, gatewayType, simCardNo, lineId, address, note, groupId, imei, version, coordinate } = req.body;
     const connection = await pool.connect();
-
-    // Gateway summary
-    const gatewayResult = await connection
-      .request()
-      .input("gatewayNo", mssql.VarChar, req.params.gatewayNo)
+    await connection.request()
+      .input("GATEWAY_NO",       mssql.VarChar,  gatewayNo)
+      .input("GATEWAY_NAME",     mssql.NVarChar, gatewayName || "")
+      .input("GATEWAY_MODEL_ID", mssql.VarChar,  gatewayModelId || "")
+      .input("GATEWAY_TYPE",     mssql.Int,      gatewayType ?? 0)
+      .input("SIM_CARD_NO",      mssql.VarChar,  simCardNo || "")
+      .input("LINE_ID",          mssql.VarChar,  lineId || "")
+      .input("ADDRESS",          mssql.NVarChar, address || "")
+      .input("NOTE",             mssql.NVarChar, note || "")
+      .input("GROUP_ID",         mssql.Int,      groupId ?? null)
+      .input("IMEI",             mssql.VarChar,  imei || "")
+      .input("VERSION",          mssql.VarChar,  version || "")
+      .input("COORDINATE",       mssql.NVarChar, coordinate || "")
       .query(`
-        SELECT
-          GATEWAY_NO as gatewayNo,
-          COUNT(DISTINCT METER_NO) as meterCount,
-          MAX(CREATED) as lastOnline,
-          AVG(CAST(SIGNAL as float)) as avgSignal,
-          AVG(CAST(VOLTAGE as float)) as avgVoltage,
-          CASE WHEN MAX(CREATED) >= DATEADD(hour, -24, GETDATE()) THEN 1 ELSE 0 END as isOnline
-        FROM HIS_INSTANT_METER
-        WHERE GATEWAY_NO = @gatewayNo
-        GROUP BY GATEWAY_NO
+        INSERT INTO INFO_GATEWAY
+          (GATEWAY_NO, GATEWAY_NAME, GATEWAY_MODEL_ID, GATEWAY_TYPE, SIM_CARD_NO, LINE_ID, ADDRESS, NOTE, GROUP_ID, IMEI, VERSION, COORDINATE, CREATED)
+        VALUES
+          (@GATEWAY_NO, @GATEWAY_NAME, @GATEWAY_MODEL_ID, @GATEWAY_TYPE, @SIM_CARD_NO, @LINE_ID, @ADDRESS, @NOTE, @GROUP_ID, @IMEI, @VERSION, @COORDINATE, GETDATE())
       `);
-
-    if (gatewayResult.recordset.length === 0) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Gateway không tồn tại" });
-    }
-
-    // Connected meters
-    const metersResult = await connection
-      .request()
-      .input("gatewayNo", mssql.VarChar, req.params.gatewayNo)
-      .query(`
-        SELECT DISTINCT
-          hi.METER_NO as meterNo,
-          m.METER_NAME as meterName,
-          m.METER_MODEL_ID as meterModelId,
-          m.STATE as state,
-          m.ADDRESS as address,
-          hi.SIGNAL as signal,
-          hi.VOLTAGE as voltage,
-          hi.REMAIN_BATTERY as remainBattery,
-          hi.CREATED as lastSeen
-        FROM HIS_INSTANT_METER hi
-        LEFT JOIN INFO_METER m ON hi.METER_NO = m.METER_NO
-        WHERE hi.GATEWAY_NO = @gatewayNo
-          AND hi.CREATED = (
-            SELECT MAX(CREATED) FROM HIS_INSTANT_METER
-            WHERE METER_NO = hi.METER_NO
-          )
-      `);
-
-    res.json({
-      success: true,
-      data: {
-        ...gatewayResult.recordset[0],
-        meters: metersResult.recordset
-      }
-    });
-  } catch (error) {
-    console.error("Get gateway detail error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    res.json({ code: 0, message: "common.createSuccess" });
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
   }
 });
 
-// GET /api/gateways/stats/summary - Get gateway statistics
-router.get("/stats/summary", async (req, res) => {
+// PUT /api/gateways/update/:no — Cập nhật Gateway
+router.put("/update/:no", async (req: Request, res: Response) => {
+  try {
+    const { gatewayName, gatewayModelId, gatewayType, simCardNo, lineId, address, note, groupId, imei, version, coordinate } = req.body;
+    const connection = await pool.connect();
+    await connection.request()
+      .input("GATEWAY_NO",       mssql.VarChar,  req.params.no)
+      .input("GATEWAY_NAME",     mssql.NVarChar, gatewayName || "")
+      .input("GATEWAY_MODEL_ID", mssql.VarChar,  gatewayModelId || "")
+      .input("GATEWAY_TYPE",     mssql.Int,      gatewayType ?? 0)
+      .input("SIM_CARD_NO",      mssql.VarChar,  simCardNo || "")
+      .input("LINE_ID",          mssql.VarChar,  lineId || "")
+      .input("ADDRESS",          mssql.NVarChar, address || "")
+      .input("NOTE",             mssql.NVarChar, note || "")
+      .input("GROUP_ID",         mssql.Int,      groupId ?? null)
+      .input("IMEI",             mssql.VarChar,  imei || "")
+      .input("VERSION",          mssql.VarChar,  version || "")
+      .input("COORDINATE",       mssql.NVarChar, coordinate || "")
+      .query(`
+        UPDATE INFO_GATEWAY SET
+          GATEWAY_NAME=@GATEWAY_NAME, GATEWAY_MODEL_ID=@GATEWAY_MODEL_ID, GATEWAY_TYPE=@GATEWAY_TYPE,
+          SIM_CARD_NO=@SIM_CARD_NO, LINE_ID=@LINE_ID, ADDRESS=@ADDRESS, NOTE=@NOTE,
+          GROUP_ID=@GROUP_ID, IMEI=@IMEI, VERSION=@VERSION, COORDINATE=@COORDINATE,
+          LASTTIME_RECORD=GETDATE()
+        WHERE GATEWAY_NO=@GATEWAY_NO
+      `);
+    res.json({ code: 0, message: "common.updateSuccess" });
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
+// DELETE /api/gateways/:no — Xóa Gateway
+router.delete("/:no", async (req: Request, res: Response) => {
   try {
     const connection = await pool.connect();
-    const result = await connection.request().query(`
-      SELECT
-        COUNT(DISTINCT GATEWAY_NO) as totalGateways,
-        COUNT(DISTINCT CASE WHEN lastOnline >= DATEADD(hour, -24, GETDATE()) THEN GATEWAY_NO END) as onlineGateways,
-        COUNT(DISTINCT CASE WHEN lastOnline < DATEADD(hour, -24, GETDATE()) THEN GATEWAY_NO END) as offlineGateways,
-        AVG(avgSignal) as avgSignal
-      FROM (
-        SELECT
-          GATEWAY_NO,
-          MAX(CREATED) as lastOnline,
-          AVG(CAST(SIGNAL as float)) as avgSignal
-        FROM HIS_INSTANT_METER
-        WHERE GATEWAY_NO IS NOT NULL AND GATEWAY_NO != ''
-        GROUP BY GATEWAY_NO
-      ) g
-    `);
-
-    res.json({ success: true, data: result.recordset[0] });
-  } catch (error) {
-    console.error("Get gateway stats error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    await connection.request()
+      .input("GATEWAY_NO", mssql.VarChar, req.params.no)
+      .query(`DELETE FROM INFO_GATEWAY WHERE GATEWAY_NO = @GATEWAY_NO`);
+    res.json({ code: 0, message: "common.deleteSuccess" });
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
   }
 });
 

@@ -1,55 +1,57 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { message } from "@/utils/message";
 import { deviceDetection } from "@pureadmin/utils";
 
-defineOptions({
-  name: "Preferences"
-});
+defineOptions({ name: "Preferences" });
+
+const { t } = useI18n();
 
 const list = ref([
   {
-    title: "账户密码",
-    illustrate: "其他用户的消息将以站内信的形式通知",
+    key: "password",
+    title: () => t("accountSettings.notifyPassword"),
+    illustrate: () => t("accountSettings.notifyPasswordDesc"),
     checked: true
   },
   {
-    title: "系统消息",
-    illustrate: "系统消息将以站内信的形式通知",
+    key: "system",
+    title: () => t("accountSettings.notifySystem"),
+    illustrate: () => t("accountSettings.notifySystemDesc"),
     checked: true
   },
   {
-    title: "待办任务",
-    illustrate: "待办任务将以站内信的形式通知",
+    key: "task",
+    title: () => t("accountSettings.notifyTask"),
+    illustrate: () => t("accountSettings.notifyTaskDesc"),
     checked: true
   }
 ]);
 
-function onChange(val, item) {
-  console.log("onChange", val);
-  message(`${item.title}设置成功`, { type: "success" });
+function onChange(val: boolean, item: any) {
+  message(
+    item.title() + " " + (val ? t("status.pureEnable") : t("status.pureDisable")),
+    { type: "success" }
+  );
 }
 </script>
 
 <template>
   <div :class="['min-w-45', deviceDetection() ? 'max-w-full' : 'max-w-[70%]']">
-    <h3 class="my-8!">偏好设置</h3>
+    <h3 class="my-8!">{{ t('accountSettings.preferences') }}</h3>
     <div v-for="(item, index) in list" :key="index">
       <div class="flex items-center">
         <div class="flex-1">
-          <p>{{ item.title }}</p>
-          <p class="wp-4">
-            <el-text class="mx-1" type="info">
-              {{ item.illustrate }}
-            </el-text>
-          </p>
+          <p class="font-medium">{{ item.title() }}</p>
+          <el-text class="mt-1" type="info">{{ item.illustrate() }}</el-text>
         </div>
         <el-switch
           v-model="item.checked"
           inline-prompt
-          active-text="是"
-          inactive-text="否"
-          @change="val => onChange(val, item)"
+          :active-text="t('status.pureOn')"
+          :inactive-text="t('status.pureOff')"
+          @change="(val: boolean) => onChange(val, item)"
         />
       </div>
       <el-divider />

@@ -67,6 +67,22 @@ export const getRoleList = (data?: object) => {
   return http.request<ResultTable>("post", "/api/roles/list", { data });
 };
 
+export const addRole = (data?: object) => {
+  return http.request<Result>("post", "/api/roles/add", { data });
+};
+
+export const updateRole = (id: number, data?: object) => {
+  return http.request<Result>("put", `/api/roles/update/${id}`, { data });
+};
+
+export const deleteRole = (id: number) => {
+  return http.request<Result>("delete", `/api/roles/delete/${id}`);
+};
+
+export const saveRoleMenus = (data?: object) => {
+  return http.request<Result>("post", "/api/roles/save-menu", { data });
+};
+
 /** Lấy danh sách cây phòng ban (Đã đổi sang gọi Role để vẽ cây theo Role) */
 export const getDeptList = (data?: object) => {
   // Đổi từ POST "/dept" sang GET "/api/roles/list-all"
@@ -81,6 +97,18 @@ export const getDeptList = (data?: object) => {
 /** Lấy danh sách Menu */
 export const getMenuList = (data?: object) => {
   return http.request<Result>("post", "/api/menus/list", { data });
+};
+
+export const addMenu = (data?: object) => {
+  return http.request<Result>("post", "/api/menus/add", { data });
+};
+
+export const updateMenu = (id: number, data?: object) => {
+  return http.request<Result>("put", `/api/menus/update/${id}`, { data });
+};
+
+export const deleteMenu = (id: number) => {
+  return http.request<Result>("delete", `/api/menus/${id}`);
 };
 
 /** Lấy danh sách Menu của Role (Phân quyền) */
@@ -116,4 +144,14 @@ export const getSystemLogsList = (data?: object) => {
 /** Chi tiết Log hệ thống */
 export const getSystemLogsDetail = (data?: object) => {
   return http.request<Result>("post", "/api/logs/system-detail", { data });
+};
+
+/** Xóa toàn bộ nhật ký hệ thống */
+export const clearSystemLogs = () => {
+  return http.request<Result>("delete", "/api/logs/system/clear-all");
+};
+
+/** Xóa nhiều bản ghi nhật ký hệ thống */
+export const batchDeleteSystemLogs = (data?: object) => {
+  return http.request<Result>("post", "/api/logs/system/batch-delete", { data });
 };

@@ -9,7 +9,7 @@ import { addDialog } from "@/components/ReDialog";
 import type { FormItemProps } from "../utils/types";
 import type { PaginationProps } from "@pureadmin/table";
 import { getKeyList, deviceDetection } from "@pureadmin/utils";
-import { getRoleList, getRoleMenu, getRoleMenuIds } from "@/api/system";
+import { getRoleList, getRoleMenu, getRoleMenuIds, addRole, updateRole, deleteRole, saveRoleMenus } from "@/api/system";
 import { useI18n } from "vue-i18n";
 import { type Ref, reactive, ref, onMounted, computed, h, toRaw, watch } from "vue";
 
@@ -63,14 +63,14 @@ export function useRole(treeRef: Ref) {
         <el-switch
           size={scope.props.size === "small" ? "small" : "default"}
           loading={switchLoadMap.value[scope.index]?.loading}
-          v-model={scope.row.status}
+          model-value={scope.row.status}
           active-value={1}
           inactive-value={0}
-          active-text={t("system.role.enabled")}
-          inactive-text={t("system.role.disabled")}
+          active-text="Hoạt động"
+          inactive-text="Tắt"
           inline-prompt
           style={switchStyle.value}
-          onChange={() => onChange(scope as any)}
+          onChange={(val: number) => onChange(scope as any, val)}
         />
       ),
       minWidth: 90
@@ -104,56 +104,49 @@ export function useRole(treeRef: Ref) {
   //   ];
   // });
 
-  function onChange({ row, index }) {
-    const action = row.status === 0 ? t("system.role.confirmDisable") : t("system.role.confirmEnable");
+  function onChange({ row, index }, newVal: number) {
+    const action = newVal === 1 ? "Kích hoạt" : "Tắt";
     ElMessageBox.confirm(
-      `${t("status.pureConfirm")} <strong>${action}</strong> <strong style='color:var(--el-color-primary)'>${row.name}</strong>?`,
-      t("system.role.systemPrompt"),
+      `Xác nhận <strong>${action}</strong> vai trò <strong style='color:var(--el-color-primary)'>${row.name}</strong>?`,
+      "Cảnh báo",
       {
-        confirmButtonText: t("status.pureConfirmBtn"),
-        cancelButtonText: t("status.pureCancelBtn"),
+        confirmButtonText: "Xác nhận",
+        cancelButtonText: "Hủy",
         type: "warning",
         dangerouslyUseHTMLString: true,
         draggable: true
       }
     )
-      .then(() => {
-        switchLoadMap.value[index] = Object.assign(
-          {},
-          switchLoadMap.value[index],
-          {
-            loading: true
-          }
-        );
-        setTimeout(() => {
-          switchLoadMap.value[index] = Object.assign(
-            {},
-            switchLoadMap.value[index],
-            {
-              loading: false
-            }
-          );
-          message(`${action} ${row.name}`, {
-            type: "success"
-          });
-        }, 300);
+      .then(async () => {
+        switchLoadMap.value[index] = Object.assign({}, switchLoadMap.value[index], { loading: true });
+        row.status = newVal;
+        await updateRole(row.id, { status: newVal });
+        switchLoadMap.value[index] = Object.assign({}, switchLoadMap.value[index], { loading: false });
+        message(`${action} "${row.name}" thành công`, { type: "success" });
       })
       .catch(() => {
-        row.status === 0 ? (row.status = 1) : (row.status = 0);
+        // user cancelled — row.status stays unchanged because we use model-value (one-way)
       });
   }
 
-  function handleDelete(row) {
-    message(`${t("status.pureDeleteSuccess")}: ${row.name}`, { type: "success" });
-    onSearch();
+  async function handleDelete(row) {
+    const res = await deleteRole(row.id);
+    if (res.code === 0) {
+      message(`${t("status.pureDeleteSuccess")}: ${row.name}`, { type: "success" });
+      onSearch();
+    } else {
+      message(res.message, { type: "error" });
+    }
   }
 
   function handleSizeChange(val: number) {
-    console.log(`${val} items per page`);
+    pagination.pageSize = val;
+    onSearch();
   }
 
   function handleCurrentChange(val: number) {
-    console.log(`current page: ${val}`);
+    pagination.currentPage = val;
+    onSearch();
   }
 
   function handleSelectionChange(val) {
@@ -162,17 +155,21 @@ export function useRole(treeRef: Ref) {
 
   async function onSearch() {
     loading.value = true;
-    const { code, data } = await getRoleList(toRaw(form));
-    if (code === 0) {
-      dataList.value = data.list;
-      pagination.total = data.total;
-      pagination.pageSize = data.pageSize;
-      pagination.currentPage = data.currentPage;
-    }
-
-    setTimeout(() => {
+    try {
+      const { code, data } = await getRoleList({
+        ...toRaw(form),
+        currentPage: pagination.currentPage,
+        pageSize: pagination.pageSize
+      });
+      if (code === 0) {
+        dataList.value = data.list;
+        pagination.total = data.total;
+        pagination.pageSize = data.pageSize;
+        pagination.currentPage = data.currentPage;
+      }
+    } finally {
       loading.value = false;
-    }, 500);
+    }
   }
 
   const resetForm = formEl => {
@@ -186,6 +183,7 @@ export function useRole(treeRef: Ref) {
       title: `${title} ${t("system.role.roleName")}`,
       props: {
         formInline: {
+          id: (row as any)?.id,
           name: row?.name ?? "",
           code: row?.code ?? "",
           remark: row?.remark ?? ""
@@ -200,22 +198,18 @@ export function useRole(treeRef: Ref) {
       beforeSure: (done, { options }) => {
         const FormRef = formRef.value.getRef();
         const curData = options.props.formInline as FormItemProps;
-        function chores() {
-          message(`${title} ${t("system.role.roleName")}: ${curData.name}`, {
-            type: "success"
-          });
-          done();
-          onSearch();
-        }
-        FormRef.validate(valid => {
+        FormRef.validate(async valid => {
           if (valid) {
-            console.log("curData", curData);
-            if (title === t("status.pureAdd")) {
-              // 实际开发先调用新增接口，再进行下面操作
-              chores();
+            const isEdit = !!(curData as any).id;
+            const res = isEdit
+              ? await updateRole((curData as any).id, curData)
+              : await addRole(curData);
+            if (res.code === 0) {
+              message(`${title} ${t("system.role.roleName")}: ${curData.name}`, { type: "success" });
+              done();
+              onSearch();
             } else {
-              // 实际开发先调用修改接口，再进行下面操作
-              chores();
+              message(res.message, { type: "error" });
             }
           }
         });
@@ -247,12 +241,15 @@ export function useRole(treeRef: Ref) {
     };
   }
 
-  function handleSave() {
+  async function handleSave() {
     const { id, name } = curRow.value;
-    console.log(id, treeRef.value.getCheckedKeys());
-    message(`${t("system.role.saveMenuPerm")}: ${name}`, {
-      type: "success"
-    });
+    const menuIds = treeRef.value.getCheckedKeys();
+    const res = await saveRoleMenus({ id, menuIds });
+    if (res.code === 0) {
+      message(`${t("system.role.saveMenuPerm")}: ${name}`, { type: "success" });
+    } else {
+      message(res.message, { type: "error" });
+    }
   }
 
   /** 数据权限 可自行开发 */

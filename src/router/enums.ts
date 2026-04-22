@@ -1,23 +1,10 @@
-// Menu ranks cho hệ thống thu thập đồng hồ nước
+// Rank khớp với ORDER_NUM trong DB SYS_MENU
+const home = 1,
+  analysis = 2,
+  device = 3,
+  map = 4,
+  system = 5,
+  logs = 6,
+  config = 7;
 
-const home = 0,
-  map = 1,
-  monitoring = 1.5,
-  device = 2,
-  customer = 2.5,
-  billing = 2.6,
-  analysis = 3,
-  system = 4,
-  logs = 5;
-
-export {
-  home,
-  map,
-  monitoring,
-  device,
-  customer,
-  billing,
-  analysis,
-  system,
-  logs
-};
+export { home, analysis, device, map, system, logs, config };

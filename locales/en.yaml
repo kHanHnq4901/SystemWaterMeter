@@ -22,20 +22,21 @@ buttons:
   pureWatchMore: View More
   pureMarkAsRead: Mark as Read
 login:
-  pureUsername: "Username"
-  purePassword: "Password"
-  pureRemember: "Remember Me"
-  pureRememberInfo: "Remember login information for 7 days"
-  pureForget: "Forgot password?"
-  pureLogin: "Login"
-  pureUsernameReg: "Please input username"
-  purePasswordReg: "Please input password"
-  purePassWordRuleReg: "Password must be 8-18 characters, including at least two types of letters, numbers, or symbols"
-  # Backend messages
+  username: "Username"
+  password: "Password"
+  remember: "Remember Me"
+  rememberInfo: "Remember login information for 7 days"
+  forget: "Forgot password?"
+  loginBtn: "Login"
+  usernameReg: "Please input username"
+  passwordReg: "Please input password"
+  passwordRuleReg: "Password must be 8-18 characters, including at least two types of letters, numbers, or symbols"
   userNotFound: "User does not exist"
   userLocked: "Account is currently locked"
   passwordError: "Incorrect password"
   loginSuccess: "Login successful"
+  loginFail: "Login failed"
+  loginExpired: "Session expired, please login again"
   serverError: "Internal server error"
 search:
   pureTotal: Total
@@ -120,7 +121,7 @@ status:
   pureUpdateSuccess: Update successful
   pureDeleteSuccess: Delete successful
   pureCreateSuccess: Create successful
-  pureDelete: Are you sure to delete?
+  pureDelete: Delete
   pureConfirmBtn: Confirm
   pureCancelBtn: Cancel
   pureClear: Clear
@@ -148,6 +149,8 @@ status:
   purePleaseInput: Please input
   pureRefresh: Refresh
   pureOperation: Operation
+  pureOn: "On"
+  pureOff: "Off"
   pureEnable: Enable
   pureDisable: Disable
   pureAllow: Allow
@@ -186,6 +189,17 @@ info:
   developerContact: contact{'@'}water-meter.vn
   copyright: Copyright
   footerCopyright: © 2026 Water Meter Collection System. All rights reserved.
+
+common:
+  success: "Success"
+  createSuccess: "Created successfully"
+  updateSuccess: "Updated successfully"
+  deleteSuccess: "Deleted successfully"
+  serverError: "Server error"
+
+menu:
+  invalidParent: "Invalid parent menu"
+  hasChildren: "Please delete child menus first"
 
 system:
   role:
@@ -241,6 +255,54 @@ system:
     passwordRequired: "Password is required"
     invalidPhone: "Invalid phone number format"
     invalidEmail: "Invalid email format"
+accountSettings:
+  back: Back
+  profile: Personal Info
+  preferences: Notifications
+  securityLog: Login History
+  accountManagement: Account Security
+  avatar: Avatar
+  updateAvatar: Update Photo
+  editAvatar: Edit Avatar
+  nickname: Nickname
+  email: Email
+  phone: Phone Number
+  description: Bio
+  updateInfo: Save Changes
+  nicknameRequired: Nickname is required
+  nicknamePlaceholder: Enter nickname
+  emailPlaceholder: Enter email address
+  phonePlaceholder: Enter phone number
+  descriptionPlaceholder: Short bio about yourself...
+  changePassword: Change Password
+  oldPassword: Current Password
+  newPassword: New Password
+  confirmPassword: Confirm New Password
+  oldPasswordRequired: Please enter your current password
+  newPasswordRequired: Please enter a new password
+  confirmPasswordRequired: Please confirm your new password
+  passwordNotMatch: Passwords do not match
+  securityPhone: Security Phone
+  securityPhoneDesc: "Linked phone: "
+  backupEmail: Backup Email
+  backupEmailDesc: "Linked email: "
+  notBound: Not linked
+  modify: Edit
+  logIp: IP Address
+  logLocation: Location
+  logOs: Operating System
+  logBrowser: Browser
+  logTime: Time
+  logStatus: Status
+  loginSuccess: Login successful
+  loginFail: Login failed
+  notifyPassword: Password Notifications
+  notifyPasswordDesc: Notify when there is activity related to account password
+  notifySystem: System Messages
+  notifySystemDesc: Notifications about news and updates from the system
+  notifyTask: Pending Tasks
+  notifyTaskDesc: Reminders for tasks and work to be completed
+
   menu:
     menuName: "Menu Name"
     addMenu: "Add Menu"

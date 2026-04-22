@@ -20,7 +20,7 @@ import {
   illustration1,
   illustration2
 } from "./utils/static";
-import { ref, toRaw, reactive, watch } from "vue";
+import { ref, toRaw, reactive, watch, nextTick } from "vue";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { useTranslationLang } from "@/layout/hooks/useTranslationLang";
 import { useDataThemeChange } from "@/layout/hooks/useDataThemeChange";
@@ -72,38 +72,39 @@ const onLogin = async (formEl: FormInstance | undefined) => {
           username: ruleForm.username.trim(),
           password: ruleForm.password
         });
-        console.log("Login result:", result);
+
         if (result.code === 0 && result.data) {
           const userData = result.data;
 
           setToken({
-            accessToken: userData.accessToken,
+            accessToken:  userData.accessToken,
             refreshToken: userData.refreshToken ?? "",
-            expires: new Date(new Date().getTime() + 24 * 60 * 60 * 1000),
-            roles: userData.roles
+            expires:      new Date(new Date().getTime() + 24 * 60 * 60 * 1000),
+            username:     userData.username,
+            nickname:     userData.nickname ?? "",
+            avatar:       userData.avatar   ?? "",
+            roles:        userData.roles,
+            permissions:  userData.permissions ?? []
           });
+
+          await initRouter();
+          await nextTick();
+
+          const topMenu = getTopMenu(true);
+          await router.push(topMenu?.path ?? "/welcome");
 
           const displayName = userData.nickname || userData.username;
-          useUserStoreHook().SET_USERNAME(displayName);
-
-          // Khởi tạo Router và chuyển trang
-          await initRouter();
-          const topMenu = getTopMenu(true);
-          router.push(topMenu?.path ?? "/").then(() => {
-            message(`Chào mừng ${displayName} đã đăng nhập!`, {
-              type: "success"
-            });
-          });
+          message(`Chào mừng ${displayName} đã đăng nhập!`, { type: "success" });
         } else {
-          const errKey = result.message || "login.pureLoginFail";
-          message(transformI18n($t(errKey as any)) || "Đăng nhập thất bại", {
+          const errKey = result.message || "login.loginFail";
+          message(transformI18n($t(errKey as any)) || t("login.loginFail"), {
             type: "error"
           });
           disabled.value = false;
         }
       } catch (error: any) {
         const errKey =
-          error.response?.data?.message || error.message || "login.pureLoginFail";
+          error.response?.data?.message || error.message || "login.loginFail";
         message(transformI18n($t(errKey as any)) || errKey, { type: "error" });
         disabled.value = false;
       } finally {
@@ -205,7 +206,7 @@ watch(loginDay, value => {
                 :rules="[
                   {
                     required: true,
-                    message: transformI18n($t('login.pureUsernameReg')),
+                    message: transformI18n($t('login.usernameReg')),
                     trigger: 'blur'
                   }
                 ]"
@@ -214,7 +215,7 @@ watch(loginDay, value => {
                 <el-input
                   v-model="ruleForm.username"
                   clearable
-                  :placeholder="t('login.pureUsername')"
+                  :placeholder="t('login.username')"
                   :prefix-icon="useRenderIcon(User)"
                 />
               </el-form-item>
@@ -226,7 +227,7 @@ watch(loginDay, value => {
                   v-model="ruleForm.password"
                   clearable
                   show-password
-                  :placeholder="t('login.purePassword')"
+                  :placeholder="t('login.password')"
                   :prefix-icon="useRenderIcon(Lock)"
                 />
               </el-form-item>
@@ -237,10 +238,10 @@ watch(loginDay, value => {
                 <div class="w-full h-5 flex-bc">
                   <el-checkbox v-model="checked">
                     <span class="flex">
-                      {{ t("login.pureRemember") }}
+                      {{ t("login.remember") }}
                       <IconifyIconOffline
                         v-tippy="{
-                          content: t('login.pureRememberInfo'),
+                          content: t('login.rememberInfo'),
                           placement: 'top'
                         }"
                         :icon="Info"
@@ -249,7 +250,7 @@ watch(loginDay, value => {
                     </span>
                   </el-checkbox>
                   <el-button link type="primary">
-                    {{ t("login.pureForget") }}
+                    {{ t("login.forget") }}
                   </el-button>
                 </div>
                 <el-button
@@ -260,7 +261,7 @@ watch(loginDay, value => {
                   :disabled="disabled"
                   @click="onLogin(ruleFormRef)"
                 >
-                  {{ t("login.pureLogin") }}
+                  {{ t("login.loginBtn") }}
                 </el-button>
               </el-form-item>
             </Motion>

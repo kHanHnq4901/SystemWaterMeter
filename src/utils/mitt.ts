@@ -9,6 +9,7 @@ type Events = {
   tagViewsChange: string;
   changLayoutRoute: string;
   tagViewsTagsStyle: string;
+  avatarChange: string;
   imageInfo: {
     img: HTMLImageElement;
     height: number;

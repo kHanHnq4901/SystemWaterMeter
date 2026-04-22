@@ -240,4 +240,161 @@ router.delete("/:id", async (req: Request, res: Response) => {
   }
 });
 
+// ============================================================================
+// 6. POST /api/roles/menu — Lấy TẤT CẢ menu để vẽ cây phân quyền
+// ============================================================================
+router.post("/menu", async (_req: Request, res: Response) => {
+  try {
+    const connection = await pool.connect();
+    const result = await connection.request().query(`
+      SELECT
+        ID       as id,
+        PARENT_ID as parentId,
+        NAME     as title,
+        ICON     as icon,
+        TYPE     as menuType,
+        ORDER_NUM as rank
+      FROM SYS_MENU
+      WHERE DEL_FLAG = 0
+      ORDER BY ORDER_NUM ASC
+    `);
+    res.json({ code: 0, message: "common.success", data: result.recordset });
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
+// ============================================================================
+// 7. POST /api/roles/menu-ids — Lấy danh sách MENU_ID mà role đang giữ
+// ============================================================================
+router.post("/menu-ids", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.body;
+    if (!id) return res.json({ code: 0, message: "common.success", data: [] });
+
+    const connection = await pool.connect();
+    const result = await connection
+      .request()
+      .input("roleId", mssql.Int, id)
+      .query(`SELECT MENU_ID as menuId FROM SYS_ROLE_MENU WHERE ROLE_ID = @roleId`);
+
+    const menuIds = result.recordset.map((r: any) => r.menuId);
+    res.json({ code: 0, message: "common.success", data: menuIds });
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
+// ============================================================================
+// 8. POST /api/roles/save-menu — Lưu phân quyền menu cho role
+// ============================================================================
+router.post("/save-menu", async (req: Request, res: Response) => {
+  try {
+    const { id, menuIds } = req.body;
+    if (!id) return res.status(400).json({ code: 400, message: "role.missingId" });
+
+    const connection = await pool.connect();
+    const transaction = new mssql.Transaction(connection);
+    await transaction.begin();
+
+    try {
+      // Xóa phân quyền cũ
+      await new mssql.Request(transaction)
+        .input("roleId", mssql.Int, id)
+        .query(`DELETE FROM SYS_ROLE_MENU WHERE ROLE_ID = @roleId`);
+
+      // Thêm phân quyền mới
+      if (Array.isArray(menuIds) && menuIds.length > 0) {
+        for (const menuId of menuIds) {
+          await new mssql.Request(transaction)
+            .input("ROLE_ID", mssql.Int, id)
+            .input("MENU_ID", mssql.Int, menuId)
+            .query(`INSERT INTO SYS_ROLE_MENU (ROLE_ID, MENU_ID) VALUES (@ROLE_ID, @MENU_ID)`);
+        }
+      }
+
+      await transaction.commit();
+      res.json({ code: 0, message: "common.updateSuccess" });
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
+// ============================================================================
+// 9. POST /api/roles/add — Thêm mới vai trò
+// ============================================================================
+router.post("/add", async (req: Request, res: Response) => {
+  try {
+    const { name, code, remark } = req.body;
+    const connection = await pool.connect();
+    await connection
+      .request()
+      .input("NAME", mssql.NVarChar, name)
+      .input("CODE", mssql.VarChar, code || "")
+      .input("REMARKS", mssql.NVarChar, remark || "")
+      .query(`
+        INSERT INTO SYS_ROLE (NAME, CODE, REMARKS, STATUS, DEL_FLAG, CREATE_TIME)
+        VALUES (@NAME, @CODE, @REMARKS, 1, 0, GETDATE())
+      `);
+    res.json({ code: 0, message: "common.createSuccess" });
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
+// ============================================================================
+// 10. PUT /api/roles/update/:id — Cập nhật vai trò
+// ============================================================================
+router.put("/update/:id", async (req: Request, res: Response) => {
+  try {
+    const { name, code, remark, status } = req.body;
+    const connection = await pool.connect();
+    await connection
+      .request()
+      .input("id", mssql.Int, req.params.id)
+      .input("NAME", mssql.NVarChar, name)
+      .input("CODE", mssql.VarChar, code || "")
+      .input("REMARKS", mssql.NVarChar, remark || "")
+      .input("STATUS", mssql.TinyInt, status ?? 1)
+      .query(`
+        UPDATE SYS_ROLE
+        SET NAME=@NAME, CODE=@CODE, REMARKS=@REMARKS, STATUS=@STATUS, LAST_UPDATE_TIME=GETDATE()
+        WHERE ID=@id
+      `);
+    res.json({ code: 0, message: "common.updateSuccess" });
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
+// ============================================================================
+// 11. DELETE /api/roles/delete/:id — Xóa mềm vai trò
+// ============================================================================
+router.delete("/delete/:id", async (req: Request, res: Response) => {
+  try {
+    const connection = await pool.connect();
+    const transaction = new mssql.Transaction(connection);
+    await transaction.begin();
+    try {
+      await new mssql.Request(transaction)
+        .input("id", mssql.Int, req.params.id)
+        .query(`UPDATE SYS_ROLE SET DEL_FLAG=1 WHERE ID=@id`);
+      await new mssql.Request(transaction)
+        .input("id", mssql.Int, req.params.id)
+        .query(`DELETE FROM SYS_USER_ROLE WHERE ROLE_ID=@id`);
+      await transaction.commit();
+      res.json({ code: 0, message: "common.deleteSuccess" });
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
 export default router;

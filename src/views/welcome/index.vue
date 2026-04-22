@@ -1,247 +1,223 @@
 <script setup lang="ts">
-import { ref, markRaw } from "vue";
+import { ref, reactive, onMounted, h } from "vue";
+import { ElTag } from "element-plus";
 import ReCol from "@/components/ReCol";
-import { useDark, randomGradient } from "./utils";
-import WelcomeTable from "./components/table/index.vue";
 import { ReNormalCountTo } from "@/components/ReCountTo";
-import { useRenderFlicker } from "@/components/ReFlicker";
-import { ChartBar, ChartLine, ChartRound } from "./components/charts";
-import Segmented, { type OptionsType } from "@/components/ReSegmented";
-import { chartData, barChartData, progressData, latestNewsData } from "./data";
+import { ChartBar, ChartPie } from "./components/charts";
+import { http } from "@/utils/http";
 
-defineOptions({
-  name: "Welcome"
-});
+defineOptions({ name: "Welcome" });
 
-const { isDark } = useDark();
+type DashboardStats = {
+  meters:         { total: number; active: number; notInstalled: number; broken: number; removed: number };
+  gateways:       { total: number; online: number; offline: number };
+  todayReadings:  number;
+  meterTypeStats: { meterType: string; count: number }[];
+  weeklyTrend:    { date: string; readingCount: number; uniqueMeters: number; avgSignal: number }[];
+  offlineMeters:  { meterNo: string; meterName: string; address: string; customerCode: string; lastSeen: string }[];
+  groupStats:     { groupName: string; total: number; active: number }[];
+};
 
-let curWeek = ref(1); // 0上周、1本周
-const optionsBasis: Array<OptionsType> = [
+const loading = ref(false);
+const stats = ref<DashboardStats | null>(null);
+
+// Computed chart data
+const pieData = ref<{ name: string; value: number }[]>([]);
+const barRequireData = ref<number[]>([]);
+const barQuestionData = ref<number[]>([]);
+const barDates = ref<string[]>([]);
+
+const statCards = ref([
+  { label: "Tổng đồng hồ",     value: 0, color: "#41b6ff", bg: "#e8f6ff", icon: "ri:drop-line",         sub: "" },
+  { label: "Đang hoạt động",   value: 0, color: "#67c23a", bg: "#f0f9eb", icon: "ri:checkbox-circle-line", sub: "" },
+  { label: "Gateway Online",   value: 0, color: "#e6a23c", bg: "#fdf6ec", icon: "ri:router-line",          sub: "" },
+  { label: "Đọc chỉ số hôm nay", value: 0, color: "#9b59b6", bg: "#f5f0ff", icon: "ri:bar-chart-2-line",  sub: "" }
+]);
+
+async function loadStats() {
+  loading.value = true;
+  try {
+    const res: any = await http.request("get", "/api/dashboard/stats");
+    if (res?.code !== 0) return;
+    const d: DashboardStats = res.data;
+    stats.value = d;
+
+    // Stat cards
+    statCards.value[0].value = d.meters.total;
+    statCards.value[0].sub   = `Hỏng: ${d.meters.broken} • Tháo: ${d.meters.removed}`;
+    statCards.value[1].value = d.meters.active;
+    statCards.value[1].sub   = `Chưa lắp: ${d.meters.notInstalled}`;
+    statCards.value[2].value = d.gateways.online;
+    statCards.value[2].sub   = `Offline: ${d.gateways.offline} / Tổng: ${d.gateways.total}`;
+    statCards.value[3].value = d.todayReadings;
+    statCards.value[3].sub   = `Đồng hồ duy nhất hôm nay`;
+
+    // Pie chart — trạng thái đồng hồ
+    pieData.value = [
+      { name: "Đang dùng", value: d.meters.active },
+      { name: "Chưa lắp",  value: d.meters.notInstalled },
+      { name: "Hỏng",      value: d.meters.broken },
+      { name: "Tháo ra",   value: d.meters.removed }
+    ].filter(x => x.value > 0);
+
+    // Bar chart — 7 ngày
+    barDates.value      = d.weeklyTrend.map(x => x.date.slice(5)); // MM-DD
+    barRequireData.value = d.weeklyTrend.map(x => x.readingCount);
+    barQuestionData.value = d.weeklyTrend.map(x => x.uniqueMeters);
+
+  } finally {
+    loading.value = false;
+  }
+}
+
+const offlineColumns = [
+  { label: "Mã ĐH",   prop: "meterNo",      width: 120 },
+  { label: "Tên",     prop: "meterName",    minWidth: 140 },
+  { label: "Mã KH",   prop: "customerCode", width: 110 },
+  { label: "Địa chỉ", prop: "address",      minWidth: 160, showOverflowTooltip: true },
   {
-    label: "上周"
-  },
-  {
-    label: "本周"
+    label: "Lần cuối",
+    prop: "lastSeen",
+    width: 165,
+    formatter: ({ lastSeen }: any) =>
+      lastSeen ? new Date(lastSeen).toLocaleString("vi-VN") : "Chưa có dữ liệu"
   }
 ];
+
+onMounted(() => loadStats());
 </script>
 
 <template>
-  <div>
-    <el-row :gutter="24" justify="space-around">
+  <div class="p-4">
+    <!-- ─── 4 Stat Cards ──────────────────────────── -->
+    <el-row :gutter="16" class="mb-4">
       <re-col
-        v-for="(item, index) in chartData"
-        :key="index"
+        v-for="(card, i) in statCards"
+        :key="i"
         v-motion
-        class="mb-4.5"
-        :value="6"
-        :md="12"
-        :sm="12"
-        :xs="24"
-        :initial="{
-          opacity: 0,
-          y: 100
-        }"
-        :enter="{
-          opacity: 1,
-          y: 0,
-          transition: {
-            delay: 80 * (index + 1)
-          }
-        }"
+        :value="6" :md="12" :sm="12" :xs="24"
+        class="mb-4"
+        :initial="{ opacity: 0, y: 60 }"
+        :enter="{ opacity: 1, y: 0, transition: { delay: 80 * (i + 1) } }"
       >
-        <el-card class="line-card" shadow="never">
-          <div class="flex justify-between">
-            <span class="text-md font-medium">
-              {{ item.name }}
-            </span>
-            <div
-              class="size-8 flex-c rounded-md"
-              :style="{
-                backgroundColor: isDark ? 'transparent' : item.bgColor
-              }"
-            >
-              <IconifyIconOffline
-                :icon="item.icon"
-                :color="item.color"
-                width="18"
-                height="18"
-              />
-            </div>
-          </div>
-          <div class="flex justify-between items-start mt-3">
-            <div class="w-1/2">
+        <el-card shadow="never" class="h-full">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-gray-500 mb-1">{{ card.label }}</p>
               <ReNormalCountTo
-                :duration="item.duration"
-                :fontSize="'1.6em'"
-                :startVal="100"
-                :endVal="item.value"
+                :startVal="0"
+                :endVal="card.value"
+                :duration="1200"
+                :fontSize="'1.8em'"
               />
-              <p class="font-medium text-green-500">{{ item.percent }}</p>
+              <p class="text-xs text-gray-400 mt-1">{{ card.sub }}</p>
             </div>
-            <ChartLine
-              v-if="item.data.length > 1"
-              class="w-1/2!"
-              :color="item.color"
-              :data="item.data"
-            />
-            <ChartRound v-else class="w-1/2!" />
+            <div
+              class="w-14 h-14 rounded-xl flex items-center justify-center"
+              :style="{ background: card.bg }"
+            >
+              <IconifyIconOnline
+                :icon="card.icon"
+                :color="card.color"
+                width="28"
+                height="28"
+              />
+            </div>
           </div>
         </el-card>
       </re-col>
+    </el-row>
 
+    <!-- ─── Charts Row ────────────────────────────── -->
+    <el-row :gutter="16" class="mb-4">
+      <!-- Pie: Trạng thái đồng hồ -->
       <re-col
-        v-motion
-        class="mb-4.5"
-        :value="18"
-        :xs="24"
-        :initial="{
-          opacity: 0,
-          y: 100
-        }"
-        :enter="{
-          opacity: 1,
-          y: 0,
-          transition: {
-            delay: 400
-          }
-        }"
+        v-motion :value="8" :md="24" :xs="24" class="mb-4"
+        :initial="{ opacity: 0, y: 60 }"
+        :enter="{ opacity: 1, y: 0, transition: { delay: 400 } }"
       >
-        <el-card class="bar-card" shadow="never">
-          <div class="flex justify-between">
-            <span class="text-md font-medium">分析概览</span>
-            <Segmented v-model="curWeek" :options="optionsBasis" />
-          </div>
-          <div class="flex justify-between items-start mt-3">
-            <ChartBar
-              :requireData="barChartData[curWeek].requireData"
-              :questionData="barChartData[curWeek].questionData"
-            />
-          </div>
+        <el-card shadow="never" style="height: 340px">
+          <div class="text-sm font-semibold mb-2">Trạng thái đồng hồ</div>
+          <ChartPie :data="pieData" name="Đồng hồ" />
         </el-card>
       </re-col>
 
+      <!-- Bar: Xu hướng 7 ngày -->
       <re-col
-        v-motion
-        class="mb-4.5"
-        :value="6"
-        :xs="24"
-        :initial="{
-          opacity: 0,
-          y: 100
-        }"
-        :enter="{
-          opacity: 1,
-          y: 0,
-          transition: {
-            delay: 480
-          }
-        }"
+        v-motion :value="16" :md="24" :xs="24" class="mb-4 bar-card"
+        :initial="{ opacity: 0, y: 60 }"
+        :enter="{ opacity: 1, y: 0, transition: { delay: 480 } }"
+      >
+        <el-card shadow="never" style="height: 340px">
+          <div class="text-sm font-semibold mb-2">
+            Bản ghi nhận 7 ngày gần nhất
+            <span class="text-xs text-gray-400 ml-2 font-normal">Xanh: tổng bản ghi · Đỏ: đồng hồ duy nhất</span>
+          </div>
+          <ChartBar :requireData="barRequireData" :questionData="barQuestionData" :dates="barDates" />
+        </el-card>
+      </re-col>
+    </el-row>
+
+    <!-- ─── Bottom Row ────────────────────────────── -->
+    <el-row :gutter="16">
+      <!-- Đồng hồ ngoại tuyến -->
+      <re-col
+        v-motion :value="16" :md="24" :xs="24" class="mb-4"
+        :initial="{ opacity: 0, y: 60 }"
+        :enter="{ opacity: 1, y: 0, transition: { delay: 560 } }"
       >
         <el-card shadow="never">
-          <div class="flex justify-between">
-            <span class="text-md font-medium">解决概率</span>
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-sm font-semibold">Đồng hồ đang hoạt động nhưng mất kết nối &gt; 24h</span>
+            <el-tag type="danger" size="small">{{ stats?.offlineMeters?.length ?? 0 }} đồng hồ</el-tag>
           </div>
-          <div
-            v-for="(item, index) in progressData"
-            :key="index"
-            :class="[
-              'flex',
-              'justify-between',
-              'items-start',
-              index === 0 ? 'mt-8' : 'mt-[2.15rem]'
-            ]"
+          <el-table
+            :data="stats?.offlineMeters ?? []"
+            size="small"
+            :header-cell-style="{ background: 'var(--el-fill-color-light)', color: 'var(--el-text-color-primary)' }"
+            empty-text="Tất cả đồng hồ đều đang gửi dữ liệu"
           >
+            <el-table-column type="index" width="50" />
+            <el-table-column label="Mã ĐH"   prop="meterNo"      width="120" />
+            <el-table-column label="Tên"     prop="meterName"    min-width="140" />
+            <el-table-column label="Mã KH"   prop="customerCode" width="110" />
+            <el-table-column label="Địa chỉ" prop="address"      min-width="160" show-overflow-tooltip />
+            <el-table-column label="Lần cuối nhận" min-width="160">
+              <template #default="{ row }">
+                <el-tag type="danger" size="small" v-if="!row.lastSeen">Chưa có dữ liệu</el-tag>
+                <span v-else class="text-orange-500 text-xs">
+                  {{ new Date(row.lastSeen).toLocaleString("vi-VN") }}
+                </span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </re-col>
+
+      <!-- Thống kê theo nhóm -->
+      <re-col
+        v-motion :value="8" :md="24" :xs="24" class="mb-4"
+        :initial="{ opacity: 0, y: 60 }"
+        :enter="{ opacity: 1, y: 0, transition: { delay: 640 } }"
+      >
+        <el-card shadow="never">
+          <div class="text-sm font-semibold mb-3">Đồng hồ theo nhóm</div>
+          <div
+            v-for="(g, i) in (stats?.groupStats ?? [])"
+            :key="i"
+            class="mb-3"
+          >
+            <div class="flex justify-between text-xs text-gray-600 mb-1">
+              <span class="truncate max-w-[120px]">{{ g.groupName }}</span>
+              <span class="font-medium">{{ g.active }} / {{ g.total }}</span>
+            </div>
             <el-progress
-              :text-inside="true"
-              :percentage="item.percentage"
-              :stroke-width="21"
-              :color="item.color"
-              striped
-              striped-flow
-              :duration="item.duration"
+              :percentage="g.total > 0 ? Math.round((g.active / g.total) * 100) : 0"
+              :stroke-width="10"
+              :color="g.active / g.total > 0.8 ? '#67c23a' : g.active / g.total > 0.5 ? '#e6a23c' : '#f56c6c'"
             />
-            <span class="text-nowrap ml-2 text-text_color_regular text-sm">
-              {{ item.week }}
-            </span>
           </div>
-        </el-card>
-      </re-col>
-
-      <re-col
-        v-motion
-        class="mb-4.5"
-        :value="18"
-        :xs="24"
-        :initial="{
-          opacity: 0,
-          y: 100
-        }"
-        :enter="{
-          opacity: 1,
-          y: 0,
-          transition: {
-            delay: 560
-          }
-        }"
-      >
-        <el-card shadow="never">
-          <div class="flex justify-between">
-            <span class="text-md font-medium">数据统计</span>
-          </div>
-          <el-scrollbar max-height="504" class="mt-3">
-            <WelcomeTable />
-          </el-scrollbar>
-        </el-card>
-      </re-col>
-
-      <re-col
-        v-motion
-        class="mb-4.5"
-        :value="6"
-        :xs="24"
-        :initial="{
-          opacity: 0,
-          y: 100
-        }"
-        :enter="{
-          opacity: 1,
-          y: 0,
-          transition: {
-            delay: 640
-          }
-        }"
-      >
-        <el-card shadow="never">
-          <div class="flex justify-between">
-            <span class="text-md font-medium">最新动态</span>
-          </div>
-          <el-scrollbar max-height="504" class="mt-3">
-            <el-timeline>
-              <el-timeline-item
-                v-for="(item, index) in latestNewsData"
-                :key="index"
-                center
-                placement="top"
-                :icon="
-                  markRaw(
-                    useRenderFlicker({
-                      background: randomGradient({
-                        randomizeHue: true
-                      })
-                    })
-                  )
-                "
-                :timestamp="item.date"
-              >
-                <p class="text-text_color_regular text-sm">
-                  {{
-                    `新增 ${item.requiredNumber} 条问题，${item.resolveNumber} 条已解决`
-                  }}
-                </p>
-              </el-timeline-item>
-            </el-timeline>
-          </el-scrollbar>
+          <el-empty v-if="!stats?.groupStats?.length" description="Chưa có dữ liệu" :image-size="60" />
         </el-card>
       </re-col>
     </el-row>
@@ -251,33 +227,9 @@ const optionsBasis: Array<OptionsType> = [
 <style lang="scss" scoped>
 :deep(.el-card) {
   --el-card-border-color: none;
-
-  /* 解决概率进度条宽度 */
-  .el-progress--line {
-    width: 85%;
-  }
-
-  /* 解决概率进度条字体大小 */
-  .el-progress-bar__innerText {
-    font-size: 15px;
-  }
-
-  /* 隐藏 el-scrollbar 滚动条 */
-  .el-scrollbar__bar {
-    display: none;
-  }
-
-  /* el-timeline 每一项上下、左右边距 */
-  .el-timeline-item {
-    margin: 0 6px;
-  }
+  border-radius: 10px;
 }
-
-:deep(.el-timeline.is-start) {
-  padding-left: 0;
-}
-
-.main-content {
-  margin: 20px 20px 0 !important;
+:deep(.el-progress-bar__outer) {
+  border-radius: 10px;
 }
 </style>

@@ -22,20 +22,21 @@ buttons:
   pureWatchMore: Xem thêm
   pureMarkAsRead: Đánh dấu đã đọc
 login:
-  pureUsername: "Tên đăng nhập"
-  purePassword: "Mật khẩu"
-  pureRemember: "Ghi nhớ mật khẩu"
-  pureRememberInfo: "Ghi nhớ thông tin đăng nhập trong 7 ngày"
-  pureForget: "Quên mật khẩu?"
-  pureLogin: "Đăng nhập"
-  pureUsernameReg: "Vui lòng nhập tên đăng nhập"
-  purePasswordReg: "Vui lòng nhập mật khẩu"
-  purePassWordRuleReg: "Mật khẩu phải từ 8-18 vị, bao gồm ít nhất 2 loại: chữ cái, số hoặc ký hiệu"
-  # Thêm thông báo lỗi cho Backend
+  username: "Tên đăng nhập"
+  password: "Mật khẩu"
+  remember: "Ghi nhớ mật khẩu"
+  rememberInfo: "Ghi nhớ thông tin đăng nhập trong 7 ngày"
+  forget: "Quên mật khẩu?"
+  loginBtn: "Đăng nhập"
+  usernameReg: "Vui lòng nhập tên đăng nhập"
+  passwordReg: "Vui lòng nhập mật khẩu"
+  passwordRuleReg: "Mật khẩu phải từ 8-18 ký tự, bao gồm ít nhất 2 loại: chữ cái, số hoặc ký hiệu"
   userNotFound: "Tài khoản không tồn tại"
   userLocked: "Tài khoản đang bị khóa"
   passwordError: "Mật khẩu không chính xác"
   loginSuccess: "Đăng nhập thành công"
+  loginFail: "Đăng nhập thất bại"
+  loginExpired: "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại"
   serverError: "Lỗi kết nối máy chủ"
 search:
   pureTotal: Tổng
@@ -120,7 +121,7 @@ status:
   pureUpdateSuccess: Cập nhật thành công
   pureDeleteSuccess: Xóa thành công
   pureCreateSuccess: Tạo thành công
-  pureDelete: Bạn có chắc chắn muốn xóa không?
+  pureDelete: Xóa
   pureConfirmBtn: Xác nhận
   pureCancelBtn: Hủy
   pureClear: Xóa
@@ -189,6 +190,17 @@ info:
   copyright: Bản quyền
   footerCopyright: © 2026 Hệ thống Thu thập Đồng hồ Nước. Tất cả các quyền được bảo lưu.
 
+common:
+  success: "Thành công"
+  createSuccess: "Tạo mới thành công"
+  updateSuccess: "Cập nhật thành công"
+  deleteSuccess: "Xóa thành công"
+  serverError: "Lỗi máy chủ"
+
+menu:
+  invalidParent: "Menu cha không hợp lệ"
+  hasChildren: "Vui lòng xóa các menu con trước"
+
 system:
   role:
     roleName: "Tên vai trò"
@@ -243,6 +255,54 @@ system:
     passwordRequired: "Mật khẩu là bắt buộc"
     invalidPhone: "Số điện thoại không đúng định dạng"
     invalidEmail: "Email không đúng định dạng"
+accountSettings:
+  back: Quay lại
+  profile: Thông tin cá nhân
+  preferences: Thông báo
+  securityLog: Nhật ký đăng nhập
+  accountManagement: Bảo mật tài khoản
+  avatar: Ảnh đại diện
+  updateAvatar: Cập nhật ảnh
+  editAvatar: Chỉnh sửa ảnh đại diện
+  nickname: Biệt danh
+  email: Email
+  phone: Số điện thoại
+  description: Giới thiệu bản thân
+  updateInfo: Lưu thay đổi
+  nicknameRequired: Biệt danh không được để trống
+  nicknamePlaceholder: Nhập biệt danh
+  emailPlaceholder: Nhập địa chỉ email
+  phonePlaceholder: Nhập số điện thoại
+  descriptionPlaceholder: Giới thiệu ngắn về bản thân...
+  changePassword: Đổi mật khẩu
+  oldPassword: Mật khẩu hiện tại
+  newPassword: Mật khẩu mới
+  confirmPassword: Xác nhận mật khẩu mới
+  oldPasswordRequired: Vui lòng nhập mật khẩu hiện tại
+  newPasswordRequired: Vui lòng nhập mật khẩu mới
+  confirmPasswordRequired: Vui lòng xác nhận mật khẩu mới
+  passwordNotMatch: Mật khẩu xác nhận không khớp
+  securityPhone: Điện thoại bảo mật
+  securityPhoneDesc: "Điện thoại đã liên kết: "
+  backupEmail: Email dự phòng
+  backupEmailDesc: "Email đã liên kết: "
+  notBound: Chưa liên kết
+  modify: Chỉnh sửa
+  logIp: Địa chỉ IP
+  logLocation: Vị trí
+  logOs: Hệ điều hành
+  logBrowser: Trình duyệt
+  logTime: Thời gian
+  logStatus: Trạng thái
+  loginSuccess: Đăng nhập thành công
+  loginFail: Đăng nhập thất bại
+  notifyPassword: Thông báo mật khẩu
+  notifyPasswordDesc: Thông báo khi có hoạt động liên quan đến mật khẩu tài khoản
+  notifySystem: Tin nhắn hệ thống
+  notifySystemDesc: Thông báo tin tức và cập nhật từ hệ thống
+  notifyTask: Nhiệm vụ chờ xử lý
+  notifyTaskDesc: Nhắc nhở các nhiệm vụ và công việc cần hoàn thành
+
   menu:
     menuName: "Tên menu"
     addMenu: "Thêm menu"

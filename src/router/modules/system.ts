@@ -38,7 +38,7 @@ export default {
       name: "SystemDept",
       component: () => import("@/views/system/dept/index.vue"),
       meta: {
-        icon: "ri:organisation-chart",
+        icon: "ri:organization-chart",
         title: "Quản lý Vùng",
         showLink: true
       }

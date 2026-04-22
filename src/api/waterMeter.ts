@@ -17,25 +17,15 @@ type ResultTable = {
   };
 };
 
-// Water Meters
+// Water Meters (INFO_METER)
 export const getWaterMeterList = (data?: object) =>
-  http.request<ResultTable>("get", "/api/water-meters", { params: data });
-export const getWaterMeterDetail = (id: number) =>
-  http.request<Result>("get", `/api/water-meters/${id}`);
-export const getWaterMeterReadings = (id: number, data?: any) =>
-  http.request<Result>("get", `/api/water-meters/${id}/readings`, {
-    params: data
-  });
-export const createWaterMeter = (data: object) =>
-  http.request<Result>("post", "/api/water-meters", { data });
-export const updateWaterMeter = (id: number, data: object) =>
-  http.request<Result>("put", `/api/water-meters/${id}`, { data });
-export const deleteWaterMeter = (id: number) =>
-  http.request<Result>("delete", `/api/water-meters/${id}`);
-export const addWaterMeterReading = (data: object) =>
-  http.request<Result>("post", "/api/water-meters/readings", { data });
-export const getWaterMeterStats = () =>
-  http.request<Result>("get", "/api/water-meters/stats/summary");
+  http.request<ResultTable>("post", "/api/water-meters/list", { data });
+export const addWaterMeter = (data: object) =>
+  http.request<Result>("post", "/api/water-meters/add", { data });
+export const updateWaterMeter = (no: string, data: object) =>
+  http.request<Result>("put", `/api/water-meters/update/${no}`, { data });
+export const deleteWaterMeter = (no: string) =>
+  http.request<Result>("delete", `/api/water-meters/${no}`);
 
 // Customers
 export const getCustomers = (data?: object) =>
@@ -78,16 +68,14 @@ export const createCluster = (data: object) =>
   http.request<Result>("post", "/api/hierarchy/clusters", { data });
 
 // Gateways
-export const getGateways = (data?: object) =>
-  http.request<ResultTable>("get", "/api/gateways", { params: data });
-export const getGateway = (id: number) =>
-  http.request<Result>("get", `/api/gateways/${id}`);
-export const createGateway = (data: object) =>
-  http.request<Result>("post", "/api/gateways", { data });
-export const updateGateway = (id: number, data: object) =>
-  http.request<Result>("put", `/api/gateways/${id}`, { data });
-export const deleteGateway = (id: number) =>
-  http.request<Result>("delete", `/api/gateways/${id}`);
+export const getGatewayList = (data?: object) =>
+  http.request<ResultTable>("post", "/api/gateways/list", { data });
+export const addGateway = (data: object) =>
+  http.request<Result>("post", "/api/gateways/add", { data });
+export const updateGateway = (no: string, data: object) =>
+  http.request<Result>("put", `/api/gateways/update/${no}`, { data });
+export const deleteGateway = (no: string) =>
+  http.request<Result>("delete", `/api/gateways/${no}`);
 
 
 // Alerts
@@ -122,6 +110,47 @@ export const getMaintenanceStats = () =>
 // Consumption (alias for backward compatibility)
 export const getConsumptionData = () =>
   http.request<Result>("get", "/api/dashboard/consumption-chart");
+
+// Models
+export const getMeterModelList = (data?: object) =>
+  http.request<ResultTable>("post", "/api/models/meter/list", { data });
+export const addMeterModel = (data: object) =>
+  http.request<Result>("post", "/api/models/meter/add", { data });
+export const updateMeterModel = (id: string, data: object) =>
+  http.request<Result>("put", `/api/models/meter/update/${id}`, { data });
+export const deleteMeterModel = (id: string) =>
+  http.request<Result>("delete", `/api/models/meter/${id}`);
+
+export const getGatewayModelList = (data?: object) =>
+  http.request<ResultTable>("post", "/api/models/gateway/list", { data });
+export const addGatewayModel = (data: object) =>
+  http.request<Result>("post", "/api/models/gateway/add", { data });
+export const updateGatewayModel = (id: string, data: object) =>
+  http.request<Result>("put", `/api/models/gateway/update/${id}`, { data });
+export const deleteGatewayModel = (id: string) =>
+  http.request<Result>("delete", `/api/models/gateway/${id}`);
+
+// Tree: Gateway → Meter
+export const getMeterTree = () =>
+  http.request<Result>("get", "/api/water-meters/tree");
+
+// Map data: Gateways + Meters với tọa độ
+export const getMapData = () =>
+  http.request<Result>("get", "/api/water-meters/map/data");
+
+// HIS_INSTANT_METER — Đồng hồ con
+export const getInstantList = (data?: object) =>
+  http.request<ResultTable>("post", "/api/water-meters/instant/list", { data });
+export const getInstantChart = (data?: object) =>
+  http.request<Result>("post", "/api/water-meters/instant/chart", { data });
+
+// HIS_DATA_METER — Data Logger
+export const getLoggerList = (data?: object) =>
+  http.request<ResultTable>("post", "/api/water-meters/logger/list", { data });
+export const getLoggerChart = (data?: object) =>
+  http.request<Result>("post", "/api/water-meters/logger/chart", { data });
+export const getLoggerProduction = (data?: object) =>
+  http.request<Result>("post", "/api/water-meters/logger/production", { data });
 
 // Unit Management (Hierarchy Tree)
 export const getUnitTree = () =>

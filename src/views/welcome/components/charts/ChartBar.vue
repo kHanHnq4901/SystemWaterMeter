@@ -5,14 +5,16 @@ import { type PropType, ref, computed, watch, nextTick } from "vue";
 // Giữ nguyên tên biến props để không làm lỗi file index.vue cha
 const props = defineProps({
   requireData: {
-    // Sẽ đại diện cho: Lưu lượng nước
     type: Array as PropType<Array<number>>,
     default: () => []
   },
   questionData: {
-    // Sẽ đại diện cho: Cảnh báo / Sự cố
     type: Array as PropType<Array<number>>,
     default: () => []
+  },
+  dates: {
+    type: Array as PropType<Array<string>>,
+    default: () => ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
   }
 });
 
@@ -44,8 +46,7 @@ watch(
         right: 0
       },
       legend: {
-        // Đã Việt hóa chú thích
-        data: ["Sản lượng (m³)", "Sự cố"],
+        data: ["Tổng bản ghi", "Đồng hồ duy nhất"],
         textStyle: {
           color: "#606266",
           fontSize: "0.875rem"
@@ -55,8 +56,7 @@ watch(
       xAxis: [
         {
           type: "category",
-          // Đã Việt hóa các ngày trong tuần
-          data: ["T2", "T3", "T4", "T5", "T6", "T7", "CN"],
+          data: props.dates,
           axisLabel: {
             fontSize: "0.875rem"
           },
@@ -78,21 +78,21 @@ watch(
       ],
       series: [
         {
-          name: "Sản lượng (m³)",
+          name: "Tổng bản ghi",
           type: "bar",
           barWidth: 10,
           itemStyle: {
-            color: "#41b6ff", // Màu xanh của nước
-            borderRadius: [10, 10, 0, 0] // Bo tròn 2 góc trên của cột
+            color: "#41b6ff",
+            borderRadius: [10, 10, 0, 0]
           },
           data: props.requireData
         },
         {
-          name: "Sự cố",
+          name: "Đồng hồ duy nhất",
           type: "bar",
           barWidth: 10,
           itemStyle: {
-            color: "#e86033ce", // Màu đỏ cam cảnh báo
+            color: "#e85f33",
             borderRadius: [10, 10, 0, 0]
           },
           data: props.questionData

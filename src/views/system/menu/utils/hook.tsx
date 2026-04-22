@@ -1,8 +1,9 @@
 import editForm from "../form.vue";
 import { handleTree } from "@/utils/tree";
 import { message } from "@/utils/message";
-import { getMenuList } from "@/api/system";
+import { getMenuList, addMenu, updateMenu, deleteMenu } from "@/api/system";
 import { transformI18n } from "@/plugins/i18n";
+import { $t } from "@/plugins/i18n";
 import { addDialog } from "@/components/ReDialog";
 import { useI18n } from "vue-i18n";
 import { reactive, ref, onMounted, computed, h } from "vue";
@@ -108,21 +109,20 @@ export function useMenu() {
 
   async function onSearch() {
     loading.value = true;
-    const { code, data } = await getMenuList(); // 这里是返回一维数组结构，前端自行处理成树结构，返回格式要求：唯一id加父节点parentId，parentId取父节点id
-    if (code === 0) {
-      let newData = data;
-      if (!isAllEmpty(form.title)) {
-        // 前端搜索菜单名称
-        newData = newData.filter(item =>
-          transformI18n(item.title).includes(form.title)
-        );
+    try {
+      const { code, data } = await getMenuList();
+      if (code === 0 && Array.isArray(data)) {
+        let newData = data as any[];
+        if (!isAllEmpty(form.title)) {
+          newData = newData.filter(item =>
+            (item.title || "").includes(form.title)
+          );
+        }
+        dataList.value = handleTree(newData);
       }
-      dataList.value = handleTree(newData); // 处理成树结构
-    }
-
-    setTimeout(() => {
+    } finally {
       loading.value = false;
-    }, 500);
+    }
   }
 
   function formatHigherMenuOptions(treeList) {
@@ -141,6 +141,7 @@ export function useMenu() {
       title: `${title} ${t("system.menu.menuName")}`,
       props: {
         formInline: {
+          id: (row as any)?.id,
           menuType: row?.menuType ?? 0,
           higherMenuOptions: formatHigherMenuOptions(cloneDeep(dataList.value)),
           parentId: row?.parentId ?? 0,
@@ -174,29 +175,41 @@ export function useMenu() {
       beforeSure: (done, { options }) => {
         const FormRef = formRef.value.getRef();
         const curData = options.props.formInline as FormItemProps;
-        function chores() {
-          message(`Đã ${title} menu ${transformI18n(curData.title)}`, {
-            type: "success"
-          });
-          done(); // 关闭弹框
-          onSearch(); // 刷新表格数据
-        }
-        FormRef.validate(valid => {
+        FormRef.validate(async valid => {
           if (valid) {
-            console.log("curData", curData);
-            // 表单规则校验通过
-            chores();
+            const isEdit = !!(curData as any).id;
+            const res = isEdit
+              ? await updateMenu((curData as any).id, curData)
+              : await addMenu(curData);
+            if (res.code === 0) {
+              message(transformI18n($t(res.message as any)) || (isEdit ? "Cập nhật thành công" : "Tạo mới thành công"), {
+                type: "success"
+              });
+              done();
+              onSearch();
+            } else {
+              message(transformI18n($t(res.message as any)) || res.message, {
+                type: "error"
+              });
+            }
           }
         });
       }
     });
   }
 
-  function handleDelete(row) {
-    message(`Đã xóa menu ${transformI18n(row.title)}`, {
-      type: "success"
-    });
-    onSearch();
+  async function handleDelete(row) {
+    const res = await deleteMenu(row.id);
+    if (res.code === 0) {
+      message(transformI18n($t(res.message as any)) || "Xóa thành công", {
+        type: "success"
+      });
+      onSearch();
+    } else {
+      message(transformI18n($t(res.message as any)) || res.message, {
+        type: "error"
+      });
+    }
   }
 
   onMounted(() => {

@@ -1,4 +1,3 @@
-import dayjs from "dayjs";
 import editForm from "../form.vue";
 import { handleTree } from "@/utils/tree";
 import { message } from "@/utils/message";
@@ -30,50 +29,6 @@ export function useDept() {
   const { tagStyle } = usePublicHooks();
 
   // SỬA 2: Khớp cột hiển thị với dữ liệu thực tế của bảng SYS_REGION
-  const columns: TableColumnList = [
-    {
-      label: "Tên trạm / Nhánh",
-      prop: "name",
-      width: 250,
-      align: "left"
-    },
-    {
-      label: "Sắp xếp",
-      prop: "orderNum",
-      minWidth: 70
-    },
-    {
-      label: "Cấp điện áp",
-      prop: "voltageCode",
-      minWidth: 100,
-      formatter: ({ voltageCode }) =>
-        voltageCode ? `${voltageCode} kV` : "---"
-    },
-    {
-      label: "Công suất",
-      prop: "capacity",
-      minWidth: 100,
-      formatter: ({ capacity }) => (capacity ? `${capacity} MVA/MW` : "---")
-    },
-    {
-      label: "Ngày tạo",
-      minWidth: 180,
-      prop: "createTime",
-      formatter: ({ createTime }) =>
-        dayjs(createTime).format("DD-MM-YYYY HH:mm:ss")
-    },
-    {
-      label: "Thao tác",
-      fixed: "right",
-      width: 210,
-      slot: "operation"
-    }
-  ];
-
-  function handleSelectionChange(val) {
-    console.log("handleSelectionChange", val);
-  }
-
   function resetForm(formEl) {
     if (!formEl) return;
     formEl.resetFields();
@@ -195,12 +150,10 @@ export function useDept() {
   return {
     form,
     loading,
-    columns,
     dataList,
     onSearch,
     resetForm,
     openDialog,
-    handleDelete,
-    handleSelectionChange
+    handleDelete
   };
 }

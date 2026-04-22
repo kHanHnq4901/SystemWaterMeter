@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useRole } from "./utils/hook";
-import { useI18n } from "vue-i18n";
 import { ref, computed, nextTick, onMounted } from "vue";
 import { PureTableBar } from "@/components/RePureTableBar";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
@@ -24,8 +23,6 @@ import Check from "~icons/ep/check";
 defineOptions({
   name: "SystemRole"
 });
-
-const { t } = useI18n();
 
 const iconClass = computed(() => {
   return [
@@ -98,31 +95,31 @@ onMounted(() => {
       :model="form"
       class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto"
     >
-      <el-form-item :label="t('system.role.roleName') + '：'" prop="name">
+      <el-form-item label="Tên vai trò：" prop="name">
         <el-input
           v-model="form.name"
-          :placeholder="t('system.role.roleName')"
+          placeholder="Nhập tên vai trò"
           clearable
           class="w-45!"
         />
       </el-form-item>
-      <el-form-item :label="t('system.role.roleCode') + '：'" prop="code">
+      <el-form-item label="Mã vai trò：" prop="code">
         <el-input
           v-model="form.code"
-          :placeholder="t('system.role.roleCode')"
+          placeholder="Nhập mã vai trò"
           clearable
           class="w-45!"
         />
       </el-form-item>
-      <el-form-item :label="t('system.role.status') + '：'" prop="status">
+      <el-form-item label="Trạng thái：" prop="status">
         <el-select
           v-model="form.status"
-          :placeholder="t('status.pureSelection')"
+          placeholder="Chọn trạng thái"
           clearable
           class="w-45!"
         >
-          <el-option :label="t('system.role.enabled')" value="1" />
-          <el-option :label="t('system.role.disabled')" value="0" />
+          <el-option label="Đã kích hoạt" value="1" />
+          <el-option label="Đã tắt" value="0" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -132,10 +129,10 @@ onMounted(() => {
           :loading="loading"
           @click="onSearch"
         >
-          {{ t('status.pureSearch') }}
+          Tìm kiếm
         </el-button>
         <el-button :icon="useRenderIcon(Refresh)" @click="resetForm(formRef)">
-          {{ t('status.pureReset') }}
+          Đặt lại
         </el-button>
       </el-form-item>
     </el-form>
@@ -147,7 +144,7 @@ onMounted(() => {
       <PureTableBar
         :class="[isShow && !deviceDetection() ? 'w-[60vw]!' : 'w-full']"
         style="transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1)"
-        :title="t('system.role.roleManagement')"
+        title="Quản lý vai trò"
         :columns="columns"
         @refresh="onSearch"
       >
@@ -157,7 +154,7 @@ onMounted(() => {
             :icon="useRenderIcon(AddFill)"
             @click="openDialog()"
           >
-            {{ t('system.role.addRole') }}
+            Thêm vai trò
           </el-button>
         </template>
         <template v-slot="{ size, dynamicColumns }">
@@ -189,12 +186,12 @@ onMounted(() => {
                 type="primary"
                 :size="size"
                 :icon="useRenderIcon(EditPen)"
-                @click="openDialog(t('status.pureEdit'), row)"
+                @click="openDialog('Sửa', row)"
               >
-                {{ t('status.pureEdit') }}
+                Sửa
               </el-button>
               <el-popconfirm
-                :title="`${t('status.pureDelete')} ${t('system.role.roleName')}: ${row.name}?`"
+                :title="`Xác nhận xóa vai trò: ${row.name}?`"
                 @confirm="handleDelete(row)"
               >
                 <template #reference>
@@ -205,7 +202,7 @@ onMounted(() => {
                     :size="size"
                     :icon="useRenderIcon(Delete)"
                   >
-                    {{ t('status.pureDelete') }}
+                    Xóa
                   </el-button>
                 </template>
               </el-popconfirm>
@@ -217,45 +214,8 @@ onMounted(() => {
                 :icon="useRenderIcon(Menu)"
                 @click="handleMenu(row)"
               >
-                {{ t('system.role.permission') }}
+                Phân quyền
               </el-button>
-              <!-- <el-dropdown>
-              <el-button
-                class="ml-3 mt-[2px]"
-                link
-                type="primary"
-                :size="size"
-                :icon="useRenderIcon(More)"
-              />
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item>
-                    <el-button
-                      :class="buttonClass"
-                      link
-                      type="primary"
-                      :size="size"
-                      :icon="useRenderIcon(Menu)"
-                      @click="handleMenu"
-                    >
-                      菜单权限
-                    </el-button>
-                  </el-dropdown-item>
-                  <el-dropdown-item>
-                    <el-button
-                      :class="buttonClass"
-                      link
-                      type="primary"
-                      :size="size"
-                      :icon="useRenderIcon(Database)"
-                      @click="handleDatabase"
-                    >
-                      数据权限
-                    </el-button>
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown> -->
             </template>
           </pure-table>
         </template>
@@ -269,9 +229,7 @@ onMounted(() => {
           <div class="flex">
             <span :class="iconClass">
               <IconifyIconOffline
-                v-tippy="{
-                  content: t('system.role.closePanel')
-                }"
+                v-tippy="{ content: 'Đóng' }"
                 class="dark:text-white"
                 width="18px"
                 height="18px"
@@ -281,9 +239,7 @@ onMounted(() => {
             </span>
             <span :class="[iconClass, 'ml-2']">
               <IconifyIconOffline
-                v-tippy="{
-                  content: t('system.role.saveMenuPerm')
-                }"
+                v-tippy="{ content: 'Lưu phân quyền menu' }"
                 class="dark:text-white"
                 width="18px"
                 height="18px"
@@ -293,21 +249,21 @@ onMounted(() => {
             </span>
           </div>
           <p class="font-bold truncate">
-            {{ t('system.role.menuPermission') }}
+            Phân quyền menu
             {{ `${curRow?.name ? `（${curRow.name}）` : ""}` }}
           </p>
         </div>
         <el-input
           v-model="treeSearchValue"
-          :placeholder="t('system.role.searchMenu')"
+          placeholder="Tìm kiếm menu"
           class="mb-1"
           clearable
           @input="onQueryChanged"
         />
         <div class="flex flex-wrap">
-          <el-checkbox v-model="isExpandAll" :label="t('system.role.expandCollapse')" />
-          <el-checkbox v-model="isSelectAll" :label="t('system.role.selectAll')" />
-          <el-checkbox v-model="isLinkage" :label="t('system.role.parentLink')" />
+          <el-checkbox v-model="isExpandAll" label="Mở/Thu gọn" />
+          <el-checkbox v-model="isSelectAll" label="Chọn tất cả" />
+          <el-checkbox v-model="isLinkage" label="Liên kết cha-con" />
         </div>
         <el-tree-v2
           ref="treeRef"

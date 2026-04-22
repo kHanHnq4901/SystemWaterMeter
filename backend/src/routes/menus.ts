@@ -41,10 +41,8 @@ router.post("/list", async (req: Request, res: Response) => {
     // Trả về cấu trúc mà Vue-Pure-Admin mong đợi (Data bọc trong list)
     res.json({
       code: 0,
-      message: "Thành công",
-      data: {
-        list: result.recordset
-      }
+      message: "common.success",
+      data: result.recordset
     });
   } catch (error: any) {
     console.error("Lỗi lấy danh sách menu:", error);
@@ -80,7 +78,7 @@ router.post("/add", async (req: Request, res: Response) => {
         (@NAME, @KEY_NAME, @URL, @COMPONENT, @ICON, @PARENT_ID, @TYPE, @PERMS, @ORDER_NUM, 0, GETDATE())
       `);
 
-    res.json({ code: 0, message: "Đã tạo menu thành công" });
+    res.json({ code: 0, message: "common.createSuccess" });
   } catch (error: any) {
     console.error("Lỗi thêm menu:", error);
     res.status(500).json({ code: 500, message: error.message });
@@ -99,7 +97,7 @@ router.put("/update/:id", async (req: Request, res: Response) => {
 
     // Chặn lỗi tự chọn mình làm menu cha
     if (Number(req.params.id) === Number(parentId)) {
-      return res.json({ code: 400, message: "Menu cha không hợp lệ!" });
+      return res.json({ code: 400, message: "menu.invalidParent" });
     }
 
     const connection = await pool.connect();
@@ -130,7 +128,7 @@ router.put("/update/:id", async (req: Request, res: Response) => {
         WHERE ID = @id
       `);
 
-    res.json({ code: 0, message: "Cập nhật menu thành công" });
+    res.json({ code: 0, message: "common.updateSuccess" });
   } catch (error: any) {
     console.error("Lỗi cập nhật menu:", error);
     res.status(500).json({ code: 500, message: error.message });
@@ -150,7 +148,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
       .query(`SELECT ID FROM SYS_MENU WHERE PARENT_ID = @id AND DEL_FLAG = 0`);
 
     if (checkChild.recordset.length > 0) {
-      return res.json({ code: 400, message: "Vui lòng xóa các menu con trước khi xóa thư mục này!" });
+      return res.json({ code: 400, message: "menu.hasChildren" });
     }
 
     // Xóa mềm (Update DEL_FLAG = 1) thay vì xóa cứng (DELETE FROM)
@@ -158,7 +156,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
       .input("id", mssql.Int, req.params.id)
       .query(`UPDATE SYS_MENU SET DEL_FLAG = 1 WHERE ID = @id`);
 
-    res.json({ code: 0, message: "Đã xóa menu thành công" });
+    res.json({ code: 0, message: "common.deleteSuccess" });
   } catch (error: any) {
     console.error("Lỗi xóa menu:", error);
     res.status(500).json({ code: 500, message: error.message });

@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import dayjs from "dayjs";
+import { h, computed, reactive, ref, onMounted } from "vue";
+import { ElTag } from "element-plus";
+import { useI18n } from "vue-i18n";
 import { getMineLogs } from "@/api/user";
-import { reactive, ref, onMounted } from "vue";
 import { deviceDetection } from "@pureadmin/utils";
 import type { PaginationProps } from "@pureadmin/table";
 
-defineOptions({
-  name: "SecurityLog"
-});
+defineOptions({ name: "SecurityLog" });
+
+const { t } = useI18n();
 
 const loading = ref(true);
 const dataList = ref([]);
@@ -18,71 +20,90 @@ const pagination = reactive<PaginationProps>({
   background: true,
   layout: "prev, pager, next"
 });
-const columns: TableColumnList = [
+
+const columns = computed<TableColumnList>(() => [
   {
-    label: "详情",
-    prop: "summary",
-    minWidth: 140
+    label: t("accountSettings.logStatus"),
+    prop: "loginStatus",
+    minWidth: 110,
+    cellRenderer: ({ row }) =>
+      h(
+        ElTag,
+        { type: row.loginStatus === 1 ? "success" : "danger", size: "small" },
+        { default: () => row.loginStatus === 1 ? t("accountSettings.loginSuccess") : t("accountSettings.loginFail") }
+      )
   },
   {
-    label: "IP 地址",
+    label: t("accountSettings.logIp"),
     prop: "ip",
-    minWidth: 100
+    minWidth: 130
   },
   {
-    label: "地点",
+    label: t("accountSettings.logLocation"),
     prop: "address",
-    minWidth: 140
+    minWidth: 150
   },
   {
-    label: "操作系统",
+    label: t("accountSettings.logOs"),
     prop: "system",
-    minWidth: 100
+    minWidth: 110
   },
   {
-    label: "浏览器类型",
+    label: t("accountSettings.logBrowser"),
     prop: "browser",
-    minWidth: 100
+    minWidth: 110
   },
   {
-    label: "时间",
+    label: t("accountSettings.logTime"),
     prop: "operatingTime",
-    minWidth: 180,
+    minWidth: 170,
     formatter: ({ operatingTime }) =>
-      dayjs(operatingTime).format("YYYY-MM-DD HH:mm:ss")
+      operatingTime ? dayjs(operatingTime).format("YYYY-MM-DD HH:mm:ss") : "-"
   }
-];
+]);
 
 async function onSearch() {
   loading.value = true;
-  const { code, data } = await getMineLogs();
-  if (code === 0) {
-    dataList.value = data.list;
-    pagination.total = data.total;
-    pagination.pageSize = data.pageSize;
-    pagination.currentPage = data.currentPage;
-  }
-
-  setTimeout(() => {
+  try {
+    const { code, data } = await getMineLogs({
+      currentPage: pagination.currentPage,
+      pageSize: pagination.pageSize
+    });
+    if (code === 0) {
+      dataList.value = data.list;
+      pagination.total = data.total;
+    }
+  } finally {
     loading.value = false;
-  }, 200);
+  }
 }
 
-onMounted(() => {
+function onPageChange(page: number) {
+  pagination.currentPage = page;
   onSearch();
-});
+}
+
+function onSizeChange(size: number) {
+  pagination.pageSize = size;
+  pagination.currentPage = 1;
+  onSearch();
+}
+
+onMounted(onSearch);
 </script>
 
 <template>
   <div :class="['min-w-45', deviceDetection() ? 'max-w-full' : 'max-w-[70%]']">
-    <h3 class="my-8!">安全日志</h3>
+    <h3 class="my-8!">{{ t('accountSettings.securityLog') }}</h3>
     <pure-table
-      row-key="id"
+      row-key="operatingTime"
       table-layout="auto"
       :loading="loading"
       :data="dataList"
       :columns="columns"
       :pagination="pagination"
+      @page-current-change="onPageChange"
+      @page-size-change="onSizeChange"
     />
   </div>
 </template>

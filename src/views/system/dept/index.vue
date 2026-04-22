@@ -2,36 +2,39 @@
 import { ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useDept } from "./utils/hook";
-import { PureTableBar } from "@/components/RePureTableBar";
+import ElTreeLine from "@/components/ReTreeLine";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 
 import Delete from "~icons/ep/delete";
 import EditPen from "~icons/ep/edit-pen";
 import Refresh from "~icons/ep/refresh";
 import AddFill from "~icons/ri/add-circle-line";
+import FolderIcon from "~icons/ri/folder-3-fill";
+import MapPinIcon from "~icons/ri/map-pin-2-fill";
 
-defineOptions({
-  name: "SystemDept"
-});
+defineOptions({ name: "SystemDept" });
 
 const { t } = useI18n();
 const formRef = ref();
-const tableRef = ref();
-const {
-  form,
-  loading,
-  columns,
-  dataList,
-  onSearch,
-  resetForm,
-  openDialog,
-  handleDelete,
-  handleSelectionChange
-} = useDept();
+const treeRef = ref();
 
-function onFullscreen() {
-  // 重置表格高度
-  tableRef.value.setAdaptive();
+const { form, loading, dataList, onSearch, openDialog, handleDelete } =
+  useDept();
+
+function filterNode(value: string, data: any) {
+  if (!value) return true;
+  return data.name?.toLowerCase().includes(value.toLowerCase());
+}
+
+function handleSearch() {
+  treeRef.value?.filter(form.name);
+}
+
+function resetForm(formEl: any) {
+  if (!formEl) return;
+  formEl.resetFields();
+  treeRef.value?.filter("");
+  onSearch();
 }
 </script>
 
@@ -49,25 +52,16 @@ function onFullscreen() {
           :placeholder="t('system.dept.deptName')"
           clearable
           class="w-45!"
+          @input="handleSearch"
+          @clear="handleSearch"
         />
-      </el-form-item>
-      <el-form-item :label="t('system.dept.status') + '：'" prop="status">
-        <el-select
-          v-model="form.status"
-          :placeholder="t('status.pureSelection')"
-          clearable
-          class="w-45!"
-        >
-          <el-option :label="t('system.dept.enabled')" :value="1" />
-          <el-option :label="t('system.dept.disabled')" :value="0" />
-        </el-select>
       </el-form-item>
       <el-form-item>
         <el-button
           type="primary"
           :icon="useRenderIcon('ri/search-line')"
           :loading="loading"
-          @click="onSearch"
+          @click="handleSearch"
         >
           {{ t('status.pureSearch') }}
         </el-button>
@@ -77,14 +71,9 @@ function onFullscreen() {
       </el-form-item>
     </el-form>
 
-    <PureTableBar
-      :title="t('system.dept.deptManagement')"
-      :columns="columns"
-      :tableRef="tableRef?.getTableRef()"
-      @refresh="onSearch"
-      @fullscreen="onFullscreen"
-    >
-      <template #buttons>
+    <div class="m-4 p-4 bg-bg_color rounded-lg">
+      <div class="flex items-center justify-between mb-4">
+        <span class="font-semibold text-sm">{{ t('system.dept.deptManagement') }}</span>
         <el-button
           type="primary"
           :icon="useRenderIcon(AddFill)"
@@ -92,83 +81,101 @@ function onFullscreen() {
         >
           {{ t('system.dept.addDept') }}
         </el-button>
-      </template>
-      <template v-slot="{ size, dynamicColumns }">
-        <pure-table
-          ref="tableRef"
-          adaptive
-          :adaptiveConfig="{ offsetBottom: 45 }"
-          align-whole="center"
-          row-key="id"
-          showOverflowTooltip
-          table-layout="auto"
-          default-expand-all
-          :loading="loading"
-          :size="size"
+      </div>
+
+      <div v-loading="loading" class="min-h-40">
+        <el-tree
+          ref="treeRef"
           :data="dataList"
-          :columns="dynamicColumns"
-          :header-cell-style="{
-            background: 'var(--el-fill-color-light)',
-            color: 'var(--el-text-color-primary)'
-          }"
-          @selection-change="handleSelectionChange"
+          :props="{ label: 'name', children: 'children' }"
+          node-key="id"
+          default-expand-all
+          :indent="24"
+          :filter-node-method="filterNode"
+          highlight-current
         >
-          <template #operation="{ row }">
-            <el-button
-              class="reset-margin"
-              link
-              type="primary"
-              :size="size"
-              :icon="useRenderIcon(EditPen)"
-              @click="openDialog(t('status.pureEdit'), row)"
-            >
-              {{ t('status.pureEdit') }}
-            </el-button>
-            <el-button
-              class="reset-margin"
-              link
-              type="primary"
-              :size="size"
-              :icon="useRenderIcon(AddFill)"
-              @click="openDialog(t('status.pureAdd'), { parentId: row.id } as any)"
-            >
-              {{ t('status.pureAdd') }}
-            </el-button>
-            <el-popconfirm
-              :title="`${t('status.pureDelete')} ${t('system.dept.deptName')}: ${row.name}?`"
-              @confirm="handleDelete(row)"
-            >
-              <template #reference>
-                <el-button
-                  class="reset-margin"
-                  link
-                  type="primary"
-                  :size="size"
-                  :icon="useRenderIcon(Delete)"
-                >
-                  {{ t('status.pureDelete') }}
-                </el-button>
+          <template #default="{ node, data }">
+            <el-tree-line :node="node" :showLabelLine="true" :indent="24">
+              <template #node-label>
+                <span class="flex items-center gap-1.5">
+                  <component
+                    :is="FolderIcon"
+                    v-if="data.children?.length"
+                    class="text-warning text-base flex-shrink-0"
+                  />
+                  <component
+                    :is="MapPinIcon"
+                    v-else
+                    class="text-primary text-base flex-shrink-0"
+                  />
+                  <span class="text-sm">{{ data.name }}</span>
+                </span>
               </template>
-            </el-popconfirm>
+              <template #after-node-label>
+                <span class="node-actions flex items-center gap-0.5 ml-2">
+                  <el-button
+                    class="reset-margin"
+                    link
+                    type="primary"
+                    size="small"
+                    :icon="useRenderIcon(EditPen)"
+                    @click.stop="openDialog(t('status.pureEdit'), data)"
+                  >{{ t('status.pureEdit') }}</el-button>
+                  <el-button
+                    class="reset-margin"
+                    link
+                    type="primary"
+                    size="small"
+                    :icon="useRenderIcon(AddFill)"
+                    @click.stop="openDialog(t('status.pureAdd'), { parentId: data.id } as any)"
+                  >{{ t('status.pureAdd') }}</el-button>
+                  <el-popconfirm
+                    :title="`${t('status.pureDelete')} ${data.name}?`"
+                    @confirm="handleDelete(data)"
+                  >
+                    <template #reference>
+                      <el-button
+                        class="reset-margin"
+                        link
+                        type="danger"
+                        size="small"
+                        :icon="useRenderIcon(Delete)"
+                        @click.stop
+                      >{{ t('status.pureDelete') }}</el-button>
+                    </template>
+                  </el-popconfirm>
+                </span>
+              </template>
+            </el-tree-line>
           </template>
-        </pure-table>
-      </template>
-    </PureTableBar>
+        </el-tree>
+      </div>
+    </div>
   </div>
 </template>
 
 <style lang="scss" scoped>
-:deep(.el-table__inner-wrapper::before) {
-  height: 0;
-}
-
-.main-content {
-  margin: 24px 24px 0 !important;
-}
-
 .search-form {
   :deep(.el-form-item) {
     margin-bottom: 12px;
   }
+}
+
+:deep(.el-tree) {
+  background: transparent;
+
+  .el-tree-node__content {
+    height: 36px;
+    border-radius: 4px;
+
+  }
+
+  .element-tree-node-label-wrapper {
+    width: 100%;
+  }
+}
+
+.node-actions {
+  flex-shrink: 0;
 }
 </style>

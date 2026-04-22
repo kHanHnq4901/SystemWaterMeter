@@ -1,6 +1,10 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Import routes
 import authRoutes from "./routes/auth.ts";
@@ -11,13 +15,15 @@ import deptsRoutes from "./routes/depts.ts";
 import regionsRoutes from "./routes/regions.ts";
 
 import waterMetersRoutes from "./routes/water-meters.ts";
+import modelsRoutes from "./routes/models.ts";
 import customersRoutes from "./routes/customers.ts";
 import invoicesRoutes from "./routes/invoices.ts";
-import hierarchyRoutes from "./routes/hierarchy.ts";
+import hierarchyRoutes  from "./routes/hierarchy.ts";
 import gatewaysRoutes from "./routes/gateways.ts";
 import dashboardRoutes from "./routes/dashboard.ts";
 import alertsRoutes from "./routes/alerts.ts";
 import maintenanceRoutes from "./routes/maintenance.ts";
+import logsRoutes from "./routes/logs.ts";
 
 // Import database
 import { testConnection } from "./config/database.ts";
@@ -28,8 +34,9 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "5mb" }));
+app.use(express.urlencoded({ extended: true, limit: "5mb" }));
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // Routes
 app.get("/", (req, res) => {
@@ -55,12 +62,15 @@ app.use("/api/depts", deptsRoutes);
 app.use("/api/regions", regionsRoutes);
 // Water Meter System APIs
 app.use("/api/water-meters", waterMetersRoutes);
+app.use("/api/models", modelsRoutes);
 app.use("/api/customers", customersRoutes);
 app.use("/api/invoices", invoicesRoutes);
 app.use("/api/gateways", gatewaysRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/alerts", alertsRoutes);
 app.use("/api/maintenance", maintenanceRoutes);
+app.use("/api/logs",      logsRoutes);
+app.use("/api/hierarchy", hierarchyRoutes);
 
 // Start server
 app.listen(PORT, async () => {

@@ -5,7 +5,7 @@ export default {
   path: "/map",
   name: "Map",
   component: Layout,
-  redirect: "/map/overview",
+  redirect: "/map/index",
   meta: {
     icon: "ri:map-2-line",
     title: "Bản đồ",
@@ -13,32 +13,12 @@ export default {
   },
   children: [
     {
-      path: "/map/overview",
-      name: "MapOverview",
-      component: () => import("@/views/map/overview/index.vue"),
+      path: "/map/index",
+      name: "MapIndex",
+      component: () => import("@/views/map/index.vue"),
       meta: {
-        icon: "ri:map-range-line",
-        title: "Tổng quan Bản đồ",
-        showLink: true
-      }
-    },
-    {
-      path: "/map/gateway",
-      name: "MapGateway",
-      component: () => import("@/views/map/gateway/index.vue"),
-      meta: {
-        icon: "ri:router-line",
-        title: "Bản đồ Gateway",
-        showLink: true
-      }
-    },
-    {
-      path: "/map/meter",
-      name: "MapMeter",
-      component: () => import("@/views/map/meter/index.vue"),
-      meta: {
-        icon: "ri:water-drop-line",
-        title: "Bản đồ Đồng hồ",
+        icon: "ri:map-pin-range-line",
+        title: "Bản đồ Chi tiết",
         showLink: true
       }
     }

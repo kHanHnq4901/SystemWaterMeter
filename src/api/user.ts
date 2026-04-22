@@ -4,21 +4,13 @@ export type UserResult = {
   code: number;
   message: string;
   data: {
-    /** 头像 */
     avatar: string;
-    /** 用户名 */
     username: string;
-    /** 昵称 */
     nickname: string;
-    /** 当前登录用户的角色 */
     roles: Array<string>;
-    /** 按钮级别权限 */
     permissions: Array<string>;
-    /** `token` */
     accessToken: string;
-    /** 用于调用刷新`accessToken`的接口时所需的`token` */
     refreshToken: string;
-    /** `accessToken`的过期时间（格式'xxxx/xx/xx xx:xx:xx'） */
     expires: Date;
   };
 };
@@ -27,27 +19,18 @@ export type RefreshTokenResult = {
   code: number;
   message: string;
   data: {
-    /** `token` */
     accessToken: string;
-    /** 用于调用刷新`accessToken`的接口时所需的`token` */
     refreshToken: string;
-    /** `accessToken`的过期时间（格式'xxxx/xx/xx xx:xx:xx'） */
     expires: Date;
   };
 };
 
 export type UserInfo = {
-  /** 头像 */
   avatar: string;
-  /** 用户名 */
   username: string;
-  /** 昵称 */
   nickname: string;
-  /** 邮箱 */
   email: string;
-  /** 联系电话 */
   phone: string;
-  /** 简介 */
   description: string;
 };
 
@@ -61,33 +44,39 @@ type ResultTable = {
   code: number;
   message: string;
   data?: {
-    /** 列表数据 */
     list: Array<any>;
-    /** 总条目数 */
     total?: number;
-    /** 每页显示条目个数 */
     pageSize?: number;
-    /** 当前页数 */
     currentPage?: number;
   };
 };
 
-/** 登录 */
-export const getLogin = (data?: object) => {
-  return http.request<UserResult>("post", "/login", { data });
-};
+type Result = { code: number; message: string; data?: any };
 
-/** 刷新`token` */
-export const refreshTokenApi = (data?: object) => {
-  return http.request<RefreshTokenResult>("post", "/refresh-token", { data });
-};
+/** Đăng nhập */
+export const getLogin = (data?: object) =>
+  http.request<UserResult>("post", "/login", { data });
 
-/** 账户设置-个人信息 */
-export const getMine = (data?: object) => {
-  return http.request<UserInfoResult>("get", "/mine", { data });
-};
+/** Refresh token */
+export const refreshTokenApi = (data?: object) =>
+  http.request<RefreshTokenResult>("post", "/refresh-token", { data });
 
-/** 账户设置-个人安全日志 */
-export const getMineLogs = (data?: object) => {
-  return http.request<ResultTable>("get", "/mine-logs", { data });
-};
+/** Thông tin cá nhân */
+export const getMine = () =>
+  http.request<UserInfoResult>("get", "/api/auth/mine");
+
+/** Cập nhật thông tin cá nhân */
+export const updateMine = (data: object) =>
+  http.request<Result>("put", "/api/auth/mine", { data });
+
+/** Đổi mật khẩu */
+export const changePassword = (data: object) =>
+  http.request<Result>("put", "/api/auth/mine/password", { data });
+
+/** Cập nhật ảnh đại diện */
+export const uploadAvatar = (data: { avatar: string }) =>
+  http.request<Result>("put", "/api/auth/mine/avatar", { data });
+
+/** Nhật ký đăng nhập của tôi */
+export const getMineLogs = (params?: object) =>
+  http.request<ResultTable>("get", "/api/auth/mine-logs", { params });

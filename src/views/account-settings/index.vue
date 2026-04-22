@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { getMine } from "@/api/user";
 import { useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import { ReText } from "@/components/ReText";
 import Profile from "./components/Profile.vue";
-import { ref, onMounted, onBeforeMount } from "vue";
+import { ref, onMounted, onBeforeMount, onUnmounted } from "vue";
+import { emitter } from "@/utils/mitt";
 import Preferences from "./components/Preferences.vue";
 import SecurityLog from "./components/SecurityLog.vue";
 import { useGlobal, deviceDetection } from "@pureadmin/utils";
@@ -22,42 +24,20 @@ defineOptions({
 });
 
 const router = useRouter();
+const { t } = useI18n();
 const isOpen = ref(deviceDetection() ? false : true);
 const { $storage } = useGlobal<GlobalPropertiesApi>();
 onBeforeMount(() => {
   useDataThemeChange().dataThemeChange($storage.layout?.themeMode);
 });
 
-const userInfo = ref({
-  avatar: "",
-  username: "",
-  nickname: ""
-});
+const userInfo = ref({ avatar: "", username: "", nickname: "" });
+
 const panes = [
-  {
-    key: "profile",
-    label: "个人信息",
-    icon: ProfileIcon,
-    component: Profile
-  },
-  {
-    key: "preferences",
-    label: "偏好设置",
-    icon: PreferencesIcon,
-    component: Preferences
-  },
-  {
-    key: "securityLog",
-    label: "安全日志",
-    icon: SecurityLogIcon,
-    component: SecurityLog
-  },
-  {
-    key: "accountManagement",
-    label: "账户管理",
-    icon: AccountManagementIcon,
-    component: AccountManagement
-  }
+  { key: "profile",           label: () => t("accountSettings.profile"),           icon: ProfileIcon,           component: Profile },
+  { key: "preferences",       label: () => t("accountSettings.preferences"),       icon: PreferencesIcon,       component: Preferences },
+  { key: "securityLog",       label: () => t("accountSettings.securityLog"),       icon: SecurityLogIcon,       component: SecurityLog },
+  { key: "accountManagement", label: () => t("accountSettings.accountManagement"), icon: AccountManagementIcon, component: AccountManagement }
 ];
 const witchPane = ref("profile");
 
@@ -66,6 +46,13 @@ onMounted(async () => {
   if (code === 0) {
     userInfo.value = data;
   }
+  emitter.on("avatarChange", (url: string) => {
+    userInfo.value.avatar = url;
+  });
+});
+
+onUnmounted(() => {
+  emitter.off("avatarChange");
 });
 </script>
 
@@ -85,7 +72,7 @@ onMounted(async () => {
             class="h-full flex items-center px-(--el-menu-base-level-padding)"
           >
             <IconifyIconOffline :icon="leftLine" />
-            <span class="ml-2">返回</span>
+            <span class="ml-2">{{ t('accountSettings.back') }}</span>
           </div>
         </div>
         <div class="flex items-center ml-8 my-4">
@@ -114,7 +101,7 @@ onMounted(async () => {
         >
           <div class="flex items-center z-10">
             <el-icon><IconifyIconOffline :icon="item.icon" /></el-icon>
-            <span>{{ item.label }}</span>
+            <span>{{ item.label() }}</span>
           </div>
         </el-menu-item>
       </el-menu>

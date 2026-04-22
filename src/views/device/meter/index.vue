@@ -1,476 +1,315 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from "vue";
-import { useRouter } from "vue-router";
+import { ref, reactive, onMounted, h } from "vue";
+import { ElTag } from "element-plus";
 import { PureTableBar } from "@/components/RePureTableBar";
-import { getWaterMeterList, getWaterMeterStats } from "@/api/waterMeter";
+import { useRenderIcon } from "@/components/ReIcon/src/hooks";
+import { message } from "@/utils/message";
+import { getWaterMeterList, addWaterMeter, updateWaterMeter, deleteWaterMeter } from "@/api/waterMeter";
+import Refresh from "~icons/ep/refresh";
+import Delete from "~icons/ep/delete";
+import EditPen from "~icons/ep/edit-pen";
+import AddFill from "~icons/ri/add-circle-line";
+import View from "~icons/ep/view";
 
 defineOptions({ name: "DeviceMeter" });
 
-const router = useRouter();
 const loading = ref(false);
+const dataList = ref<any[]>([]);
+const formRef = ref();
+const dialogRef = ref();
 
-const filters = reactive({
-  provinceId: "",
-  districtId: "",
-  wardId: "",
-  zoneId: "",
-  clusterId: "",
-  gatewayId: "",
-  status: "",
-  code: ""
-});
-
-const provinceOptions = ref<any[]>([]);
-const districtOptions = ref<any[]>([]);
-const wardOptions = ref<any[]>([]);
-const zoneOptions = ref<any[]>([]);
-const clusterOptions = ref<any[]>([]);
-
-const fetchOptions = () => {
-  provinceOptions.value = [
-    { label: "Tất cả Tỉnh/TP", value: "" },
-    { label: "TP. Hồ Chí Minh", value: 1 },
-    { label: "Tỉnh Đồng Nai", value: 2 }
-  ];
-  districtOptions.value = [
-    { label: "Tất cả Quận/Huyện", value: "" },
-    { label: "Quận 1", value: 1 },
-    { label: "Quận 3", value: 2 },
-    { label: "Quận 5", value: 3 }
-  ];
-  wardOptions.value = [
-    { label: "Phường Bến Nghé", value: 1 },
-    { label: "Phường Bến Thành", value: 2 }
-  ];
-  zoneOptions.value = [
-    { label: "Khu vực A", value: 1 },
-    { label: "Khu vực B", value: 2 }
-  ];
-  clusterOptions.value = [
-    { label: "Cụm 1", value: 1 },
-    { label: "Cụm 2", value: 2 }
-  ];
-};
+const form = reactive({ keyword: "", state: "", meterType: "" });
 
 const pagination = reactive({
-  total: 0,
-  pageSize: 20,
-  currentPage: 1,
-  background: true
+  total: 0, pageSize: 20, currentPage: 1, background: true
 });
 
-const fetchMeters = async () => {
+const STATE_MAP: Record<number, { label: string; type: string }> = {
+  0: { label: "Chưa lắp",  type: "info"    },
+  1: { label: "Đang dùng", type: "success" },
+  2: { label: "Hỏng",      type: "danger"  },
+  3: { label: "Tháo ra",   type: "warning" }
+};
+
+// Dialog state
+const dialogVisible = ref(false);
+const dialogTitle = ref("");
+const isView = ref(false);
+const isEdit = ref(false);
+const dialogForm = reactive({
+  meterNo: "", meterName: "", meterModelId: "", meterType: "",
+  customerCode: "", phone: "", address: "", pipeSize: "",
+  state: 0, simCardNo: "", imei: "", moduleNo: "",
+  lineId: "", groupId: "", note: "", warranty: ""
+});
+const dialogRules = {
+  meterNo:   [{ required: true, message: "Vui lòng nhập mã đồng hồ", trigger: "blur" }],
+  meterName: [{ required: true, message: "Vui lòng nhập tên đồng hồ", trigger: "blur" }]
+};
+
+const columns: TableColumnList = [
+  { type: "index", label: "STT", width: 60 },
+  { label: "Mã ĐH",     prop: "meterNo",      width: 130, fixed: "left" },
+  { label: "Tên ĐH",    prop: "meterName",    minWidth: 150 },
+  { label: "Mã KH",     prop: "customerCode", width: 110 },
+  { label: "SĐT",       prop: "phone",        width: 120 },
+  { label: "Địa chỉ",   prop: "address",      minWidth: 180, showOverflowTooltip: true },
+  { label: "Kích thước",prop: "pipeSize",      width: 100 },
+  { label: "Loại",      prop: "meterType",    width: 80 },
+  { label: "SIM",       prop: "simCardNo",    width: 130 },
+  { label: "IMEI",      prop: "imei",         minWidth: 150, showOverflowTooltip: true },
+  {
+    label: "Trạng thái", prop: "state", width: 110,
+    cellRenderer: ({ row }) => {
+      const s = STATE_MAP[row.state] ?? { label: `${row.state}`, type: "info" };
+      return h(ElTag, { type: s.type as any, size: "small" }, { default: () => s.label });
+    }
+  },
+  {
+    label: "Dữ liệu lần cuối", prop: "lasttimeData", minWidth: 165,
+    formatter: ({ lasttimeData }) =>
+      lasttimeData ? new Date(lasttimeData).toLocaleString("vi-VN") : "—"
+  },
+  { label: "Thao tác", fixed: "right", width: 190, slot: "operation" }
+];
+
+async function onSearch() {
   loading.value = true;
   try {
-    const res = await getWaterMeterList({
-      page: pagination.currentPage,
-      pageSize: pagination.pageSize,
-      provinceId: filters.provinceId || undefined,
-      districtId: filters.districtId || undefined,
-      wardId: filters.wardId || undefined,
-      zoneId: filters.zoneId || undefined,
-      clusterId: filters.clusterId || undefined,
-      status: filters.status || undefined,
-      search: filters.code || undefined
+    const { code, data } = await getWaterMeterList({
+      keyword:   form.keyword   || undefined,
+      state:     form.state     !== "" ? form.state     : undefined,
+      meterType: form.meterType !== "" ? form.meterType : undefined,
+      currentPage: pagination.currentPage,
+      pageSize:    pagination.pageSize
     });
-
-    if (res?.success) {
-      const data = res.data;
-      dataList.value = data.list || [];
-      pagination.total = data.total || 0;
-    } else {
-      useMockData();
+    if (code === 0 && data) {
+      dataList.value = data.list ?? [];
+      pagination.total = data.total ?? 0;
     }
-  } catch (error) {
-    useMockData();
   } finally {
     loading.value = false;
   }
-};
+}
 
-const useMockData = () => {
-  dataList.value = [
-    {
-      id: 1,
-      meterCode: "MTR001",
-      meterSerial: "SN12345",
-      model: "Elster",
-      customerName: "Nguyễn Văn A",
-      provinceName: "TP. Hồ Chí Minh",
-      districtName: "Quận 1",
-      wardName: "Phường Bến Nghé",
-      latitude: 10.7769,
-      longitude: 106.6989,
-      lastReading: 125.5,
-      status: 1
-    },
-    {
-      id: 2,
-      meterCode: "MTR002",
-      meterSerial: "SN12346",
-      model: "Itron",
-      customerName: "Trần Thị B",
-      provinceName: "TP. Hồ Chí Minh",
-      districtName: "Quận 1",
-      wardName: "Phường Bến Nghé",
-      latitude: 10.777,
-      longitude: 106.699,
-      lastReading: 89.2,
-      status: 1
-    },
-    {
-      id: 3,
-      meterCode: "MTR003",
-      meterSerial: "SN12347",
-      model: "Sensus",
-      customerName: "Lê Văn C",
-      provinceName: "TP. Hồ Chí Minh",
-      districtName: "Quận 1",
-      wardName: "Phường Bến Thành",
-      latitude: 10.778,
-      longitude: 106.7,
-      lastReading: 234.8,
-      status: 1
-    },
-    {
-      id: 4,
-      meterCode: "MTR004",
-      meterSerial: "SN12348",
-      model: "Elster",
-      customerName: "Phạm Thị D",
-      provinceName: "TP. Hồ Chí Minh",
-      districtName: "Quận 3",
-      wardName: "Phường 8",
-      latitude: 10.779,
-      longitude: 106.701,
-      lastReading: 567.2,
-      status: 1
-    },
-    {
-      id: 5,
-      meterCode: "MTR005",
-      meterSerial: "SN12349",
-      model: "Itron",
-      customerName: "Hoàng Văn E",
-      provinceName: "TP. Hồ Chí Minh",
-      districtName: "Quận 5",
-      wardName: "Phường 11",
-      latitude: 10.78,
-      longitude: 106.702,
-      lastReading: 753.9,
-      status: 0
-    }
-  ];
-  pagination.total = 5;
-};
-
-const onSearch = () => {
+function resetForm() {
+  formRef.value?.resetFields();
   pagination.currentPage = 1;
-  fetchMeters();
-};
-
-const resetForm = () => {
-  filters.provinceId = "";
-  filters.districtId = "";
-  filters.wardId = "";
-  filters.zoneId = "";
-  filters.clusterId = "";
-  filters.gatewayId = "";
-  filters.status = "";
-  filters.code = "";
   onSearch();
-};
+}
 
-const handleView = (row: { id: number }) => {
-  router.push(`/device/meter/${row.id}`);
-};
+function handleSizeChange(val: number) { pagination.pageSize = val; onSearch(); }
+function handleCurrentChange(val: number) { pagination.currentPage = val; onSearch(); }
 
-const handleSizeChange = (val: number) => {
-  pagination.pageSize = val;
-  fetchMeters();
-};
+function openDialog(mode: "add" | "edit" | "view", row?: any) {
+  isView.value = mode === "view";
+  isEdit.value = mode === "edit";
+  dialogTitle.value = mode === "add" ? "Thêm đồng hồ" : mode === "edit" ? "Sửa đồng hồ" : "Chi tiết đồng hồ";
 
-const handleCurrentChange = (val: number) => {
-  pagination.currentPage = val;
-  fetchMeters();
-};
-
-onMounted(() => {
-  fetchOptions();
-  fetchMeters();
-});
-
-const dataList = ref([
-  {
-    id: 1,
-    code: "MTR-001",
-    serial: "WM01-2024-001",
-    model: "WM-01",
-    province: "TP. Hồ Chí Minh",
-    district: "Quận 1",
-    ward: "Phường Bến Nghé",
-    zone: "KV Bến Nghé A",
-    cluster: "Cụm A1",
-    gateway: "GW-CG-01",
-    customer: "Nguyễn Văn A",
-    address: "123 Lê Lợi",
-    reading: 1250.5,
-    consumption: 32.7,
-    status: "active",
-    battery: 98,
-    signal: 95
-  },
-  {
-    id: 2,
-    code: "MTR-002",
-    serial: "WM01-2024-002",
-    model: "WM-01",
-    province: "TP. Hồ Chí Minh",
-    district: "Quận 1",
-    ward: "Phường Bến Nghé",
-    zone: "KV Bến Nghé A",
-    cluster: "Cụm A1",
-    gateway: "GW-CG-01",
-    customer: "Trần Thị B",
-    address: "456 Nguyễn Huệ",
-    reading: 890.3,
-    consumption: 21.9,
-    status: "active",
-    battery: 95,
-    signal: 88
-  },
-  {
-    id: 3,
-    code: "MTR-003",
-    serial: "WM01A-2024-001",
-    model: "WM-01A",
-    province: "TP. Hồ Chí Minh",
-    district: "Quận 1",
-    ward: "Phường Bến Nghé",
-    zone: "KV Bến Nghé A",
-    cluster: "Cụm A2",
-    gateway: "GW-CG-02",
-    customer: "Lê Văn C",
-    address: "789 Pasteur",
-    reading: 2105.8,
-    consumption: 0,
-    status: "inactive",
-    battery: 15,
-    signal: 25
-  },
-  {
-    id: 4,
-    code: "MTR-004",
-    serial: "WM02-2024-001",
-    model: "WM-02",
-    province: "TP. Hồ Chí Minh",
-    district: "Quận 1",
-    ward: "Phường Bến Thành",
-    zone: "KV Chợ Bến Thành",
-    cluster: "Cụm C1",
-    gateway: "GW-BD-01",
-    customer: "Phạm Thị D",
-    address: "321 Chợ Bến Thành",
-    reading: 567.2,
-    consumption: 15.4,
-    status: "active",
-    battery: 92,
-    signal: 82
-  },
-  {
-    id: 5,
-    code: "MTR-005",
-    serial: "WM01-2024-010",
-    model: "WM-01",
-    province: "TP. Hồ Chí Minh",
-    district: "Quận 5",
-    ward: "Phường 11",
-    zone: "KV Nguyễn Văn Linh",
-    cluster: "Cụm N1",
-    gateway: "GW-DD-01",
-    customer: "Hoàng Văn E",
-    address: "555 Nguyễn Văn Linh",
-    reading: 1890.0,
-    consumption: 28.6,
-    status: "active",
-    battery: 88,
-    signal: 90
+  if (row) {
+    Object.assign(dialogForm, {
+      meterNo: row.meterNo ?? "", meterName: row.meterName ?? "",
+      meterModelId: row.meterModelId ?? "", meterType: row.meterType ?? "",
+      customerCode: row.customerCode ?? "", phone: row.phone ?? "",
+      address: row.address ?? "", pipeSize: row.pipeSize ?? "",
+      state: row.state ?? 0, simCardNo: row.simCardNo ?? "",
+      imei: row.imei ?? "", moduleNo: row.moduleNo ?? "",
+      lineId: row.lineId ?? "", groupId: row.groupId ?? "",
+      note: row.note ?? "", warranty: row.warranty ?? ""
+    });
+  } else {
+    Object.assign(dialogForm, {
+      meterNo: "", meterName: "", meterModelId: "", meterType: "",
+      customerCode: "", phone: "", address: "", pipeSize: "",
+      state: 0, simCardNo: "", imei: "", moduleNo: "",
+      lineId: "", groupId: "", note: "", warranty: ""
+    });
   }
-]);
+  dialogVisible.value = true;
+}
 
-const columns = [
-  { type: "selection", width: 55 },
-  { label: "Mã ĐH", prop: "code", width: 90, fixed: "left" },
-  { label: "Serial", prop: "serial", minWidth: 130 },
-  { label: "Model", prop: "model", width: 70 },
-  { label: "Cụm", prop: "cluster", width: 80 },
-  { label: "Khu vực", prop: "zone", width: 120 },
-  { label: "Phường", prop: "ward", width: 100 },
-  { label: "Quận", prop: "district", width: 80 },
-  { label: "Khách hàng", prop: "customer", minWidth: 110 },
-  { label: "Chỉ số", prop: "reading", width: 80, align: "right" },
-  { label: "Pin", prop: "battery", width: 60, align: "center" },
-  { label: "Tín hiệu", prop: "signal", width: 60, align: "center" },
-  { label: "Trạng thái", prop: "status", width: 90, align: "center" },
-  { label: "Thao tác", width: 120, fixed: "right", slot: "operation" }
-];
+async function handleSubmit() {
+  try { await dialogRef.value.validate(); } catch { return; }
+
+  const res = isEdit.value
+    ? await updateWaterMeter(dialogForm.meterNo, { ...dialogForm })
+    : await addWaterMeter({ ...dialogForm });
+
+  if (res.code === 0) {
+    message(isEdit.value ? "Cập nhật thành công" : "Thêm mới thành công", { type: "success" });
+    dialogVisible.value = false;
+    onSearch();
+  } else {
+    message(res.message, { type: "error" });
+  }
+}
+
+async function handleDelete(row: any) {
+  const res = await deleteWaterMeter(row.meterNo);
+  if (res.code === 0) {
+    message(`Đã xóa đồng hồ: ${row.meterNo}`, { type: "success" });
+    onSearch();
+  } else {
+    message(res.message, { type: "error" });
+  }
+}
+
+onMounted(() => onSearch());
 </script>
 
 <template>
-  <div class="p-4">
-    <el-card shadow="never" class="mb-4">
-      <template #header>
-        <span class="font-medium">Lọc theo phân cấp đơn vị</span>
-      </template>
-      <div class="flex flex-wrap gap-3 items-center">
-        <el-select
-          v-model="filters.provinceId"
-          placeholder="Tỉnh/TP"
-          clearable
-          class="w-32!"
-          @change="filters.districtId = ''"
-        >
-          <el-option
-            v-for="item in provinceOptions"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          />
+  <div class="main">
+    <el-form ref="formRef" :inline="true" :model="form"
+      class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto">
+      <el-form-item label="Tìm kiếm:" prop="keyword">
+        <el-input v-model="form.keyword" placeholder="Mã ĐH / Tên / Mã KH" clearable class="w-52!" />
+      </el-form-item>
+      <el-form-item label="Trạng thái:" prop="state">
+        <el-select v-model="form.state" placeholder="Tất cả" clearable class="w-36!">
+          <el-option label="Chưa lắp"  :value="0" />
+          <el-option label="Đang dùng" :value="1" />
+          <el-option label="Hỏng"      :value="2" />
+          <el-option label="Tháo ra"   :value="3" />
         </el-select>
-        <el-select
-          v-model="filters.districtId"
-          placeholder="Quận/Huyện"
-          clearable
-          class="w-32!"
-          :disabled="!filters.provinceId"
-          @change="filters.wardId = ''"
-        >
-          <el-option
-            v-for="item in districtOptions"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          />
-        </el-select>
-        <el-select
-          v-model="filters.wardId"
-          placeholder="Phường/Xã"
-          clearable
-          class="w-32!"
-          :disabled="!filters.districtId"
-          @change="filters.zoneId = ''"
-        >
-          <el-option
-            v-for="item in wardOptions"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          />
-        </el-select>
-        <el-select
-          v-model="filters.zoneId"
-          placeholder="Khu vực"
-          clearable
-          class="w-32!"
-          :disabled="!filters.wardId"
-          @change="filters.clusterId = ''"
-        >
-          <el-option
-            v-for="item in zoneOptions"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          />
-        </el-select>
-        <el-select
-          v-model="filters.clusterId"
-          placeholder="Cụm"
-          clearable
-          class="w-28!"
-          :disabled="!filters.zoneId"
-          @change="filters.gatewayId = ''"
-        >
-          <el-option
-            v-for="item in clusterOptions"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          />
-        </el-select>
-        <el-select
-          v-model="filters.gatewayId"
-          placeholder="Gateway"
-          clearable
-          class="w-28!"
-          :disabled="!filters.clusterId"
-        >
-          <el-option
-            v-for="item in gatewayOptions"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          />
-        </el-select>
-        <el-select
-          v-model="filters.status"
-          placeholder="Trạng thái"
-          clearable
-          class="w-28!"
-        >
-          <el-option label="Hoạt động" value="active" />
-          <el-option label="Ngừng" value="inactive" />
-        </el-select>
-        <el-button type="primary" @click="onSearch">Lọc</el-button>
-        <el-button @click="resetForm">Đặt lại</el-button>
-      </div>
-    </el-card>
+      </el-form-item>
+      <el-form-item label="Loại:" prop="meterType">
+        <el-input v-model="form.meterType" placeholder="Loại đồng hồ" clearable class="w-36!" />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" :icon="useRenderIcon('ri/search-line')" :loading="loading"
+          @click="() => { pagination.currentPage = 1; onSearch(); }">
+          Tìm kiếm
+        </el-button>
+        <el-button :icon="useRenderIcon(Refresh)" @click="resetForm">Đặt lại</el-button>
+      </el-form-item>
+    </el-form>
 
-    <PureTableBar
-      title="Quản lý Đồng hồ Nước"
-      :columns="columns"
-      @refresh="onSearch"
-    >
+    <PureTableBar title="Quản lý Đồng hồ" :columns="columns" @refresh="onSearch">
       <template #buttons>
-        <el-button type="primary">Thêm mới</el-button>
+        <el-button type="primary" :icon="useRenderIcon(AddFill)" @click="openDialog('add')">
+          Thêm mới
+        </el-button>
       </template>
-      <template #default>
-        <pure-table
-          :loading="loading"
-          :data="dataList"
-          :columns="columns"
-          :pagination="pagination"
-          row-key="id"
-        >
-          <template #status="{ row }">
-            <el-tag
-              :type="row.status === 'active' ? 'success' : 'danger'"
-              size="small"
-            >
-              {{ row.status === "active" ? "Hoạt động" : "Ngừng" }}
-            </el-tag>
-          </template>
-          <template #battery="{ row }">
-            <span
-              :class="
-                row.battery < 30
-                  ? 'text-red-500'
-                  : row.battery < 50
-                    ? 'text-yellow-500'
-                    : 'text-green-500'
-              "
-            >
-              {{ row.battery }}%
-            </span>
-          </template>
+      <template v-slot="{ size, dynamicColumns }">
+        <pure-table adaptive :adaptiveConfig="{ offsetBottom: 45 }" align-whole="center"
+          row-key="meterNo" showOverflowTooltip table-layout="auto" :loading="loading"
+          :size="size" :data="dataList" :columns="dynamicColumns"
+          :pagination="{ ...pagination, pageSizes: [20, 50, 100] }"
+          :header-cell-style="{ background: 'var(--el-fill-color-light)', color: 'var(--el-text-color-primary)' }"
+          @page-size-change="handleSizeChange" @page-current-change="handleCurrentChange">
           <template #operation="{ row }">
-            <el-button type="primary" link @click="handleView(row)"
-              >Chi tiết</el-button
-            >
-            <el-button type="primary" link>Sửa</el-button>
-            <el-button type="danger" link>Xóa</el-button>
+            <el-button class="reset-margin" link type="primary" :size="size"
+              :icon="useRenderIcon(View)" @click="openDialog('view', row)">
+              Xem
+            </el-button>
+            <el-button class="reset-margin" link type="primary" :size="size"
+              :icon="useRenderIcon(EditPen)" @click="openDialog('edit', row)">
+              Sửa
+            </el-button>
+            <el-popconfirm :title="`Xác nhận xóa đồng hồ: ${row.meterNo}?`" @confirm="handleDelete(row)">
+              <template #reference>
+                <el-button class="reset-margin" link type="danger" :size="size" :icon="useRenderIcon(Delete)">
+                  Xóa
+                </el-button>
+              </template>
+            </el-popconfirm>
           </template>
         </pure-table>
       </template>
     </PureTableBar>
+
+    <!-- Dialog Thêm/Sửa/Xem -->
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="680px" draggable>
+      <el-form ref="dialogRef" :model="dialogForm" :rules="isView ? {} : dialogRules"
+        label-width="110px" label-position="right">
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="Mã ĐH" prop="meterNo">
+              <el-input v-model="dialogForm.meterNo" :disabled="isView || isEdit" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="Tên ĐH" prop="meterName">
+              <el-input v-model="dialogForm.meterName" :disabled="isView" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="Mã KH">
+              <el-input v-model="dialogForm.customerCode" :disabled="isView" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="SĐT">
+              <el-input v-model="dialogForm.phone" :disabled="isView" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="Loại">
+              <el-input v-model="dialogForm.meterType" :disabled="isView" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="Kích thước ống">
+              <el-input v-model="dialogForm.pipeSize" :disabled="isView" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="Trạng thái">
+              <el-select v-model="dialogForm.state" :disabled="isView" class="w-full!">
+                <el-option label="Chưa lắp"  :value="0" />
+                <el-option label="Đang dùng" :value="1" />
+                <el-option label="Hỏng"      :value="2" />
+                <el-option label="Tháo ra"   :value="3" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="Model ID">
+              <el-input v-model="dialogForm.meterModelId" :disabled="isView" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="SIM">
+              <el-input v-model="dialogForm.simCardNo" :disabled="isView" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="IMEI">
+              <el-input v-model="dialogForm.imei" :disabled="isView" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="Module No">
+              <el-input v-model="dialogForm.moduleNo" :disabled="isView" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="Bảo hành (tháng)">
+              <el-input v-model="dialogForm.warranty" :disabled="isView" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="Địa chỉ">
+              <el-input v-model="dialogForm.address" :disabled="isView" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="Ghi chú">
+              <el-input v-model="dialogForm.note" type="textarea" :rows="2" :disabled="isView" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">{{ isView ? "Đóng" : "Hủy" }}</el-button>
+        <el-button v-if="!isView" type="primary" @click="handleSubmit">Lưu</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
+
+<style lang="scss" scoped>
+.search-form {
+  :deep(.el-form-item) { margin-bottom: 12px; }
+}
+</style>
