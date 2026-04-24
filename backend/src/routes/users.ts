@@ -31,57 +31,52 @@ router.post("/list", async (req: Request, res: Response) => {
       username,
       phone,
       status,
-      deptId // Nếu sau này bạn truyền roleId từ cây sang thì đổi tên ở đây
+      roleId
     } = req.body;
 
     const offset = (Number(currentPage) - 1) * Number(pageSize);
-    let whereClause = "WHERE DEL_FLAG = 0";
+    let whereClause = "WHERE u.DEL_FLAG = 0";
     const params: { name: string; value: any; type: any }[] = [];
 
-    // Filter theo Tên đăng nhập hoặc Nickname
     if (username) {
       params.push({ name: "username", value: `%${username}%`, type: mssql.NVarChar });
-      whereClause += " AND (NAME LIKE @username OR NICK_NAME LIKE @username)";
+      whereClause += " AND (u.NAME LIKE @username OR u.NICK_NAME LIKE @username)";
     }
-
-    // Filter theo Số điện thoại
     if (phone) {
       params.push({ name: "phone", value: `%${phone}%`, type: mssql.VarChar });
-      whereClause += " AND MOBILE LIKE @phone";
+      whereClause += " AND u.MOBILE LIKE @phone";
     }
-
-    // Filter theo Trạng thái (0: Khóa, 1: Hoạt động)
     if (status !== undefined && status !== "") {
       params.push({ name: "status", value: Number(status), type: mssql.TinyInt });
-      whereClause += " AND STATUS = @status";
+      whereClause += " AND u.STATUS = @status";
+    }
+    if (roleId) {
+      params.push({ name: "roleId", value: Number(roleId), type: mssql.Int });
+      whereClause += " AND EXISTS (SELECT 1 FROM SYS_USER_ROLE ur WHERE ur.USER_ID = u.ID AND ur.ROLE_ID = @roleId)";
     }
 
     const connection = await pool.connect();
 
-    // Đếm tổng số bản ghi (Dành cho phân trang)
     const countRequest = connection.request();
     params.forEach(p => countRequest.input(p.name, p.type, p.value));
-    const countResult = await countRequest.query(`SELECT COUNT(*) as total FROM SYS_USER ${whereClause}`);
+    const countResult = await countRequest.query(`SELECT COUNT(*) as total FROM SYS_USER u ${whereClause}`);
 
-    // Lấy dữ liệu chi tiết
     const dataRequest = connection.request();
     params.forEach(p => dataRequest.input(p.name, p.type, p.value));
 
-    // Dùng ALIAS (AS) để biến tên cột IN HOA trong SQL thành chữ thường cho Vue-Pure-Admin
     const result = await dataRequest.query(`
-      SELECT 
-        ID as id, 
-        NAME as username, 
-        NICK_NAME as nickname, 
-        AVATAR as avatar, 
-        EMAIL as email, 
-        MOBILE as phone, 
-        STATUS as status, 
-        CREATE_TIME as createTime
-        -- Thêm các trường khác nếu cần (ví dụ: POS_ID, REGION_ID)
-      FROM SYS_USER
+      SELECT
+        u.ID as id,
+        u.NAME as username,
+        u.NICK_NAME as nickname,
+        u.AVATAR as avatar,
+        u.EMAIL as email,
+        u.MOBILE as phone,
+        u.STATUS as status,
+        u.CREATE_TIME as createTime
+      FROM SYS_USER u
       ${whereClause}
-      ORDER BY CREATE_TIME DESC
+      ORDER BY u.CREATE_TIME DESC
       OFFSET ${offset} ROWS FETCH NEXT ${Number(pageSize)} ROWS ONLY
     `);
 
@@ -99,6 +94,48 @@ router.post("/list", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Lỗi API get user list:", error);
     res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
+// ============================================================================
+// 2a. CÂY ROLE - USER (GET /api/users/role-user-tree)
+// Trả về danh sách role, mỗi role có children là danh sách user thuộc role đó
+// PHẢI đặt trước GET /:id để Express không nhầm "role-user-tree" với :id
+// ============================================================================
+router.get("/role-user-tree", async (_req: Request, res: Response) => {
+  try {
+    const conn = await pool.connect();
+
+    const rolesResult = await conn.request().query(`
+      SELECT ID as id, NAME as name
+      FROM SYS_ROLE WHERE DEL_FLAG = 0 AND STATUS = 1
+      ORDER BY CREATE_TIME DESC
+    `);
+
+    const usersResult = await conn.request().query(`
+      SELECT ur.ROLE_ID as roleId, u.ID as userId,
+             u.NAME as displayName
+      FROM SYS_USER_ROLE ur
+      JOIN SYS_USER u ON u.ID = ur.USER_ID AND u.DEL_FLAG = 0
+    `);
+
+    const tree = rolesResult.recordset.map((role: any) => ({
+      id: role.id,
+      name: role.name,
+      type: "role",
+      children: usersResult.recordset
+        .filter((ur: any) => ur.roleId === role.id)
+        .map((ur: any) => ({
+          id: `u${ur.userId}`,
+          userId: ur.userId,
+          name: ur.displayName,
+          type: "user"
+        }))
+    }));
+
+    res.json({ code: 0, data: tree });
+  } catch (err: any) {
+    res.status(500).json({ code: 500, message: err.message });
   }
 });
 
@@ -208,8 +245,8 @@ router.post("/add", async (req: Request, res: Response) => {
     const salt = ""; 
     const hashedPassword = crypto.createHash("md5").update(password + salt).digest("hex");
 
-    // 4. Thêm vào Database
-    await connection.request()
+    // 4. Thêm vào Database, lấy ID vừa tạo
+    const insertResult = await connection.request()
       .input("NAME", mssql.NVarChar, username)
       .input("NICK_NAME", mssql.NVarChar, nickname || "")
       .input("PASSWORD", mssql.VarChar, hashedPassword)
@@ -220,10 +257,12 @@ router.post("/add", async (req: Request, res: Response) => {
       .input("REMARKS", mssql.NVarChar, remark || "")
       .query(`
         INSERT INTO SYS_USER (NAME, NICK_NAME, PASSWORD, SALT, MOBILE, EMAIL, STATUS, REMARKS, DEL_FLAG, CREATE_TIME)
+        OUTPUT INSERTED.ID
         VALUES (@NAME, @NICK_NAME, @PASSWORD, @SALT, @MOBILE, @EMAIL, @STATUS, @REMARKS, 0, GETDATE())
       `);
 
-    res.json({ code: 0, message: "Thêm người dùng thành công" });
+    const newUserId = insertResult.recordset[0]?.ID;
+    res.json({ code: 0, message: "Thêm người dùng thành công", data: { id: newUserId } });
   } catch (error: any) {
     console.error("Lỗi thêm người dùng:", error);
     res.status(500).json({ code: 500, message: error.message });
@@ -278,4 +317,95 @@ router.put("/update/:id", async (req: Request, res: Response) => {
     res.status(500).json({ code: 500, message: error.message });
   }
 });
+// ============================================================================
+// 7. LẤY ROLE IDs CỦA USER (POST /api/users/role-ids)
+// ============================================================================
+router.post("/role-ids", async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.body;
+    const conn = await pool.connect();
+    const result = await conn.request()
+      .input("userId", mssql.Int, userId)
+      .query("SELECT ROLE_ID as roleId FROM SYS_USER_ROLE WHERE USER_ID = @userId");
+    res.json({ code: 0, data: result.recordset.map((r: any) => r.roleId) });
+  } catch (err: any) {
+    res.status(500).json({ code: 500, message: err.message });
+  }
+});
+
+// ============================================================================
+// 8. LƯU ROLES CHO USER (PUT /api/users/:id/roles)
+// ============================================================================
+router.put("/:id/roles", async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { roleIds } = req.body as { roleIds: number[] };
+    const conn = await pool.connect();
+
+    await conn.request()
+      .input("id", mssql.Int, id)
+      .query("DELETE FROM SYS_USER_ROLE WHERE USER_ID = @id");
+
+    if (Array.isArray(roleIds) && roleIds.length > 0) {
+      for (const roleId of roleIds) {
+        await conn.request()
+          .input("userId", mssql.Int, id)
+          .input("roleId", mssql.Int, Number(roleId))
+          .query("INSERT INTO SYS_USER_ROLE (USER_ID, ROLE_ID) VALUES (@userId, @roleId)");
+      }
+    }
+
+    res.json({ code: 0, message: "Cập nhật vai trò thành công" });
+  } catch (err: any) {
+    res.status(500).json({ code: 500, message: err.message });
+  }
+});
+
+// ============================================================================
+// 9. LẤY DANH SÁCH ZONE CỦA USER (GET /api/users/:id/zones)
+// ============================================================================
+router.get("/:id/zones", async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    const conn = await pool.connect();
+    const result = await conn.request()
+      .input("id", mssql.Int, id)
+      .query("SELECT ZONE_ID as zoneId FROM SYS_USER_ZONE WHERE USER_ID = @id");
+    res.json({ code: 0, data: result.recordset.map((r: any) => r.zoneId) });
+  } catch (err: any) {
+    res.status(500).json({ code: 500, message: err.message });
+  }
+});
+
+// ============================================================================
+// 10. CẬP NHẬT ZONE CHO USER (PUT /api/users/:id/zones)
+// ============================================================================
+router.put("/:id/zones", async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { zoneIds } = req.body as { zoneIds: number[] };
+    const conn = await pool.connect();
+
+    await conn.request()
+      .input("id", mssql.Int, id)
+      .query("DELETE FROM SYS_USER_ZONE WHERE USER_ID = @id");
+
+    if (Array.isArray(zoneIds) && zoneIds.length > 0) {
+      for (const zoneId of zoneIds) {
+        await conn.request()
+          .input("userId", mssql.Int, id)
+          .input("zoneId", mssql.Int, Number(zoneId))
+          .query(`
+            INSERT INTO SYS_USER_ZONE (USER_ID, ZONE_ID, CREATE_TIME)
+            VALUES (@userId, @zoneId, GETDATE())
+          `);
+      }
+    }
+
+    res.json({ code: 0, message: "Cập nhật vùng thành công" });
+  } catch (err: any) {
+    res.status(500).json({ code: 500, message: err.message });
+  }
+});
+
 export default router;

@@ -19,6 +19,8 @@ export interface DataInfo<T> {
   roles?: Array<string>;
   /** 当前登录用户的按钮级别权限 */
   permissions?: Array<string>;
+  /** Zone IDs user có quyền truy cập. [] = admin (không giới hạn) */
+  zones?: Array<number>;
 }
 
 export const userKey = "user-info";
@@ -68,12 +70,13 @@ export function setToken(data: DataInfo<Date>) {
       : {}
   );
 
-  function setUserKey({ avatar, username, nickname, roles, permissions }) {
+  function setUserKey({ avatar, username, nickname, roles, permissions, zones }) {
     useUserStoreHook().SET_AVATAR(avatar);
     useUserStoreHook().SET_USERNAME(username);
     useUserStoreHook().SET_NICKNAME(nickname);
     useUserStoreHook().SET_ROLES(roles);
     useUserStoreHook().SET_PERMS(permissions);
+    useUserStoreHook().SET_ZONES(zones);
     storageLocal().setItem(userKey, {
       refreshToken,
       expires,
@@ -81,7 +84,8 @@ export function setToken(data: DataInfo<Date>) {
       username,
       nickname,
       roles,
-      permissions
+      permissions,
+      zones
     });
   }
 
@@ -92,25 +96,18 @@ export function setToken(data: DataInfo<Date>) {
       username,
       nickname: data?.nickname ?? "",
       roles,
-      permissions: data?.permissions ?? []
+      permissions: data?.permissions ?? [],
+      zones: data?.zones ?? []
     });
   } else {
-    const avatar =
-      storageLocal().getItem<DataInfo<number>>(userKey)?.avatar ?? "";
-    const username =
-      storageLocal().getItem<DataInfo<number>>(userKey)?.username ?? "";
-    const nickname =
-      storageLocal().getItem<DataInfo<number>>(userKey)?.nickname ?? "";
-    const roles =
-      storageLocal().getItem<DataInfo<number>>(userKey)?.roles ?? [];
-    const permissions =
-      storageLocal().getItem<DataInfo<number>>(userKey)?.permissions ?? [];
+    const stored = storageLocal().getItem<DataInfo<number>>(userKey);
     setUserKey({
-      avatar,
-      username,
-      nickname,
-      roles,
-      permissions
+      avatar:       stored?.avatar       ?? "",
+      username:     stored?.username     ?? "",
+      nickname:     stored?.nickname     ?? "",
+      roles:        stored?.roles        ?? [],
+      permissions:  stored?.permissions  ?? [],
+      zones:        stored?.zones        ?? []
     });
   }
 }

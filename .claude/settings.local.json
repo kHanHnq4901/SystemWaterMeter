@@ -8,7 +8,8 @@
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); icons=list\\(d['icons'].keys\\(\\)\\); print\\([x for x in icons if 'map' in x and 'range' in x or 'drop' in x or 'organisation' in x or 'organization' in x or 'water' in x][:30]\\)\")",
       "Bash(node -e \"const d=require\\('./node_modules/@iconify-json/ri/icons.json'\\); const k=Object.keys\\(d.icons\\); console.log\\(k.filter\\(x=>x.includes\\('map'\\)||x.includes\\('drop'\\)||x.includes\\('water'\\)||x.includes\\('organ'\\)\\).join\\('\\\\n'\\)\\)\")",
       "Bash(node -e \"process.stdin.resume\\(\\);let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const p=JSON.parse\\(d\\);console.log\\(Object.keys\\(p.dependencies||{}\\).join\\('\\\\n'\\)\\)}\\)\")",
-      "Bash(grep -E \"\\\\.\\(yaml|json|ts|js\\)$\")"
+      "Bash(grep -E \"\\\\.\\(yaml|json|ts|js\\)$\")",
+      "Bash(xargs ls *)"
     ]
   }
 }

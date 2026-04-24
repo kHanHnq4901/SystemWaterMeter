@@ -47,6 +47,31 @@ export const deleteUser = (id: number) => {
 export const batchDeleteUser = (data?: object) => {
   return http.request<Result>("post", "/api/users/batch-delete", { data });
 };
+/** Lưu danh sách Role cho user */
+export const saveUserRoles = (id: number, data?: object) => {
+  return http.request<Result>("put", `/api/users/${id}/roles`, { data });
+};
+
+/** Lấy danh sách Zone IDs của user */
+export const getUserZones = (id: number) => {
+  return http.request<Result>("get", `/api/users/${id}/zones`);
+};
+
+/** Cập nhật danh sách Zone cho user */
+export const updateUserZones = (id: number, data?: object) => {
+  return http.request<Result>("put", `/api/users/${id}/zones`, { data });
+};
+
+/** Toàn bộ vùng (không lọc zone, dùng cho màn hình gán quyền vùng) */
+export const getAllRegions = () => {
+  return http.request<Result>("get", "/api/regions/all");
+};
+
+/** Cây role-user cho panel bên trái màn hình quản lý người dùng */
+export const getRoleUserTree = () => {
+  return http.request<Result>("get", "/api/users/role-user-tree");
+};
+
 /** Lấy danh sách Role IDs mà user đang sở hữu (Dùng cho Popup phân quyền) */
 export const getRoleIds = (data?: object) => {
   // Lưu ý: Cần đảm bảo Backend có API này (VD: POST /api/users/role-ids)

@@ -5,6 +5,7 @@ const home = 1,
   map = 4,
   system = 5,
   logs = 6,
-  config = 7;
+  config = 7,
+  report = 8;
 
-export { home, analysis, device, map, system, logs, config };
+export { home, analysis, device, map, system, logs, config, report };

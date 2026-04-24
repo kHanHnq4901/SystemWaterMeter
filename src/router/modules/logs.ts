@@ -10,7 +10,8 @@ export default {
   meta: {
     icon: "ri:file-history-line",
     title: "Nhật ký Hệ thống",
-    rank: logs
+    rank: logs,
+    roles: ["admin"]
   },
   children: [
     {

@@ -29,6 +29,9 @@ export const useUserStore = defineStore("pure-user", {
     // 按钮级别权限
     permissions:
       storageLocal().getItem<DataInfo<number>>(userKey)?.permissions ?? [],
+    // Zone IDs được phép truy cập
+    zones:
+      storageLocal().getItem<DataInfo<number>>(userKey)?.zones ?? [],
     // 前端生成的验证码（按实际需求替换）
     verifyCode: "",
     // 判断登录页面显示哪个组件（0：登录（默认）、1：手机登录、2：二维码登录、3：注册、4：忘记密码）
@@ -58,6 +61,10 @@ export const useUserStore = defineStore("pure-user", {
     /** 存储按钮级别权限 */
     SET_PERMS(permissions: Array<string>) {
       this.permissions = permissions;
+    },
+    /** Lưu danh sách zone được phép */
+    SET_ZONES(zones: Array<number>) {
+      this.zones = zones;
     },
     /** 存储前端生成的验证码 */
     SET_VERIFYCODE(verifyCode: string) {
@@ -97,6 +104,7 @@ export const useUserStore = defineStore("pure-user", {
       this.username = "";
       this.roles = [];
       this.permissions = [];
+      this.zones = [];
       removeToken();
       useMultiTagsStoreHook().handleTags("equal", [...routerArrays]);
       resetRouter();

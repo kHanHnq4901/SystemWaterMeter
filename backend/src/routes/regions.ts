@@ -1,6 +1,7 @@
 import express, { Request, Response } from "express";
 import mssql from "mssql";
 import pool from "../config/database.js";
+import { zoneAuth, buildZoneFilter } from "../middleware/zoneAuth.js";
 
 const router = express.Router();
 
@@ -10,30 +11,24 @@ const router = express.Router();
 // Lưu ý: Màn hình Tree thường không phân trang, nên ta trả về toàn bộ list phẳng,
 // Frontend (hàm handleTree) sẽ tự động cuộn nó thành Cây dựa vào parentId.
 // ============================================================================
-router.post("/list", async (req: Request, res: Response) => {
+router.post("/list", zoneAuth, async (req: Request, res: Response) => {
   try {
-    const { name, status } = req.body;
-    let whereClause = "WHERE DEL_FLAG = 0";
-    const params: { name: string; value: any; type: any }[] = [];
-
-    // Lọc theo Tên (Trạm / Lộ / Máy biến áp)
-    if (name) {
-      params.push({ name: "name", value: `%${name}%`, type: mssql.NVarChar });
-      whereClause += " AND NAME LIKE @name";
-    }
-
-    // Bảng SYS_REGION hiện tại của bác không có cột STATUS. 
-    // Nếu sau này bác thêm cột STATUS vào DB, bác có thể mở comment đoạn dưới này ra:
-    /*
-    if (status !== undefined && status !== "") {
-      params.push({ name: "status", value: Number(status), type: mssql.TinyInt });
-      whereClause += " AND STATUS = @status";
-    }
-    */
+    const { name } = req.body;
+    const conditions: string[] = ["DEL_FLAG = 0"];
 
     const connection = await pool.connect();
     const request = connection.request();
-    params.forEach(p => request.input(p.name, p.type, p.value));
+
+    if (name) {
+      request.input("name", mssql.NVarChar, `%${name}%`);
+      conditions.push("NAME LIKE @name");
+    }
+
+    // Lọc theo zone nếu user không phải admin
+    const zoneFilter = buildZoneFilter(req, request, "ID");
+    if (zoneFilter) conditions.push(zoneFilter);
+
+    const whereClause = "WHERE " + conditions.join(" AND ");
 
     const result = await request.query(`
       SELECT 
@@ -62,6 +57,23 @@ router.post("/list", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Lỗi API get region list:", error);
     res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
+// ============================================================================
+// GET /api/regions/all — toàn bộ vùng (không lọc zone, dùng cho admin gán quyền)
+// ============================================================================
+router.get("/all", async (_req: Request, res: Response) => {
+  try {
+    const conn = await pool.connect();
+    const result = await conn.request().query(`
+      SELECT ID as id, NAME as name, PARENT_ID as parentId, ORDER_NUM as orderNum
+      FROM SYS_REGION WHERE DEL_FLAG = 0
+      ORDER BY ORDER_NUM ASC, CREATE_TIME DESC
+    `);
+    res.json({ code: 0, data: result.recordset });
+  } catch (err: any) {
+    res.status(500).json({ code: 500, message: err.message });
   }
 });
 

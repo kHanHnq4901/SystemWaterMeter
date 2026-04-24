@@ -8,8 +8,8 @@ import { usePublicHooks } from "../../hooks";
 const props = withDefaults(defineProps<FormProps>(), {
   formInline: () => ({
     title: "Thêm mới",
-    higherDeptOptions: [],
-    parentId: 0,
+    roleOptions: [],
+    roleIds: [],
     nickname: "",
     username: "",
     password: "",
@@ -21,10 +21,6 @@ const props = withDefaults(defineProps<FormProps>(), {
   })
 });
 
-const sexOptions = [
-  { value: 0, label: "Nam" },
-  { value: 1, label: "Nữ" }
-];
 const ruleFormRef = ref();
 const { switchStyle } = usePublicHooks();
 const newFormInline = ref(props.formInline);
@@ -41,24 +37,24 @@ defineExpose({ getRef });
     ref="ruleFormRef"
     :model="newFormInline"
     :rules="formRules"
-    label-width="100px"
+    label-width="110px"
   >
     <el-row :gutter="30">
-      <re-col :value="12" :xs="24" :sm="24">
-        <el-form-item label="Biệt danh" prop="nickname">
-          <el-input
-            v-model="newFormInline.nickname"
-            clearable
-            placeholder="Nhập biệt danh"
-          />
-        </el-form-item>
-      </re-col>
       <re-col :value="12" :xs="24" :sm="24">
         <el-form-item label="Tên đăng nhập" prop="username">
           <el-input
             v-model="newFormInline.username"
             clearable
             placeholder="Nhập tên đăng nhập"
+          />
+        </el-form-item>
+      </re-col>
+      <re-col :value="12" :xs="24" :sm="24">
+        <el-form-item label="Biệt danh" prop="nickname">
+          <el-input
+            v-model="newFormInline.nickname"
+            clearable
+            placeholder="Nhập biệt danh"
           />
         </el-form-item>
       </re-col>
@@ -99,35 +95,37 @@ defineExpose({ getRef });
       </re-col>
 
       <re-col :value="12" :xs="24" :sm="24">
-        <el-form-item label="Giới tính">
+        <el-form-item label="Vai trò" prop="roleId">
           <el-select
-            v-model="newFormInline.sex"
-            placeholder="Chọn giới tính"
+            v-model="newFormInline.roleId"
+            placeholder="Chọn vai trò"
             class="w-full!"
+            clearable
           >
             <el-option
-              v-for="item in sexOptions"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
+              v-for="item in newFormInline.roleOptions"
+              :key="item.id"
+              :label="item.name"
+              :value="item.id"
             />
           </el-select>
         </el-form-item>
       </re-col>
+
       <re-col :value="12" :xs="24" :sm="24">
-        <el-form-item label="Phòng ban">
-          <el-cascader
-            v-model="newFormInline.parentId"
-            :options="newFormInline.higherDeptOptions"
-            :props="{
-              value: 'id',
-              label: 'name',
-              emitPath: false,
-              checkStrictly: true
-            }"
-            placeholder="Chọn phòng ban"
-            clearable
+        <el-form-item label="Phân quyền vùng">
+          <el-tree-select
+            v-model="newFormInline.zoneIds"
+            :data="newFormInline.zoneOptions"
+            :props="{ label: 'name', value: 'id', children: 'children' }"
+            multiple
+            show-checkbox
+            :check-strictly="false"
+            collapse-tags
+            collapse-tags-tooltip
+            placeholder="Chọn vùng phân quyền"
             class="w-full!"
+            clearable
           />
         </el-form-item>
       </re-col>

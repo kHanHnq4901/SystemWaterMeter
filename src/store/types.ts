@@ -43,6 +43,8 @@ export type userType = {
   nickname?: string;
   roles?: Array<string>;
   permissions?: Array<string>;
+  /** Zone IDs user được phép truy cập. [] = không giới hạn (admin) */
+  zones?: Array<number>;
   verifyCode?: string;
   currentPage?: number;
   isRemembered?: boolean;

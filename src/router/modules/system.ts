@@ -10,7 +10,8 @@ export default {
   meta: {
     icon: "ri:settings-3-line",
     title: $t("menus.pureSysManagement"),
-    rank: system
+    rank: system,
+    roles: ["admin"]
   },
   children: [
     {

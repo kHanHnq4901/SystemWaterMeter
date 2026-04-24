@@ -1,63 +1,81 @@
 import express, { Request, Response } from "express";
 import mssql from "mssql";
 import pool from "../config/database.js";
+import { zoneAuth, buildZoneFilter } from "../middleware/zoneAuth.js";
 
 const router = express.Router();
 
 // POST /api/water-meters/list — Danh sách đồng hồ (phân trang + tìm kiếm)
-router.post("/list", async (req: Request, res: Response) => {
+// LINE_ID trong INFO_METER tương ứng với SYS_REGION.ID → zone filter dùng "LINE_ID"
+router.post("/list", zoneAuth, async (req: Request, res: Response) => {
   try {
-    const { keyword, state, meterType, currentPage = 1, pageSize = 20 } = req.body;
+    const { keyword, state, meterType, lineId, currentPage = 1, pageSize = 20 } = req.body;
     const offset = (Number(currentPage) - 1) * Number(pageSize);
     const connection = await pool.connect();
 
+    // Xây điều kiện lọc
     const conditions: string[] = [];
-    if (keyword) conditions.push("(METER_NO LIKE @keyword OR METER_NAME LIKE @keyword OR CUSTOMER_CODE LIKE @keyword)");
-    if (state !== undefined && state !== "") conditions.push("STATE = @state");
-    if (meterType !== undefined && meterType !== "") conditions.push("METER_TYPE = @meterType");
-    const where = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
+    if (keyword) conditions.push("(m.METER_NO LIKE @keyword OR m.METER_NAME LIKE @keyword OR m.CUSTOMER_CODE LIKE @keyword)");
+    if (state !== undefined && state !== "") conditions.push("m.STATE = @state");
+    if (meterType !== undefined && meterType !== "") conditions.push("m.METER_TYPE = @meterType");
+    if (lineId !== undefined && lineId !== "") conditions.push("m.REGION_ID = @lineId");
 
+    // Hàm thêm params thông thường vào request
     const addParams = (r: mssql.Request) => {
       if (keyword) r.input("keyword", mssql.NVarChar, `%${keyword}%`);
       if (state !== undefined && state !== "") r.input("state", mssql.Int, Number(state));
       if (meterType !== undefined && meterType !== "") r.input("meterType", mssql.Int, Number(meterType));
-      return r;
+      if (lineId !== undefined && lineId !== "") r.input("lineId", mssql.Int, Number(lineId));
     };
 
-    const countResult = await addParams(connection.request()).query(
-      `SELECT COUNT(*) as total FROM INFO_METER ${where}`
+    // Lấy zone condition string và thêm vào conditions (dùng countReq để build lần đầu)
+    // REGION_ID là cột mới trong INFO_METER, tham chiếu tới SYS_REGION.ID
+    const countReq = connection.request();
+    addParams(countReq);
+    const zoneCondition = buildZoneFilter(req, countReq, "REGION_ID");
+    if (zoneCondition) conditions.push(zoneCondition);
+
+    const where = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
+
+    const countResult = await countReq.query(
+      `SELECT COUNT(*) as total FROM INFO_METER m LEFT JOIN SYS_REGION r ON m.REGION_ID = r.ID AND r.DEL_FLAG = 0 ${where}`
     );
 
-    const dataReq = addParams(connection.request());
-    dataReq.input("offset", mssql.Int, offset);
+    // Data request — thêm lại zone params riêng (request object khác nhau)
+    const dataReq = connection.request();
+    addParams(dataReq);
+    buildZoneFilter(req, dataReq, "REGION_ID"); // thêm zone params vào dataReq
+    dataReq.input("offset",   mssql.Int, offset);
     dataReq.input("pageSize", mssql.Int, Number(pageSize));
 
     const dataResult = await dataReq.query(`
       SELECT
-        METER_NO        as meterNo,
-        METER_NAME      as meterName,
-        METER_MODEL_ID  as meterModelId,
-        METER_TYPE      as meterType,
-        CUSTOMER_CODE   as customerCode,
-        PHONE           as phone,
-        ADDRESS         as address,
-        PIPE_SIZE       as pipeSize,
-        STATE           as state,
-        SIM_CARD_NO     as simCardNo,
-        IMEI            as imei,
-        MODULE_NO       as moduleNo,
-        LINE_ID         as lineId,
-        GROUP_ID        as groupId,
-        LOCK            as lock,
-        NOTE            as note,
-        LASTTIME_DATA   as lasttimeData,
-        PRODUCTION_DATE as productionDate,
-        DELIVERY_DATE   as deliveryDate,
-        WARRANTY        as warranty,
-        CREATED         as created
-      FROM INFO_METER
+        m.METER_NO        as meterNo,
+        m.METER_NAME      as meterName,
+        m.METER_MODEL_ID  as meterModelId,
+        m.METER_TYPE      as meterType,
+        m.CUSTOMER_CODE   as customerCode,
+        m.PHONE           as phone,
+        m.ADDRESS         as address,
+        m.PIPE_SIZE       as pipeSize,
+        m.STATE           as state,
+        m.SIM_CARD_NO     as simCardNo,
+        m.IMEI            as imei,
+        m.MODULE_NO       as moduleNo,
+        m.REGION_ID       as regionId,
+        r.NAME            as regionName,
+        m.GROUP_ID        as groupId,
+        m.LOCK            as lock,
+        m.NOTE            as note,
+        m.LASTTIME_DATA   as lasttimeData,
+        m.PRODUCTION_DATE as productionDate,
+        m.DELIVERY_DATE   as deliveryDate,
+        m.WARRANTY        as warranty,
+        m.CREATED         as created
+      FROM INFO_METER m
+      LEFT JOIN SYS_REGION r ON m.REGION_ID = r.ID AND r.DEL_FLAG = 0
       ${where}
-      ORDER BY CREATED DESC
+      ORDER BY m.CREATED DESC
       OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
     `);
 
@@ -81,8 +99,8 @@ router.post("/add", async (req: Request, res: Response) => {
   try {
     const {
       meterNo, meterName, meterModelId, meterType, customerCode, phone,
-      address, pipeSize, state, simCardNo, imei, moduleNo, lineId,
-      groupId, note, warranty
+      address, pipeSize, state, simCardNo, imei, moduleNo,
+      regionId, groupId, note, warranty
     } = req.body;
 
     const connection = await pool.connect();
@@ -99,17 +117,17 @@ router.post("/add", async (req: Request, res: Response) => {
       .input("SIM_CARD_NO",    mssql.VarChar,  simCardNo || "")
       .input("IMEI",           mssql.VarChar,  imei || "")
       .input("MODULE_NO",      mssql.VarChar,  moduleNo || "")
-      .input("LINE_ID",        mssql.VarChar,  lineId || "")
+      .input("REGION_ID",      mssql.Int,      regionId ?? null)
       .input("GROUP_ID",       mssql.Int,      groupId ?? null)
       .input("NOTE",           mssql.NVarChar, note || "")
       .input("WARRANTY",       mssql.Int,      warranty ?? null)
       .query(`
         INSERT INTO INFO_METER
           (METER_NO, METER_NAME, METER_MODEL_ID, METER_TYPE, CUSTOMER_CODE, PHONE, ADDRESS,
-           PIPE_SIZE, STATE, SIM_CARD_NO, IMEI, MODULE_NO, LINE_ID, GROUP_ID, NOTE, WARRANTY, CREATED)
+           PIPE_SIZE, STATE, SIM_CARD_NO, IMEI, MODULE_NO, REGION_ID, GROUP_ID, NOTE, WARRANTY, CREATED)
         VALUES
           (@METER_NO, @METER_NAME, @METER_MODEL_ID, @METER_TYPE, @CUSTOMER_CODE, @PHONE, @ADDRESS,
-           @PIPE_SIZE, @STATE, @SIM_CARD_NO, @IMEI, @MODULE_NO, @LINE_ID, @GROUP_ID, @NOTE, @WARRANTY, GETDATE())
+           @PIPE_SIZE, @STATE, @SIM_CARD_NO, @IMEI, @MODULE_NO, @REGION_ID, @GROUP_ID, @NOTE, @WARRANTY, GETDATE())
       `);
     res.json({ code: 0, message: "common.createSuccess" });
   } catch (error: any) {
@@ -123,7 +141,7 @@ router.put("/update/:no", async (req: Request, res: Response) => {
     const {
       meterName, meterModelId, meterType, customerCode, phone,
       address, pipeSize, state, simCardNo, imei, moduleNo,
-      lineId, groupId, note, warranty
+      regionId, groupId, note, warranty
     } = req.body;
 
     const connection = await pool.connect();
@@ -140,7 +158,7 @@ router.put("/update/:no", async (req: Request, res: Response) => {
       .input("SIM_CARD_NO",    mssql.VarChar,  simCardNo || "")
       .input("IMEI",           mssql.VarChar,  imei || "")
       .input("MODULE_NO",      mssql.VarChar,  moduleNo || "")
-      .input("LINE_ID",        mssql.VarChar,  lineId || "")
+      .input("REGION_ID",      mssql.Int,      regionId ?? null)
       .input("GROUP_ID",       mssql.Int,      groupId ?? null)
       .input("NOTE",           mssql.NVarChar, note || "")
       .input("WARRANTY",       mssql.Int,      warranty ?? null)
@@ -149,7 +167,7 @@ router.put("/update/:no", async (req: Request, res: Response) => {
           METER_NAME=@METER_NAME, METER_MODEL_ID=@METER_MODEL_ID, METER_TYPE=@METER_TYPE,
           CUSTOMER_CODE=@CUSTOMER_CODE, PHONE=@PHONE, ADDRESS=@ADDRESS, PIPE_SIZE=@PIPE_SIZE,
           STATE=@STATE, SIM_CARD_NO=@SIM_CARD_NO, IMEI=@IMEI, MODULE_NO=@MODULE_NO,
-          LINE_ID=@LINE_ID, GROUP_ID=@GROUP_ID, NOTE=@NOTE, WARRANTY=@WARRANTY
+          REGION_ID=@REGION_ID, GROUP_ID=@GROUP_ID, NOTE=@NOTE, WARRANTY=@WARRANTY
         WHERE METER_NO=@METER_NO
       `);
     res.json({ code: 0, message: "common.updateSuccess" });
@@ -180,6 +198,13 @@ router.get("/map/data", async (_req: Request, res: Response) => {
   try {
     const connection = await pool.connect();
 
+    // Regions: lấy toàn bộ cây vùng để trả về cùng
+    const regionRes = await connection.request().query(`
+      SELECT ID as id, NAME as name, PARENT_ID as parentId, ORDER_NUM as orderNum
+      FROM SYS_REGION WHERE DEL_FLAG = 0
+      ORDER BY ORDER_NUM ASC
+    `);
+
     // Gateways: lấy từ HIS_INSTANT_METER
     const gwRes = await connection.request().query(`
       SELECT
@@ -192,7 +217,7 @@ router.get("/map/data", async (_req: Request, res: Response) => {
       GROUP BY GATEWAY_NO
     `);
 
-    // Meters: INFO_METER join với bản ghi mới nhất từ HIS_INSTANT_METER
+    // Meters: INFO_METER join SYS_REGION + bản ghi mới nhất từ HIS_INSTANT_METER
     const meterRes = await connection.request().query(`
       SELECT TOP 3000
         m.METER_NO        as meterNo,
@@ -200,12 +225,15 @@ router.get("/map/data", async (_req: Request, res: Response) => {
         ISNULL(m.ADDRESS, '')       as address,
         ISNULL(m.CUSTOMER_CODE, '') as customerCode,
         m.STATE           as state,
+        m.REGION_ID       as regionId,
+        r.NAME            as regionName,
         h.GATEWAY_NO      as gatewayNo,
         h.SIGNAL          as signal,
         h.REMAIN_BATTERY  as remainBattery,
         h.REALTIME        as lastDataTime,
         h.STATUS          as deviceStatus
       FROM INFO_METER m
+      LEFT JOIN SYS_REGION r ON m.REGION_ID = r.ID AND r.DEL_FLAG = 0
       LEFT JOIN (
         SELECT METER_NO, GATEWAY_NO, SIGNAL, REMAIN_BATTERY, REALTIME, STATUS,
                ROW_NUMBER() OVER (PARTITION BY METER_NO ORDER BY REALTIME DESC) as rn
@@ -254,6 +282,8 @@ router.get("/map/data", async (_req: Request, res: Response) => {
         address:      m.address,
         customerCode: m.customerCode,
         state:        m.state,
+        regionId:     m.regionId ?? null,
+        regionName:   m.regionName ?? null,
         gatewayNo:    m.gatewayNo,
         signal:       m.signal,
         remainBattery:m.remainBattery,
@@ -264,7 +294,8 @@ router.get("/map/data", async (_req: Request, res: Response) => {
       };
     });
 
-    res.json({ code: 0, message: "common.success", data: { gateways, meters } });
+    const regions = regionRes.recordset;
+    res.json({ code: 0, message: "common.success", data: { regions, gateways, meters } });
   } catch (error: any) {
     res.status(500).json({ code: 500, message: error.message });
   }

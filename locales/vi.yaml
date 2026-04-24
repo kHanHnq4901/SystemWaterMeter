@@ -110,6 +110,12 @@ menus:
   pureLoginLog: Nhật ký đăng nhập
   pureOperationLog: Nhật ký thao tác
   pureSystemLog: Nhật ký hệ thống
+  reportNetwork: Báo cáo mạng lưới
+  reportPressure: Áp lực
+  reportFlow: Lưu lượng
+  reportLossDetail: Thất thoát chi tiết
+  reportLossTotal: Thất thoát tổng
+  reportProduction: Báo cáo sản lượng
   purePageNotFound: "404"
   pureAccessDenied: "403"
   pureServerError: "500"

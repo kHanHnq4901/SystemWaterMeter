@@ -55,5 +55,15 @@ export const formRules = reactive(<FormRules>{
       },
       trigger: "blur"
     }
+  ],
+  roleId: [
+    {
+      required: true,
+      validator: (_rule, value, callback) => {
+        if (!value && value !== 0) callback(new Error("Vui lòng chọn vai trò"));
+        else callback();
+      },
+      trigger: "change"
+    }
   ]
 });

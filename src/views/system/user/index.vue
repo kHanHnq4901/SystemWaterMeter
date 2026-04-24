@@ -7,7 +7,6 @@ import { PureTableBar } from "@/components/RePureTableBar";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 
 import Upload from "~icons/ri/upload-line";
-import Role from "~icons/ri/admin-line";
 import Password from "~icons/ri/lock-password-line";
 import More from "~icons/ep/more-filled";
 import Delete from "~icons/ep/delete";
@@ -44,7 +43,6 @@ const {
   handleDelete,
   handleUpload,
   handleReset,
-  handleRole,
   handleSizeChange,
   onSelectionCancel,
   handleCurrentChange,
@@ -54,6 +52,7 @@ const {
 
 <template>
   <div :class="['flex', 'justify-between', deviceDetection() && 'flex-wrap']">
+    <!-- Cây vai trò bên trái -->
     <tree
       ref="treeRef"
       :class="['mr-2', deviceDetection() ? 'w-full' : 'min-w-50']"
@@ -61,9 +60,8 @@ const {
       :treeLoading="treeLoading"
       @tree-select="onTreeSelect"
     />
-    <div
-      :class="[deviceDetection() ? ['w-full', 'mt-2'] : 'w-[calc(100%-200px)]']"
-    >
+
+    <div :class="[deviceDetection() ? ['w-full', 'mt-2'] : 'w-[calc(100%-208px)]']">
       <el-form
         ref="formRef"
         :inline="true"
@@ -233,18 +231,6 @@ const {
                         {{ t('system.user.resetPassword') }}
                       </el-button>
                     </el-dropdown-item>
-                    <el-dropdown-item>
-                      <el-button
-                        :class="buttonClass"
-                        link
-                        type="primary"
-                        :size="size"
-                        :icon="useRenderIcon(Role)"
-                        @click="handleRole(row)"
-                      >
-                        {{ t('system.user.assignRole') }}
-                      </el-button>
-                    </el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
@@ -263,10 +249,6 @@ const {
 
 :deep(.el-button:focus-visible) {
   outline: none;
-}
-
-.main-content {
-  margin: 24px 24px 0 !important;
 }
 
 .search-form {

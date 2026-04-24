@@ -127,6 +127,59 @@ router.post("/login", async (req, res) => {
     console.log("=> Đăng nhập thành công!");
     await writeLoginLog(username, 1, ip, browser, os);
 
+    // Lấy roles thật từ DB
+    let roles: string[] = [];
+    let zones: number[] = [];
+
+    try {
+      const conn2 = await pool.connect();
+      const roleRes = await conn2.request()
+        .input("userId2", mssql.Int, user.ID)
+        .query(`
+          SELECT r.CODE
+          FROM SYS_ROLE r
+          JOIN SYS_USER_ROLE ur ON r.ID = ur.ROLE_ID
+          WHERE ur.USER_ID = @userId2 AND r.STATUS = 1
+        `);
+      roles = roleRes.recordset.map((r: any) => r.CODE);
+      if (roles.length === 0) roles = ["common"];
+    } catch (e) {
+      console.warn("[Auth] Không đọc được roles:", e);
+      roles = ["common"];
+    }
+
+    // Lấy zones (tách riêng để không ảnh hưởng roles nếu lỗi)
+    if (!roles.includes("admin")) {
+      // Zone trực tiếp từ SYS_USER_ZONE
+      try {
+        const conn3 = await pool.connect();
+        const uzRes = await conn3.request()
+          .input("userId3", mssql.Int, user.ID)
+          .query("SELECT ZONE_ID FROM SYS_USER_ZONE WHERE USER_ID = @userId3");
+        zones.push(...uzRes.recordset.map((r: any) => Number(r.ZONE_ID)));
+      } catch (e) {
+        console.warn("[Auth] Không đọc được SYS_USER_ZONE:", (e as any)?.originalError?.message ?? e);
+      }
+
+      // Zone qua role từ SYS_ROLE_REGION
+      try {
+        const conn4 = await pool.connect();
+        const rzRes = await conn4.request()
+          .input("userId4", mssql.Int, user.ID)
+          .query(`
+            SELECT DISTINCT rr.REGION_ID
+            FROM SYS_ROLE_REGION rr
+            JOIN SYS_USER_ROLE ur ON rr.ROLE_ID = ur.ROLE_ID
+            WHERE ur.USER_ID = @userId4
+          `);
+        zones.push(...rzRes.recordset.map((r: any) => Number(r.REGION_ID)));
+      } catch (e) {
+        console.warn("[Auth] Không đọc được SYS_ROLE_REGION:", (e as any)?.originalError?.message ?? e);
+      }
+
+      zones = [...new Set(zones)];
+    }
+
     const now = Date.now();
     const expires = new Date(now + 2 * 60 * 60 * 1000);
     res.json({
@@ -136,8 +189,9 @@ router.post("/login", async (req, res) => {
         username: user.NAME,
         nickname: user.NICK_NAME || user.NAME,
         avatar: user.AVATAR || "",
-        roles: ["admin"],
+        roles,
         permissions: [],
+        zones,
         accessToken: `AT_${user.ID}_${now}`,
         refreshToken: `RT_${user.ID}_${now}`,
         expires

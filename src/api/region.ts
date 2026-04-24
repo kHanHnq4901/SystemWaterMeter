@@ -37,3 +37,8 @@ export const updateRegion = (id: number, data?: object) => {
 export const deleteRegion = (id: number) => {
   return http.request<Result>("delete", `/api/regions/${id}`);
 };
+
+/** Toàn bộ vùng (không lọc zone, dùng cho map/dropdown) */
+export const getAllRegions = () => {
+  return http.request<Result>("get", "/api/regions/all");
+};

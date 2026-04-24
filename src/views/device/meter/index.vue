@@ -5,24 +5,33 @@ import { PureTableBar } from "@/components/RePureTableBar";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { message } from "@/utils/message";
 import { getWaterMeterList, addWaterMeter, updateWaterMeter, deleteWaterMeter } from "@/api/waterMeter";
-import Refresh from "~icons/ep/refresh";
-import Delete from "~icons/ep/delete";
-import EditPen from "~icons/ep/edit-pen";
-import AddFill from "~icons/ri/add-circle-line";
-import View from "~icons/ep/view";
+import { getAllRegions } from "@/api/region";
+import Refresh  from "~icons/ep/refresh";
+import Delete   from "~icons/ep/delete";
+import EditPen  from "~icons/ep/edit-pen";
+import AddFill  from "~icons/ri/add-circle-line";
+import View     from "~icons/ep/view";
 
 defineOptions({ name: "DeviceMeter" });
 
-const loading = ref(false);
+// ── Regions ──────────────────────────────────────────────────────────────────
+const regionList = ref<{ id: number; name: string; parentId: number | null }[]>([]);
+async function loadRegions() {
+  const res = await getAllRegions();
+  regionList.value = (res.data as any) ?? [];
+}
+function regionLabel(id: number | null) {
+  if (!id) return "—";
+  return regionList.value.find(r => r.id === id)?.name ?? String(id);
+}
+
+// ── Table ─────────────────────────────────────────────────────────────────────
+const loading  = ref(false);
 const dataList = ref<any[]>([]);
-const formRef = ref();
+const formRef  = ref();
 const dialogRef = ref();
-
-const form = reactive({ keyword: "", state: "", meterType: "" });
-
-const pagination = reactive({
-  total: 0, pageSize: 20, currentPage: 1, background: true
-});
+const form = reactive({ keyword: "", state: "", meterType: "", regionId: "" });
+const pagination = reactive({ total: 0, pageSize: 20, currentPage: 1, background: true });
 
 const STATE_MAP: Record<number, { label: string; type: string }> = {
   0: { label: "Chưa lắp",  type: "info"    },
@@ -31,31 +40,19 @@ const STATE_MAP: Record<number, { label: string; type: string }> = {
   3: { label: "Tháo ra",   type: "warning" }
 };
 
-// Dialog state
-const dialogVisible = ref(false);
-const dialogTitle = ref("");
-const isView = ref(false);
-const isEdit = ref(false);
-const dialogForm = reactive({
-  meterNo: "", meterName: "", meterModelId: "", meterType: "",
-  customerCode: "", phone: "", address: "", pipeSize: "",
-  state: 0, simCardNo: "", imei: "", moduleNo: "",
-  lineId: "", groupId: "", note: "", warranty: ""
-});
-const dialogRules = {
-  meterNo:   [{ required: true, message: "Vui lòng nhập mã đồng hồ", trigger: "blur" }],
-  meterName: [{ required: true, message: "Vui lòng nhập tên đồng hồ", trigger: "blur" }]
-};
-
 const columns: TableColumnList = [
-  { type: "index", label: "STT", width: 60 },
+  { type: "index", label: "STT", width: 55, fixed: "left" },
   { label: "Mã ĐH",     prop: "meterNo",      width: 130, fixed: "left" },
   { label: "Tên ĐH",    prop: "meterName",    minWidth: 150 },
+  { label: "Vùng",      prop: "regionName",   width: 140,
+    cellRenderer: ({ row }) =>
+      h("span", { style: row.regionName ? "color:var(--el-color-primary)" : "color:var(--el-text-color-placeholder)" },
+        row.regionName ?? "Chưa phân vùng")
+  },
   { label: "Mã KH",     prop: "customerCode", width: 110 },
-  { label: "SĐT",       prop: "phone",        width: 120 },
-  { label: "Địa chỉ",   prop: "address",      minWidth: 180, showOverflowTooltip: true },
-  { label: "Kích thước",prop: "pipeSize",      width: 100 },
-  { label: "Loại",      prop: "meterType",    width: 80 },
+  { label: "SĐT",       prop: "phone",        width: 115 },
+  { label: "Địa chỉ",   prop: "address",      minWidth: 175, showOverflowTooltip: true },
+  { label: "Size ống",  prop: "pipeSize",     width: 90  },
   { label: "SIM",       prop: "simCardNo",    width: 130 },
   { label: "IMEI",      prop: "imei",         minWidth: 150, showOverflowTooltip: true },
   {
@@ -66,11 +63,11 @@ const columns: TableColumnList = [
     }
   },
   {
-    label: "Dữ liệu lần cuối", prop: "lasttimeData", minWidth: 165,
+    label: "Dữ liệu cuối", prop: "lasttimeData", minWidth: 160,
     formatter: ({ lasttimeData }) =>
       lasttimeData ? new Date(lasttimeData).toLocaleString("vi-VN") : "—"
   },
-  { label: "Thao tác", fixed: "right", width: 190, slot: "operation" }
+  { label: "Thao tác", fixed: "right", width: 185, slot: "operation" }
 ];
 
 async function onSearch() {
@@ -80,6 +77,7 @@ async function onSearch() {
       keyword:   form.keyword   || undefined,
       state:     form.state     !== "" ? form.state     : undefined,
       meterType: form.meterType !== "" ? form.meterType : undefined,
+      lineId:    form.regionId  !== "" ? form.regionId  : undefined,
       currentPage: pagination.currentPage,
       pageSize:    pagination.pageSize
     });
@@ -98,8 +96,26 @@ function resetForm() {
   onSearch();
 }
 
-function handleSizeChange(val: number) { pagination.pageSize = val; onSearch(); }
-function handleCurrentChange(val: number) { pagination.currentPage = val; onSearch(); }
+// ── Dialog ────────────────────────────────────────────────────────────────────
+const dialogVisible = ref(false);
+const dialogTitle   = ref("");
+const isView = ref(false);
+const isEdit = ref(false);
+
+const EMPTY_FORM = () => ({
+  meterNo: "", meterName: "", meterModelId: "", meterType: 0,
+  customerCode: "", phone: "", address: "", pipeSize: "",
+  state: 0, simCardNo: "", imei: "", moduleNo: "",
+  regionId: null as number | null,
+  groupId: null as number | null,
+  note: "", warranty: null as number | null
+});
+const dialogForm = reactive(EMPTY_FORM());
+
+const dialogRules = {
+  meterNo:   [{ required: true, message: "Vui lòng nhập mã đồng hồ", trigger: "blur" }],
+  meterName: [{ required: true, message: "Vui lòng nhập tên đồng hồ", trigger: "blur" }]
+};
 
 function openDialog(mode: "add" | "edit" | "view", row?: any) {
   isView.value = mode === "view";
@@ -108,33 +124,35 @@ function openDialog(mode: "add" | "edit" | "view", row?: any) {
 
   if (row) {
     Object.assign(dialogForm, {
-      meterNo: row.meterNo ?? "", meterName: row.meterName ?? "",
-      meterModelId: row.meterModelId ?? "", meterType: row.meterType ?? "",
-      customerCode: row.customerCode ?? "", phone: row.phone ?? "",
-      address: row.address ?? "", pipeSize: row.pipeSize ?? "",
-      state: row.state ?? 0, simCardNo: row.simCardNo ?? "",
-      imei: row.imei ?? "", moduleNo: row.moduleNo ?? "",
-      lineId: row.lineId ?? "", groupId: row.groupId ?? "",
-      note: row.note ?? "", warranty: row.warranty ?? ""
+      meterNo:      row.meterNo      ?? "",
+      meterName:    row.meterName    ?? "",
+      meterModelId: row.meterModelId ?? "",
+      meterType:    row.meterType    ?? 0,
+      customerCode: row.customerCode ?? "",
+      phone:        row.phone        ?? "",
+      address:      row.address      ?? "",
+      pipeSize:     row.pipeSize     ?? "",
+      state:        row.state        ?? 0,
+      simCardNo:    row.simCardNo    ?? "",
+      imei:         row.imei         ?? "",
+      moduleNo:     row.moduleNo     ?? "",
+      regionId:     row.regionId     ?? null,
+      groupId:      row.groupId      ?? null,
+      note:         row.note         ?? "",
+      warranty:     row.warranty     ?? null
     });
   } else {
-    Object.assign(dialogForm, {
-      meterNo: "", meterName: "", meterModelId: "", meterType: "",
-      customerCode: "", phone: "", address: "", pipeSize: "",
-      state: 0, simCardNo: "", imei: "", moduleNo: "",
-      lineId: "", groupId: "", note: "", warranty: ""
-    });
+    Object.assign(dialogForm, EMPTY_FORM());
   }
   dialogVisible.value = true;
 }
 
 async function handleSubmit() {
   try { await dialogRef.value.validate(); } catch { return; }
-
+  const payload = { ...dialogForm };
   const res = isEdit.value
-    ? await updateWaterMeter(dialogForm.meterNo, { ...dialogForm })
-    : await addWaterMeter({ ...dialogForm });
-
+    ? await updateWaterMeter(dialogForm.meterNo, payload)
+    : await addWaterMeter(payload);
   if (res.code === 0) {
     message(isEdit.value ? "Cập nhật thành công" : "Thêm mới thành công", { type: "success" });
     dialogVisible.value = false;
@@ -147,33 +165,39 @@ async function handleSubmit() {
 async function handleDelete(row: any) {
   const res = await deleteWaterMeter(row.meterNo);
   if (res.code === 0) {
-    message(`Đã xóa đồng hồ: ${row.meterNo}`, { type: "success" });
+    message(`Đã xóa: ${row.meterNo}`, { type: "success" });
     onSearch();
   } else {
     message(res.message, { type: "error" });
   }
 }
 
-onMounted(() => onSearch());
+function handleSizeChange(val: number)    { pagination.pageSize    = val; onSearch(); }
+function handleCurrentChange(val: number) { pagination.currentPage = val; onSearch(); }
+
+onMounted(() => { loadRegions(); onSearch(); });
 </script>
 
 <template>
   <div class="main">
+    <!-- Search bar -->
     <el-form ref="formRef" :inline="true" :model="form"
       class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto">
-      <el-form-item label="Tìm kiếm:" prop="keyword">
-        <el-input v-model="form.keyword" placeholder="Mã ĐH / Tên / Mã KH" clearable class="w-52!" />
+      <el-form-item label="Tìm kiếm" prop="keyword">
+        <el-input v-model="form.keyword" placeholder="Mã ĐH / Tên / Mã KH" clearable class="!w-52" />
       </el-form-item>
-      <el-form-item label="Trạng thái:" prop="state">
-        <el-select v-model="form.state" placeholder="Tất cả" clearable class="w-36!">
+      <el-form-item label="Vùng" prop="regionId">
+        <el-select v-model="form.regionId" placeholder="Tất cả vùng" clearable class="!w-44">
+          <el-option v-for="r in regionList" :key="r.id" :label="r.name" :value="r.id" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="Trạng thái" prop="state">
+        <el-select v-model="form.state" placeholder="Tất cả" clearable class="!w-36">
           <el-option label="Chưa lắp"  :value="0" />
           <el-option label="Đang dùng" :value="1" />
           <el-option label="Hỏng"      :value="2" />
           <el-option label="Tháo ra"   :value="3" />
         </el-select>
-      </el-form-item>
-      <el-form-item label="Loại:" prop="meterType">
-        <el-input v-model="form.meterType" placeholder="Loại đồng hồ" clearable class="w-36!" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" :icon="useRenderIcon('ri/search-line')" :loading="loading"
@@ -199,18 +223,13 @@ onMounted(() => onSearch());
           @page-size-change="handleSizeChange" @page-current-change="handleCurrentChange">
           <template #operation="{ row }">
             <el-button class="reset-margin" link type="primary" :size="size"
-              :icon="useRenderIcon(View)" @click="openDialog('view', row)">
-              Xem
-            </el-button>
+              :icon="useRenderIcon(View)" @click="openDialog('view', row)">Xem</el-button>
             <el-button class="reset-margin" link type="primary" :size="size"
-              :icon="useRenderIcon(EditPen)" @click="openDialog('edit', row)">
-              Sửa
-            </el-button>
+              :icon="useRenderIcon(EditPen)" @click="openDialog('edit', row)">Sửa</el-button>
             <el-popconfirm :title="`Xác nhận xóa đồng hồ: ${row.meterNo}?`" @confirm="handleDelete(row)">
               <template #reference>
-                <el-button class="reset-margin" link type="danger" :size="size" :icon="useRenderIcon(Delete)">
-                  Xóa
-                </el-button>
+                <el-button class="reset-margin" link type="danger" :size="size"
+                  :icon="useRenderIcon(Delete)">Xóa</el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -218,44 +237,35 @@ onMounted(() => onSearch());
       </template>
     </PureTableBar>
 
-    <!-- Dialog Thêm/Sửa/Xem -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="680px" draggable>
+    <!-- Dialog thêm / sửa / xem -->
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="700px" draggable>
       <el-form ref="dialogRef" :model="dialogForm" :rules="isView ? {} : dialogRules"
-        label-width="110px" label-position="right">
+        label-width="120px" label-position="right">
         <el-row :gutter="16">
+
+          <!-- Mã + Tên -->
           <el-col :span="12">
-            <el-form-item label="Mã ĐH" prop="meterNo">
-              <el-input v-model="dialogForm.meterNo" :disabled="isView || isEdit" />
+            <el-form-item label="Mã đồng hồ" prop="meterNo">
+              <el-input v-model="dialogForm.meterNo" :disabled="isView || isEdit" placeholder="VD: DH001" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="Tên ĐH" prop="meterName">
+            <el-form-item label="Tên đồng hồ" prop="meterName">
               <el-input v-model="dialogForm.meterName" :disabled="isView" />
             </el-form-item>
           </el-col>
+
+          <!-- Vùng -->
           <el-col :span="12">
-            <el-form-item label="Mã KH">
-              <el-input v-model="dialogForm.customerCode" :disabled="isView" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="SĐT">
-              <el-input v-model="dialogForm.phone" :disabled="isView" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="Loại">
-              <el-input v-model="dialogForm.meterType" :disabled="isView" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="Kích thước ống">
-              <el-input v-model="dialogForm.pipeSize" :disabled="isView" />
+            <el-form-item label="Vùng">
+              <el-select v-model="dialogForm.regionId" placeholder="Chọn vùng" clearable :disabled="isView" class="!w-full">
+                <el-option v-for="r in regionList" :key="r.id" :label="r.name" :value="r.id" />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="Trạng thái">
-              <el-select v-model="dialogForm.state" :disabled="isView" class="w-full!">
+              <el-select v-model="dialogForm.state" :disabled="isView" class="!w-full">
                 <el-option label="Chưa lắp"  :value="0" />
                 <el-option label="Đang dùng" :value="1" />
                 <el-option label="Hỏng"      :value="2" />
@@ -263,11 +273,47 @@ onMounted(() => onSearch());
               </el-select>
             </el-form-item>
           </el-col>
+
+          <!-- Khách hàng -->
           <el-col :span="12">
-            <el-form-item label="Model ID">
+            <el-form-item label="Mã khách hàng">
+              <el-input v-model="dialogForm.customerCode" :disabled="isView" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="Số điện thoại">
+              <el-input v-model="dialogForm.phone" :disabled="isView" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="Địa chỉ">
+              <el-input v-model="dialogForm.address" :disabled="isView" />
+            </el-form-item>
+          </el-col>
+
+          <!-- Thiết bị -->
+          <el-col :span="12">
+            <el-form-item label="Loại ĐH">
+              <el-input v-model="dialogForm.meterType" :disabled="isView" placeholder="VD: 1" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="Kích thước ống">
+              <el-input v-model="dialogForm.pipeSize" :disabled="isView" placeholder="VD: DN20" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="Model">
               <el-input v-model="dialogForm.meterModelId" :disabled="isView" />
             </el-form-item>
           </el-col>
+          <el-col :span="12">
+            <el-form-item label="Bảo hành (tháng)">
+              <el-input-number v-model="dialogForm.warranty" :disabled="isView" :min="0" class="!w-full" />
+            </el-form-item>
+          </el-col>
+
+          <!-- Module / SIM -->
           <el-col :span="12">
             <el-form-item label="SIM">
               <el-input v-model="dialogForm.simCardNo" :disabled="isView" />
@@ -283,16 +329,8 @@ onMounted(() => onSearch());
               <el-input v-model="dialogForm.moduleNo" :disabled="isView" />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
-            <el-form-item label="Bảo hành (tháng)">
-              <el-input v-model="dialogForm.warranty" :disabled="isView" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="Địa chỉ">
-              <el-input v-model="dialogForm.address" :disabled="isView" />
-            </el-form-item>
-          </el-col>
+
+          <!-- Ghi chú -->
           <el-col :span="24">
             <el-form-item label="Ghi chú">
               <el-input v-model="dialogForm.note" type="textarea" :rows="2" :disabled="isView" />

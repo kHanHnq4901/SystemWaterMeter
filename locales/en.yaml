@@ -110,6 +110,12 @@ menus:
   pureLoginLog: Login Log
   pureOperationLog: Operation Log
   pureSystemLog: System Log
+  reportNetwork: Network Reports
+  reportPressure: Pressure
+  reportFlow: Flow Rate
+  reportLossDetail: Loss Detail
+  reportLossTotal: Total Loss
+  reportProduction: Production Report
   purePageNotFound: "404"
   pureAccessDenied: "403"
   pureServerError: "500"
