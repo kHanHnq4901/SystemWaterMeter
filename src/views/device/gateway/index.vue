@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, h } from "vue";
+import { ref, reactive, computed, onMounted, h } from "vue";
+import { useI18n } from "vue-i18n";
 import { ElTag } from "element-plus";
 import { PureTableBar } from "@/components/RePureTableBar";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
@@ -12,6 +13,8 @@ import AddFill from "~icons/ri/add-circle-line";
 import View from "~icons/ep/view";
 
 defineOptions({ name: "DeviceGateway" });
+
+const { t } = useI18n();
 
 const loading = ref(false);
 const dataList = ref<any[]>([]);
@@ -33,28 +36,28 @@ const dialogForm = reactive({
   gatewayType: "", simCardNo: "", lineId: "",
   address: "", note: "", imei: "", version: "", coordinate: ""
 });
-const dialogRules = {
-  gatewayNo:   [{ required: true, message: "Vui lòng nhập mã Gateway", trigger: "blur" }],
-  gatewayName: [{ required: true, message: "Vui lòng nhập tên Gateway", trigger: "blur" }]
-};
+const dialogRules = computed(() => ({
+  gatewayNo:   [{ required: true, message: t("device.gateway.codeRequired"), trigger: "blur" }],
+  gatewayName: [{ required: true, message: t("device.gateway.nameRequired"), trigger: "blur" }]
+}));
 const isEdit = ref(false);
 
-const columns: TableColumnList = [
-  { type: "index", label: "STT", width: 60 },
-  { label: "Mã GW",       prop: "gatewayNo",      width: 130, fixed: "left" },
-  { label: "Tên Gateway", prop: "gatewayName",    minWidth: 160 },
-  { label: "Loại",        prop: "gatewayType",    width: 80 },
-  { label: "SIM",         prop: "simCardNo",      width: 130 },
-  { label: "IMEI",        prop: "imei",           minWidth: 150, showOverflowTooltip: true },
-  { label: "Phiên bản",   prop: "version",        width: 100 },
-  { label: "Địa chỉ",     prop: "address",        minWidth: 180, showOverflowTooltip: true },
+const columns = computed<TableColumnList>(() => [
+  { type: "index", label: t("common.stt"), width: 60 },
+  { label: t("device.gateway.code"),         prop: "gatewayNo",      width: 130, fixed: "left" },
+  { label: t("device.gateway.name"),         prop: "gatewayName",    minWidth: 160 },
+  { label: t("device.gateway.type"),         prop: "gatewayType",    width: 80 },
+  { label: "SIM",                            prop: "simCardNo",      width: 130 },
+  { label: "IMEI",                           prop: "imei",           minWidth: 150, showOverflowTooltip: true },
+  { label: t("device.gateway.version"),      prop: "version",        width: 100 },
+  { label: t("common.address"),              prop: "address",        minWidth: 180, showOverflowTooltip: true },
   {
-    label: "Kết nối lần cuối", prop: "lasttimeConnect", minWidth: 165,
+    label: t("device.gateway.lastConnected"), prop: "lasttimeConnect", minWidth: 165,
     formatter: ({ lasttimeConnect }) =>
       lasttimeConnect ? new Date(lasttimeConnect).toLocaleString("vi-VN") : "—"
   },
   {
-    label: "Trạng thái", prop: "lasttimeConnect", width: 110,
+    label: t("common.status"), prop: "lasttimeConnect", width: 110,
     cellRenderer: ({ row }) => {
       const last = row.lasttimeConnect ? new Date(row.lasttimeConnect).getTime() : 0;
       const online = last > Date.now() - 24 * 60 * 60 * 1000;
@@ -62,9 +65,9 @@ const columns: TableColumnList = [
         { default: () => (online ? "Online" : "Offline") });
     }
   },
-  { label: "Ghi chú", prop: "note", minWidth: 150, showOverflowTooltip: true },
-  { label: "Thao tác", fixed: "right", width: 190, slot: "operation" }
-];
+  { label: t("common.note"), prop: "note", minWidth: 150, showOverflowTooltip: true },
+  { label: t("common.action"), fixed: "right", width: 190, slot: "operation" }
+]);
 
 async function onSearch() {
   loading.value = true;
@@ -96,7 +99,7 @@ function handleCurrentChange(val: number) { pagination.currentPage = val; onSear
 function openDialog(mode: "add" | "edit" | "view", row?: any) {
   isView.value = mode === "view";
   isEdit.value = mode === "edit";
-  dialogTitle.value = mode === "add" ? "Thêm Gateway" : mode === "edit" ? "Sửa Gateway" : "Chi tiết Gateway";
+  dialogTitle.value = mode === "add" ? t("device.gateway.addTitle") : mode === "edit" ? t("device.gateway.editTitle") : t("device.gateway.detailTitle");
 
   if (row) {
     Object.assign(dialogForm, {
@@ -126,7 +129,7 @@ async function handleSubmit() {
     : await addGateway(payload);
 
   if (res.code === 0) {
-    message(isEdit.value ? "Cập nhật thành công" : "Thêm mới thành công", { type: "success" });
+    message(isEdit.value ? t("common.updateSuccess") : t("common.addSuccess"), { type: "success" });
     dialogVisible.value = false;
     onSearch();
   } else {
@@ -137,7 +140,7 @@ async function handleSubmit() {
 async function handleDelete(row: any) {
   const res = await deleteGateway(row.gatewayNo);
   if (res.code === 0) {
-    message(`Đã xóa Gateway: ${row.gatewayNo}`, { type: "success" });
+    message(t("common.deleteSuccess"), { type: "success" });
     onSearch();
   } else {
     message(res.message, { type: "error" });
@@ -155,25 +158,25 @@ onMounted(() => onSearch());
       :model="form"
       class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto"
     >
-      <el-form-item label="Tìm kiếm:" prop="keyword">
-        <el-input v-model="form.keyword" placeholder="Mã hoặc tên Gateway" clearable class="w-52!" />
+      <el-form-item :label="t('common.search') + ':'" prop="keyword">
+        <el-input v-model="form.keyword" :placeholder="t('device.gateway.searchPlaceholder')" clearable class="w-52!" />
       </el-form-item>
-      <el-form-item label="Loại:" prop="gatewayType">
-        <el-input v-model="form.gatewayType" placeholder="Loại Gateway" clearable class="w-36!" />
+      <el-form-item :label="t('device.gateway.type') + ':'" prop="gatewayType">
+        <el-input v-model="form.gatewayType" :placeholder="t('device.gateway.typePlaceholder')" clearable class="w-36!" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" :icon="useRenderIcon('ri/search-line')" :loading="loading"
           @click="() => { pagination.currentPage = 1; onSearch(); }">
-          Tìm kiếm
+          {{ t("common.search") }}
         </el-button>
-        <el-button :icon="useRenderIcon(Refresh)" @click="resetForm">Đặt lại</el-button>
+        <el-button :icon="useRenderIcon(Refresh)" @click="resetForm">{{ t("common.reset") }}</el-button>
       </el-form-item>
     </el-form>
 
-    <PureTableBar title="Quản lý Gateway" :columns="columns" @refresh="onSearch">
+    <PureTableBar :title="t('device.gateway.management')" :columns="columns" @refresh="onSearch">
       <template #buttons>
         <el-button type="primary" :icon="useRenderIcon(AddFill)" @click="openDialog('add')">
-          Thêm mới
+          {{ t("common.add") }}
         </el-button>
       </template>
       <template v-slot="{ size, dynamicColumns }">
@@ -186,16 +189,16 @@ onMounted(() => onSearch());
           <template #operation="{ row }">
             <el-button class="reset-margin" link type="primary" :size="size"
               :icon="useRenderIcon(View)" @click="openDialog('view', row)">
-              Xem
+              {{ t("common.view") }}
             </el-button>
             <el-button class="reset-margin" link type="primary" :size="size"
               :icon="useRenderIcon(EditPen)" @click="openDialog('edit', row)">
-              Sửa
+              {{ t("common.edit") }}
             </el-button>
-            <el-popconfirm :title="`Xác nhận xóa Gateway: ${row.gatewayNo}?`" @confirm="handleDelete(row)">
+            <el-popconfirm :title="`${t('device.gateway.confirmDelete')}: ${row.gatewayNo}?`" @confirm="handleDelete(row)">
               <template #reference>
                 <el-button class="reset-margin" link type="danger" :size="size" :icon="useRenderIcon(Delete)">
-                  Xóa
+                  {{ t("common.delete") }}
                 </el-button>
               </template>
             </el-popconfirm>
@@ -204,23 +207,22 @@ onMounted(() => onSearch());
       </template>
     </PureTableBar>
 
-    <!-- Dialog Thêm/Sửa/Xem -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px" draggable>
       <el-form ref="dialogRef" :model="dialogForm" :rules="isView ? {} : dialogRules"
         label-width="120px" label-position="right">
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="Mã GW" prop="gatewayNo">
+            <el-form-item :label="t('device.gateway.code')" prop="gatewayNo">
               <el-input v-model="dialogForm.gatewayNo" :disabled="isView || isEdit" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="Tên Gateway" prop="gatewayName">
+            <el-form-item :label="t('device.gateway.name')" prop="gatewayName">
               <el-input v-model="dialogForm.gatewayName" :disabled="isView" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="Loại">
+            <el-form-item :label="t('device.gateway.type')">
               <el-input v-model="dialogForm.gatewayType" :disabled="isView" />
             </el-form-item>
           </el-col>
@@ -240,7 +242,7 @@ onMounted(() => onSearch());
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="Phiên bản">
+            <el-form-item :label="t('device.gateway.version')">
               <el-input v-model="dialogForm.version" :disabled="isView" />
             </el-form-item>
           </el-col>
@@ -250,25 +252,25 @@ onMounted(() => onSearch());
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="Địa chỉ">
+            <el-form-item :label="t('common.address')">
               <el-input v-model="dialogForm.address" :disabled="isView" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="Tọa độ">
+            <el-form-item :label="t('device.gateway.coordinate')">
               <el-input v-model="dialogForm.coordinate" :disabled="isView" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="Ghi chú">
+            <el-form-item :label="t('common.note')">
               <el-input v-model="dialogForm.note" type="textarea" :rows="2" :disabled="isView" />
             </el-form-item>
           </el-col>
         </el-row>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">{{ isView ? "Đóng" : "Hủy" }}</el-button>
-        <el-button v-if="!isView" type="primary" @click="handleSubmit">Lưu</el-button>
+        <el-button @click="dialogVisible = false">{{ isView ? t("common.close") : t("common.cancel") }}</el-button>
+        <el-button v-if="!isView" type="primary" @click="handleSubmit">{{ t("common.save") }}</el-button>
       </template>
     </el-dialog>
   </div>

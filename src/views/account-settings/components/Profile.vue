@@ -69,10 +69,9 @@ const handleSubmitImage = async () => {
       const avatarPath = res.data.avatar; // "/uploads/avatars/6.png"
       const busted = `${avatarPath}?t=${Date.now()}`;
       userInfos.avatar = busted;
-      // Store lưu path sạch (proxy Vite sẽ xử lý khi load lại)
-      useUserStoreHook().SET_AVATAR(avatarPath);
+      useUserStoreHook().SET_AVATAR(busted);
       const stored = storageLocal().getItem<any>(userKey) ?? {};
-      storageLocal().setItem(userKey, { ...stored, avatar: avatarPath });
+      storageLocal().setItem(userKey, { ...stored, avatar: busted });
       emitter.emit("avatarChange", busted);
       message(t("accountSettings.updateAvatar") + " " + t("common.success"), { type: "success" });
       handleClose();
@@ -108,7 +107,13 @@ const onSubmit = async (formEl: FormInstance | undefined) => {
 
 onMounted(async () => {
   const { code, data } = await getMine();
-  if (code === 0) Object.assign(userInfos, data);
+  if (code === 0) {
+    // Dùng avatar đã lưu trong store (đã có ?t=...) thay vì path sạch từ DB
+    // để tránh browser cache hiển thị ảnh cũ
+    const storedAvatar = useUserStoreHook().avatar;
+    Object.assign(userInfos, data);
+    if (storedAvatar) userInfos.avatar = storedAvatar;
+  }
 });
 </script>
 

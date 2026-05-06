@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, computed, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
 import { PureTableBar } from "@/components/RePureTableBar";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { message } from "@/utils/message";
@@ -14,6 +15,8 @@ import AddFill from "~icons/ri/add-circle-line";
 
 defineOptions({ name: "DeviceModel" });
 
+const { t } = useI18n();
+
 const activeTab = ref("meter");
 
 // ─── Meter Model ───────────────────────────────────────────
@@ -23,14 +26,14 @@ const meterFormRef = ref();
 const meterKeyword = ref("");
 const meterPagination = reactive({ total: 0, pageSize: 20, currentPage: 1, background: true });
 
-const meterColumns: TableColumnList = [
-  { type: "index", label: "STT", width: 60 },
-  { label: "Mã Model",    prop: "meterModelId",   width: 150 },
-  { label: "Mô tả",       prop: "meterModelDesc", minWidth: 200 },
-  { label: "Hệ số (Constant)", prop: "constant",  width: 160 },
-  { label: "Loại (Class)", prop: "class",         width: 140 },
-  { label: "Thao tác", fixed: "right", width: 150, slot: "meterOp" }
-];
+const meterColumns = computed<TableColumnList>(() => [
+  { type: "index", label: t("common.stt"), width: 60 },
+  { label: t("device.model.code"),      prop: "meterModelId",   width: 150 },
+  { label: t("device.model.description"), prop: "meterModelDesc", minWidth: 200 },
+  { label: t("device.model.constantFull"), prop: "constant",    width: 160 },
+  { label: t("device.model.class"),     prop: "class",          width: 140 },
+  { label: t("common.action"), fixed: "right", width: 150, slot: "meterOp" }
+]);
 
 async function loadMeterModels() {
   meterLoading.value = true;
@@ -51,13 +54,13 @@ const gwFormRef = ref();
 const gwKeyword = ref("");
 const gwPagination = reactive({ total: 0, pageSize: 20, currentPage: 1, background: true });
 
-const gwColumns: TableColumnList = [
-  { type: "index", label: "STT", width: 60 },
-  { label: "Mã Model",      prop: "gatewayModelId",    width: 150 },
-  { label: "Mô tả (EN)",    prop: "gatewayModelDesc",  minWidth: 200 },
-  { label: "Mô tả (VI)",    prop: "gatewayModelDescVn", minWidth: 200 },
-  { label: "Thao tác", fixed: "right", width: 150, slot: "gwOp" }
-];
+const gwColumns = computed<TableColumnList>(() => [
+  { type: "index", label: t("common.stt"), width: 60 },
+  { label: t("device.model.code"),         prop: "gatewayModelId",    width: 150 },
+  { label: t("device.model.descriptionEn"), prop: "gatewayModelDesc",  minWidth: 200 },
+  { label: t("device.model.descriptionVi"), prop: "gatewayModelDescVn", minWidth: 200 },
+  { label: t("common.action"), fixed: "right", width: 150, slot: "gwOp" }
+]);
 
 async function loadGwModels() {
   gwLoading.value = true;
@@ -71,7 +74,7 @@ async function loadGwModels() {
   } finally { gwLoading.value = false; }
 }
 
-// ─── Dialog dùng chung ─────────────────────────────────────
+// ─── Dialog ─────────────────────────────────────
 const dialogVisible = ref(false);
 const dialogTitle = ref("");
 const dialogRef = ref();
@@ -81,13 +84,17 @@ const dialogType = ref<"meter" | "gateway">("meter");
 const meterForm = reactive({ meterModelId: "", meterModelDesc: "", constant: "", cls: "" });
 const gwForm = reactive({ gatewayModelId: "", gatewayModelDesc: "", gatewayModelDescVn: "" });
 
-const meterRules = { meterModelId: [{ required: true, message: "Vui lòng nhập mã model", trigger: "blur" }] };
-const gwRules    = { gatewayModelId: [{ required: true, message: "Vui lòng nhập mã model", trigger: "blur" }] };
+const meterRules = computed(() => ({
+  meterModelId: [{ required: true, message: t("device.model.codeRequired"), trigger: "blur" }]
+}));
+const gwRules = computed(() => ({
+  gatewayModelId: [{ required: true, message: t("device.model.codeRequired"), trigger: "blur" }]
+}));
 
 function openMeterDialog(mode: "add" | "edit", row?: any) {
   dialogType.value = "meter";
   isEdit.value = mode === "edit";
-  dialogTitle.value = mode === "add" ? "Thêm Model Đồng hồ" : "Sửa Model Đồng hồ";
+  dialogTitle.value = mode === "add" ? t("device.model.addMeterModel") : t("device.model.editMeterModel");
   Object.assign(meterForm, {
     meterModelId:   row?.meterModelId   ?? "",
     meterModelDesc: row?.meterModelDesc ?? "",
@@ -100,7 +107,7 @@ function openMeterDialog(mode: "add" | "edit", row?: any) {
 function openGwDialog(mode: "add" | "edit", row?: any) {
   dialogType.value = "gateway";
   isEdit.value = mode === "edit";
-  dialogTitle.value = mode === "add" ? "Thêm Model Gateway" : "Sửa Model Gateway";
+  dialogTitle.value = mode === "add" ? t("device.model.addGatewayModel") : t("device.model.editGatewayModel");
   Object.assign(gwForm, {
     gatewayModelId:    row?.gatewayModelId    ?? "",
     gatewayModelDesc:  row?.gatewayModelDesc  ?? "",
@@ -124,7 +131,7 @@ async function handleSubmit() {
   }
 
   if (res.code === 0) {
-    message(isEdit.value ? "Cập nhật thành công" : "Thêm mới thành công", { type: "success" });
+    message(isEdit.value ? t("common.updateSuccess") : t("common.addSuccess"), { type: "success" });
     dialogVisible.value = false;
     dialogType.value === "meter" ? loadMeterModels() : loadGwModels();
   } else {
@@ -134,13 +141,13 @@ async function handleSubmit() {
 
 async function handleMeterDelete(row: any) {
   const res = await deleteMeterModel(row.meterModelId);
-  if (res.code === 0) { message(`Đã xóa: ${row.meterModelId}`, { type: "success" }); loadMeterModels(); }
+  if (res.code === 0) { message(t("common.deleteSuccess"), { type: "success" }); loadMeterModels(); }
   else message(res.message, { type: "error" });
 }
 
 async function handleGwDelete(row: any) {
   const res = await deleteGatewayModel(row.gatewayModelId);
-  if (res.code === 0) { message(`Đã xóa: ${row.gatewayModelId}`, { type: "success" }); loadGwModels(); }
+  if (res.code === 0) { message(t("common.deleteSuccess"), { type: "success" }); loadGwModels(); }
   else message(res.message, { type: "error" });
 }
 
@@ -150,29 +157,29 @@ onMounted(() => { loadMeterModels(); loadGwModels(); });
 <template>
   <div class="main">
     <el-tabs v-model="activeTab" class="px-4 pt-2">
-      <!-- ─── Tab Model Đồng hồ ─── -->
-      <el-tab-pane label="Model Đồng hồ" name="meter">
+      <!-- ─── Tab Meter Model ─── -->
+      <el-tab-pane :label="t('device.model.meterModel')" name="meter">
         <el-form ref="meterFormRef" :inline="true" class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto">
-          <el-form-item label="Tìm kiếm:">
-            <el-input v-model="meterKeyword" placeholder="Mã hoặc mô tả" clearable class="w-52!"
+          <el-form-item :label="t('common.search') + ':'">
+            <el-input v-model="meterKeyword" :placeholder="t('common.search')" clearable class="w-52!"
               @keyup.enter="() => { meterPagination.currentPage = 1; loadMeterModels(); }" />
           </el-form-item>
           <el-form-item>
             <el-button type="primary" :icon="useRenderIcon('ri/search-line')" :loading="meterLoading"
               @click="() => { meterPagination.currentPage = 1; loadMeterModels(); }">
-              Tìm kiếm
+              {{ t("common.search") }}
             </el-button>
             <el-button :icon="useRenderIcon(Refresh)"
               @click="() => { meterKeyword = ''; meterPagination.currentPage = 1; loadMeterModels(); }">
-              Đặt lại
+              {{ t("common.reset") }}
             </el-button>
           </el-form-item>
         </el-form>
 
-        <PureTableBar title="Model Đồng hồ" :columns="meterColumns" @refresh="loadMeterModels">
+        <PureTableBar :title="t('device.model.meterModel')" :columns="meterColumns" @refresh="loadMeterModels">
           <template #buttons>
             <el-button type="primary" :icon="useRenderIcon(AddFill)" @click="openMeterDialog('add')">
-              Thêm mới
+              {{ t("common.add") }}
             </el-button>
           </template>
           <template v-slot="{ size, dynamicColumns }">
@@ -185,10 +192,10 @@ onMounted(() => { loadMeterModels(); loadGwModels(); });
               @page-current-change="v => { meterPagination.currentPage = v; loadMeterModels(); }">
               <template #meterOp="{ row }">
                 <el-button class="reset-margin" link type="primary" :size="size"
-                  :icon="useRenderIcon(EditPen)" @click="openMeterDialog('edit', row)">Sửa</el-button>
-                <el-popconfirm :title="`Xác nhận xóa model: ${row.meterModelId}?`" @confirm="handleMeterDelete(row)">
+                  :icon="useRenderIcon(EditPen)" @click="openMeterDialog('edit', row)">{{ t("common.edit") }}</el-button>
+                <el-popconfirm :title="`${t('device.model.confirmDelete')}: ${row.meterModelId}?`" @confirm="handleMeterDelete(row)">
                   <template #reference>
-                    <el-button class="reset-margin" link type="danger" :size="size" :icon="useRenderIcon(Delete)">Xóa</el-button>
+                    <el-button class="reset-margin" link type="danger" :size="size" :icon="useRenderIcon(Delete)">{{ t("common.delete") }}</el-button>
                   </template>
                 </el-popconfirm>
               </template>
@@ -197,29 +204,29 @@ onMounted(() => { loadMeterModels(); loadGwModels(); });
         </PureTableBar>
       </el-tab-pane>
 
-      <!-- ─── Tab Model Gateway ─── -->
-      <el-tab-pane label="Model Gateway" name="gateway">
+      <!-- ─── Tab Gateway Model ─── -->
+      <el-tab-pane :label="t('device.model.gatewayModel')" name="gateway">
         <el-form ref="gwFormRef" :inline="true" class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto">
-          <el-form-item label="Tìm kiếm:">
-            <el-input v-model="gwKeyword" placeholder="Mã hoặc mô tả" clearable class="w-52!"
+          <el-form-item :label="t('common.search') + ':'">
+            <el-input v-model="gwKeyword" :placeholder="t('common.search')" clearable class="w-52!"
               @keyup.enter="() => { gwPagination.currentPage = 1; loadGwModels(); }" />
           </el-form-item>
           <el-form-item>
             <el-button type="primary" :icon="useRenderIcon('ri/search-line')" :loading="gwLoading"
               @click="() => { gwPagination.currentPage = 1; loadGwModels(); }">
-              Tìm kiếm
+              {{ t("common.search") }}
             </el-button>
             <el-button :icon="useRenderIcon(Refresh)"
               @click="() => { gwKeyword = ''; gwPagination.currentPage = 1; loadGwModels(); }">
-              Đặt lại
+              {{ t("common.reset") }}
             </el-button>
           </el-form-item>
         </el-form>
 
-        <PureTableBar title="Model Gateway" :columns="gwColumns" @refresh="loadGwModels">
+        <PureTableBar :title="t('device.model.gatewayModel')" :columns="gwColumns" @refresh="loadGwModels">
           <template #buttons>
             <el-button type="primary" :icon="useRenderIcon(AddFill)" @click="openGwDialog('add')">
-              Thêm mới
+              {{ t("common.add") }}
             </el-button>
           </template>
           <template v-slot="{ size, dynamicColumns }">
@@ -232,10 +239,10 @@ onMounted(() => { loadMeterModels(); loadGwModels(); });
               @page-current-change="v => { gwPagination.currentPage = v; loadGwModels(); }">
               <template #gwOp="{ row }">
                 <el-button class="reset-margin" link type="primary" :size="size"
-                  :icon="useRenderIcon(EditPen)" @click="openGwDialog('edit', row)">Sửa</el-button>
-                <el-popconfirm :title="`Xác nhận xóa model: ${row.gatewayModelId}?`" @confirm="handleGwDelete(row)">
+                  :icon="useRenderIcon(EditPen)" @click="openGwDialog('edit', row)">{{ t("common.edit") }}</el-button>
+                <el-popconfirm :title="`${t('device.model.confirmDelete')}: ${row.gatewayModelId}?`" @confirm="handleGwDelete(row)">
                   <template #reference>
-                    <el-button class="reset-margin" link type="danger" :size="size" :icon="useRenderIcon(Delete)">Xóa</el-button>
+                    <el-button class="reset-margin" link type="danger" :size="size" :icon="useRenderIcon(Delete)">{{ t("common.delete") }}</el-button>
                   </template>
                 </el-popconfirm>
               </template>
@@ -245,41 +252,39 @@ onMounted(() => { loadMeterModels(); loadGwModels(); });
       </el-tab-pane>
     </el-tabs>
 
-    <!-- ─── Dialog dùng chung ─── -->
+    <!-- ─── Shared Dialog ─── -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="480px" draggable>
-      <!-- Form Meter Model -->
       <el-form v-if="dialogType === 'meter'" ref="dialogRef" :model="meterForm"
-        :rules="meterRules" label-width="120px">
-        <el-form-item label="Mã Model" prop="meterModelId">
+        :rules="meterRules" label-width="130px">
+        <el-form-item :label="t('device.model.code')" prop="meterModelId">
           <el-input v-model="meterForm.meterModelId" :disabled="isEdit" />
         </el-form-item>
-        <el-form-item label="Mô tả">
+        <el-form-item :label="t('device.model.description')">
           <el-input v-model="meterForm.meterModelDesc" />
         </el-form-item>
-        <el-form-item label="Hệ số">
+        <el-form-item :label="t('device.model.constant')">
           <el-input v-model="meterForm.constant" />
         </el-form-item>
-        <el-form-item label="Loại (Class)">
+        <el-form-item :label="t('device.model.class')">
           <el-input v-model="meterForm.cls" />
         </el-form-item>
       </el-form>
 
-      <!-- Form Gateway Model -->
-      <el-form v-else ref="dialogRef" :model="gwForm" :rules="gwRules" label-width="120px">
-        <el-form-item label="Mã Model" prop="gatewayModelId">
+      <el-form v-else ref="dialogRef" :model="gwForm" :rules="gwRules" label-width="130px">
+        <el-form-item :label="t('device.model.code')" prop="gatewayModelId">
           <el-input v-model="gwForm.gatewayModelId" :disabled="isEdit" />
         </el-form-item>
-        <el-form-item label="Mô tả (EN)">
+        <el-form-item :label="t('device.model.descriptionEn')">
           <el-input v-model="gwForm.gatewayModelDesc" />
         </el-form-item>
-        <el-form-item label="Mô tả (VI)">
+        <el-form-item :label="t('device.model.descriptionVi')">
           <el-input v-model="gwForm.gatewayModelDescVn" />
         </el-form-item>
       </el-form>
 
       <template #footer>
-        <el-button @click="dialogVisible = false">Hủy</el-button>
-        <el-button type="primary" @click="handleSubmit">Lưu</el-button>
+        <el-button @click="dialogVisible = false">{{ t("common.cancel") }}</el-button>
+        <el-button type="primary" @click="handleSubmit">{{ t("common.save") }}</el-button>
       </template>
     </el-dialog>
   </div>

@@ -1,44 +1,25 @@
 <script setup lang="ts">
-import { ref, reactive } from "vue";
+import { ref, computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { ChartBar, ChartLine } from "@/views/welcome/components/charts";
+import { downloadChartAsImage } from "@/utils/chartExport";
 
-defineOptions({
-  name: "Production"
-});
+defineOptions({ name: "Production" });
+
+const { t } = useI18n();
 
 const dateRange = ref("");
 const selectedArea = ref("all");
 
-const statsData = ref([
-  {
-    label: "Tổng sản lượng tháng",
-    value: "1,245,680",
-    unit: "m³",
-    change: "+5.2%",
-    color: "#3b82f6"
-  },
-  {
-    label: "Sản lượng trung bình/ngày",
-    value: "41,523",
-    unit: "m³",
-    change: "+3.8%",
-    color: "#10b981"
-  },
-  {
-    label: "Sản lượng cao nhất",
-    value: "52,100",
-    unit: "m³",
-    date: "05/04/2026",
-    color: "#f59e0b"
-  },
-  {
-    label: "Sản lượng thấp nhất",
-    value: "28,450",
-    unit: "m³",
-    date: "02/04/2026",
-    color: "#8b5cf6"
-  }
+const lineChartRef  = ref<HTMLElement>();
+const barChartRef   = ref<HTMLElement>();
+
+const statsData = computed(() => [
+  { label: t("monitor.production.totalMonth"),  value: "1,245,680", unit: "m³", change: "+5.2%", color: "#3b82f6" },
+  { label: t("monitor.production.avgPerDay"),   value: "41,523",    unit: "m³", change: "+3.8%", color: "#10b981" },
+  { label: t("monitor.production.highest"),     value: "52,100",    unit: "m³", date: "05/04/2026", color: "#f59e0b" },
+  { label: t("monitor.production.lowest"),      value: "28,450",    unit: "m³", date: "02/04/2026", color: "#8b5cf6" }
 ]);
 
 const dailyProduction = ref({
@@ -55,10 +36,10 @@ const dailyProduction = ref({
 });
 
 const areaProduction = ref([
-  { area: "Cầu Giấy", total: 425000, percent: 34.1, avgDaily: 14167 },
-  { area: "Ba Đình", total: 312000, percent: 25.0, avgDaily: 10400 },
-  { area: "Đống Đa", total: 285000, percent: 22.9, avgDaily: 9500 },
-  { area: "Hoàn Kiếm", total: 223680, percent: 18.0, avgDaily: 7456 }
+  { area: "Cầu Giấy",  total: 425000, percent: 34.1, avgDaily: 14167 },
+  { area: "Ba Đình",   total: 312000, percent: 25.0, avgDaily: 10400 },
+  { area: "Đống Đa",   total: 285000, percent: 22.9, avgDaily: 9500  },
+  { area: "Hoàn Kiếm", total: 223680, percent: 18.0, avgDaily: 7456  }
 ]);
 
 const hourlyData = ref([
@@ -67,9 +48,10 @@ const hourlyData = ref([
 ]);
 
 const loading = ref(false);
-
-const handleExport = () => console.log("Export");
+const handleExport  = () => console.log("Export");
 const handleRefresh = () => (loading.value = true);
+const saveChart = (el: HTMLElement | undefined, name: string) =>
+  downloadChartAsImage(el ?? null, name);
 </script>
 
 <template>
@@ -77,35 +59,24 @@ const handleRefresh = () => (loading.value = true);
     <!-- Filters -->
     <el-card shadow="never" class="mb-4">
       <div class="flex flex-wrap gap-4 items-center">
-        <el-select v-model="selectedArea" placeholder="Khu vực" class="w-40">
-          <el-option label="Tất cả" value="all" />
-          <el-option label="Cầu Giấy" value="caugiay" />
-          <el-option label="Ba Đình" value="badinh" />
-          <el-option label="Đống Đa" value="dongda" />
+        <el-select v-model="selectedArea" :placeholder="t('common.all')" class="w-40">
+          <el-option :label="t('common.all')" value="all" />
+          <el-option label="Cầu Giấy"  value="caugiay" />
+          <el-option label="Ba Đình"   value="badinh" />
+          <el-option label="Đống Đa"   value="dongda" />
           <el-option label="Hoàn Kiếm" value="hoankiem" />
         </el-select>
         <el-date-picker
           v-model="dateRange"
           type="daterange"
           range-separator="-"
-          start-placeholder="Từ ngày"
-          end-placeholder="Đến ngày"
+          :start-placeholder="t('report.pressure.from')"
+          :end-placeholder="t('report.pressure.to')"
           class="w-72"
         />
-        <el-button type="primary" :icon="useRenderIcon('ri:search-line')"
-          >Tìm kiếm</el-button
-        >
-        <el-button
-          :icon="useRenderIcon('ri:refresh-line')"
-          @click="handleRefresh"
-          >Làm mới</el-button
-        >
-        <el-button
-          type="success"
-          :icon="useRenderIcon('ri:file-excel-line')"
-          @click="handleExport"
-          >Xuất Excel</el-button
-        >
+        <el-button type="primary" :icon="useRenderIcon('ri:search-line')">{{ t("common.search") }}</el-button>
+        <el-button :icon="useRenderIcon('ri:refresh-line')" @click="handleRefresh">{{ t("common.refresh") }}</el-button>
+        <el-button type="success" :icon="useRenderIcon('ri:file-excel-line')" @click="handleExport">{{ t("common.exportExcel") }}</el-button>
       </div>
     </el-card>
 
@@ -115,16 +86,14 @@ const handleRefresh = () => (loading.value = true);
         <el-card shadow="never" class="stat-card">
           <div class="text-sm text-gray-500 mb-2">{{ item.label }}</div>
           <div class="flex items-end gap-2">
-            <span class="text-2xl font-bold" :style="{ color: item.color }">{{
-              item.value
-            }}</span>
+            <span class="text-2xl font-bold" :style="{ color: item.color }">{{ item.value }}</span>
             <span class="text-sm text-gray-400 mb-1">{{ item.unit }}</span>
           </div>
           <div v-if="item.change" class="mt-2 text-sm text-green-500">
-            {{ item.change }} so với tháng trước
+            {{ item.change }} {{ t("monitor.production.comparedToPrev") }}
           </div>
           <div v-if="item.date" class="mt-2 text-sm text-gray-400">
-            Ngày: {{ item.date }}
+            {{ t("monitor.production.date") }}: {{ item.date }}
           </div>
         </el-card>
       </el-col>
@@ -135,15 +104,20 @@ const handleRefresh = () => (loading.value = true);
       <el-col :span="16">
         <el-card shadow="never">
           <div class="flex justify-between items-center mb-4">
-            <span class="text-md font-medium"
-              >Sản lượng 30 ngày gần nhất (m³)</span
-            >
+            <span class="text-md font-medium">{{ t("monitor.production.last30Days") }}</span>
             <div class="flex items-center gap-2 text-sm">
-              <span class="text-gray-500">TB: 41,523 m³/ngày</span>
+              <span class="text-gray-500">{{ t("monitor.production.avg") }}: 41,523 m³</span>
               <el-tag type="success" size="small">+5.2%</el-tag>
+              <el-tooltip :content="t('common.saveImage')" placement="top">
+                <el-button
+                  circle size="small"
+                  :icon="useRenderIcon('ri:image-download-line')"
+                  @click="saveChart(lineChartRef, t('monitor.production.last30Days'))"
+                />
+              </el-tooltip>
             </div>
           </div>
-          <div class="h-72">
+          <div ref="lineChartRef" class="h-72">
             <ChartLine color="#3b82f6" :data="dailyProduction.series" />
           </div>
         </el-card>
@@ -151,26 +125,16 @@ const handleRefresh = () => (loading.value = true);
       <el-col :span="8">
         <el-card shadow="never">
           <div class="mb-4">
-            <span class="text-md font-medium">Sản lượng theo khu vực</span>
+            <span class="text-md font-medium">{{ t("monitor.production.byArea") }}</span>
           </div>
           <div class="space-y-4">
-            <div
-              v-for="(item, index) in areaProduction"
-              :key="index"
-              class="flex items-center gap-4"
-            >
+            <div v-for="(item, index) in areaProduction" :key="index" class="flex items-center gap-4">
               <span class="w-20 text-sm">{{ item.area }}</span>
               <div class="flex-1">
-                <el-progress
-                  :percentage="item.percent"
-                  :stroke-width="16"
-                  :show-text="false"
-                  :color="['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][index]"
-                />
+                <el-progress :percentage="item.percent" :stroke-width="16" :show-text="false"
+                  :color="['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][index]" />
               </div>
-              <span class="w-24 text-right text-sm font-medium"
-                >{{ (item.total / 1000).toFixed(0) }}K m³</span
-              >
+              <span class="w-24 text-right text-sm font-medium">{{ (item.total / 1000).toFixed(0) }}K m³</span>
             </div>
           </div>
         </el-card>
@@ -181,12 +145,17 @@ const handleRefresh = () => (loading.value = true);
     <el-row :gutter="16">
       <el-col :span="24">
         <el-card shadow="never">
-          <div class="mb-4">
-            <span class="text-md font-medium"
-              >Sản lượng theo giờ trong ngày (m³)</span
-            >
+          <div class="flex justify-between items-center mb-4">
+            <span class="text-md font-medium">{{ t("monitor.production.hourly") }}</span>
+            <el-tooltip :content="t('common.saveImage')" placement="top">
+              <el-button
+                circle size="small"
+                :icon="useRenderIcon('ri:image-download-line')"
+                @click="saveChart(barChartRef, t('monitor.production.hourly'))"
+              />
+            </el-tooltip>
           </div>
-          <div class="h-56">
+          <div ref="barChartRef" class="h-56">
             <ChartBar :requireData="hourlyData" :questionData="[]" />
           </div>
         </el-card>
@@ -196,36 +165,29 @@ const handleRefresh = () => (loading.value = true);
     <!-- Detail Table -->
     <el-card shadow="never" class="mt-4">
       <div class="flex justify-between items-center mb-4">
-        <span class="text-md font-medium">Chi tiết sản lượng theo khu vực</span>
+        <span class="text-md font-medium">{{ t("monitor.production.detail") }}</span>
       </div>
       <el-table :data="areaProduction" stripe>
-        <el-table-column prop="area" label="Khu vực" width="150" />
-        <el-table-column label="Tổng sản lượng" width="150">
+        <el-table-column prop="area" :label="t('monitor.production.colArea')" width="150" />
+        <el-table-column :label="t('monitor.production.colTotal')" width="150">
           <template #default="{ row }">
             <span class="font-medium">{{ row.total.toLocaleString() }} m³</span>
           </template>
         </el-table-column>
-        <el-table-column prop="percent" label="Tỷ lệ (%)" width="120">
+        <el-table-column prop="percent" :label="t('monitor.production.colRatio')" width="120">
           <template #default="{ row }">
-            <el-progress
-              :percentage="row.percent"
-              :stroke-width="12"
-              :show-text="false"
-              color="#3b82f6"
-            />
+            <el-progress :percentage="row.percent" :stroke-width="12" :show-text="false" color="#3b82f6" />
             <span class="text-sm">{{ row.percent }}%</span>
           </template>
         </el-table-column>
-        <el-table-column label="TB/ngày" width="150">
+        <el-table-column :label="t('monitor.production.colAvgDay')" width="150">
           <template #default="{ row }">
             <span>{{ row.avgDaily.toLocaleString() }} m³</span>
           </template>
         </el-table-column>
-        <el-table-column label="So với tháng trước" width="150">
-          <template #default="{ row }">
-            <span class="text-green-500"
-              >+{{ (Math.random() * 10).toFixed(1) }}%</span
-            >
+        <el-table-column :label="t('monitor.production.colVsPrev')" width="150">
+          <template>
+            <span class="text-green-500">+{{ (Math.random() * 10).toFixed(1) }}%</span>
           </template>
         </el-table-column>
       </el-table>
@@ -234,13 +196,9 @@ const handleRefresh = () => (loading.value = true);
 </template>
 
 <style lang="scss" scoped>
-.production-container {
-  padding: 16px;
-}
+.production-container { padding: 16px; }
 .stat-card {
   transition: transform 0.2s;
-  &:hover {
-    transform: translateY(-2px);
-  }
+  &:hover { transform: translateY(-2px); }
 }
 </style>

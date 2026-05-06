@@ -3,6 +3,7 @@ import { message } from "@/utils/message";
 import { ElMessageBox } from "element-plus";
 import type { PaginationProps } from "@pureadmin/table";
 import { type Ref, ref, reactive, computed, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   getSystemLogsList,
   clearSystemLogs,
@@ -10,6 +11,8 @@ import {
 } from "@/api/system";
 
 export function useRole(tableRef: Ref) {
+  const { t } = useI18n();
+
   const form = reactive({
     module: "",
     requestTime: [] as Date[]
@@ -29,11 +32,11 @@ export function useRole(tableRef: Ref) {
 
   const columns = computed<TableColumnList>(() => [
     { type: "selection", width: 55, reserveSelection: true },
-    { type: "index", label: "STT", width: 60 },
-    { label: "Người dùng", prop: "username", minWidth: 120 },
-    { label: "Thao tác", prop: "operation", minWidth: 140 },
-    { label: "Phương thức", prop: "method", minWidth: 200, showOverflowTooltip: true },
-    { label: "Tham số", prop: "params", minWidth: 180, showOverflowTooltip: true },
+    { type: "index", label: t("common.stt"), width: 60 },
+    { label: t("logs.system.operation"), prop: "operation", minWidth: 140 },
+    { label: t("logs.system.operation"), prop: "username",  minWidth: 120 },
+    { label: "Method",                   prop: "method",    minWidth: 200, showOverflowTooltip: true },
+    { label: t("logs.system.operation"), prop: "params",    minWidth: 180, showOverflowTooltip: true },
     {
       label: "TG (ms)",
       prop: "time",
@@ -44,15 +47,15 @@ export function useRole(tableRef: Ref) {
         return <el-tag type={type} size="small" effect="light">{row.time} ms</el-tag>;
       }
     },
-    { label: "Địa chỉ IP", prop: "ip", width: 140 },
+    { label: t("logs.login.ip"), prop: "ip", width: 140 },
     {
-      label: "Thời gian",
+      label: t("logs.login.loginTime"),
       prop: "createTime",
       minWidth: 165,
       formatter: ({ createTime }) =>
         createTime ? dayjs(createTime).format("DD/MM/YYYY HH:mm:ss") : ""
     },
-    { label: "Thao tác", fixed: "right", width: 90, slot: "operation" }
+    { label: t("common.action"), fixed: "right", width: 90, slot: "operation" }
   ]);
 
   async function onSearch() {
@@ -88,15 +91,8 @@ export function useRole(tableRef: Ref) {
     onSearch();
   }
 
-  function handleSizeChange(val: number) {
-    pagination.pageSize = val;
-    onSearch();
-  }
-
-  function handleCurrentChange(val: number) {
-    pagination.currentPage = val;
-    onSearch();
-  }
+  function handleSizeChange(val: number) { pagination.pageSize = val; onSearch(); }
+  function handleCurrentChange(val: number) { pagination.currentPage = val; onSearch(); }
 
   function handleSelectionChange(selection: any[]) {
     selectedNum.value = selection.length;
@@ -113,30 +109,30 @@ export function useRole(tableRef: Ref) {
     const val = row[column.property];
     if (val !== undefined && val !== null) {
       navigator.clipboard?.writeText(String(val));
-      message("Đã sao chép nội dung ô", { type: "success" });
+      message(t("common.success"), { type: "success" });
     }
   }
 
   function onDetail(row: any) {
     ElMessageBox.alert(
       `<div style="line-height:1.8">
-        <p><b>Người dùng:</b> ${row.username ?? ""}</p>
-        <p><b>Thao tác:</b> ${row.operation ?? ""}</p>
-        <p><b>Phương thức:</b> ${row.method ?? ""}</p>
-        <p><b>Tham số:</b> <span style="word-break:break-all">${row.params ?? ""}</span></p>
-        <p><b>Thời gian (ms):</b> ${row.time ?? ""}</p>
-        <p><b>Địa chỉ IP:</b> ${row.ip ?? ""}</p>
-        <p><b>Thời gian tạo:</b> ${row.createTime ? dayjs(row.createTime).format("DD/MM/YYYY HH:mm:ss") : ""}</p>
+        <p><b>${t("logs.operation.user")}:</b> ${row.username ?? ""}</p>
+        <p><b>${t("logs.system.operation")}:</b> ${row.operation ?? ""}</p>
+        <p><b>Method:</b> ${row.method ?? ""}</p>
+        <p><b>Params:</b> <span style="word-break:break-all">${row.params ?? ""}</span></p>
+        <p><b>TG (ms):</b> ${row.time ?? ""}</p>
+        <p><b>${t("logs.login.ip")}:</b> ${row.ip ?? ""}</p>
+        <p><b>${t("logs.login.loginTime")}:</b> ${row.createTime ? dayjs(row.createTime).format("DD/MM/YYYY HH:mm:ss") : ""}</p>
       </div>`,
-      "Chi tiết nhật ký hệ thống",
-      { dangerouslyUseHTMLString: true, draggable: true, confirmButtonText: "Đóng" }
+      t("logs.system.detail"),
+      { dangerouslyUseHTMLString: true, draggable: true, confirmButtonText: t("common.close") }
     );
   }
 
   async function clearAll() {
     const res = await clearSystemLogs();
     if (res.code === 0) {
-      message("Đã xóa tất cả nhật ký hệ thống", { type: "success" });
+      message(t("common.deleteSuccess"), { type: "success" });
       onSearch();
     } else {
       message(res.message, { type: "error" });
@@ -147,7 +143,7 @@ export function useRole(tableRef: Ref) {
     if (!selectedIds.value.length) return;
     const res = await batchDeleteSystemLogs({ ids: selectedIds.value });
     if (res.code === 0) {
-      message(`Đã xóa ${selectedIds.value.length} bản ghi`, { type: "success" });
+      message(t("common.deleteSuccess"), { type: "success" });
       onSelectionCancel();
       onSearch();
     } else {

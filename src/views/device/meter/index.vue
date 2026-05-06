@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, h } from "vue";
+import { ref, reactive, computed, onMounted, h } from "vue";
+import { useI18n } from "vue-i18n";
 import { ElTag } from "element-plus";
 import { PureTableBar } from "@/components/RePureTableBar";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
@@ -14,15 +15,13 @@ import View     from "~icons/ep/view";
 
 defineOptions({ name: "DeviceMeter" });
 
+const { t } = useI18n();
+
 // ── Regions ──────────────────────────────────────────────────────────────────
 const regionList = ref<{ id: number; name: string; parentId: number | null }[]>([]);
 async function loadRegions() {
   const res = await getAllRegions();
   regionList.value = (res.data as any) ?? [];
-}
-function regionLabel(id: number | null) {
-  if (!id) return "—";
-  return regionList.value.find(r => r.id === id)?.name ?? String(id);
 }
 
 // ── Table ─────────────────────────────────────────────────────────────────────
@@ -33,42 +32,42 @@ const dialogRef = ref();
 const form = reactive({ keyword: "", state: "", meterType: "", regionId: "" });
 const pagination = reactive({ total: 0, pageSize: 20, currentPage: 1, background: true });
 
-const STATE_MAP: Record<number, { label: string; type: string }> = {
-  0: { label: "Chưa lắp",  type: "info"    },
-  1: { label: "Đang dùng", type: "success" },
-  2: { label: "Hỏng",      type: "danger"  },
-  3: { label: "Tháo ra",   type: "warning" }
-};
+const stateMap = computed<Record<number, { label: string; type: string }>>(() => ({
+  0: { label: t("device.meter.stateNotInstalled"), type: "info"    },
+  1: { label: t("device.meter.stateInUse"),        type: "success" },
+  2: { label: t("device.meter.stateBroken"),       type: "danger"  },
+  3: { label: t("device.meter.stateRemoved"),      type: "warning" }
+}));
 
-const columns: TableColumnList = [
-  { type: "index", label: "STT", width: 55, fixed: "left" },
-  { label: "Mã ĐH",     prop: "meterNo",      width: 130, fixed: "left" },
-  { label: "Tên ĐH",    prop: "meterName",    minWidth: 150 },
-  { label: "Vùng",      prop: "regionName",   width: 140,
+const columns = computed<TableColumnList>(() => [
+  { type: "index", label: t("common.stt"), width: 55, fixed: "left" },
+  { label: t("device.meter.codeShort"),     prop: "meterNo",      width: 130, fixed: "left" },
+  { label: t("device.meter.nameShort"),     prop: "meterName",    minWidth: 150 },
+  { label: t("device.meter.zone"),          prop: "regionName",   width: 140,
     cellRenderer: ({ row }) =>
       h("span", { style: row.regionName ? "color:var(--el-color-primary)" : "color:var(--el-text-color-placeholder)" },
-        row.regionName ?? "Chưa phân vùng")
+        row.regionName ?? t("device.meter.unzoned"))
   },
-  { label: "Mã KH",     prop: "customerCode", width: 110 },
-  { label: "SĐT",       prop: "phone",        width: 115 },
-  { label: "Địa chỉ",   prop: "address",      minWidth: 175, showOverflowTooltip: true },
-  { label: "Size ống",  prop: "pipeSize",     width: 90  },
-  { label: "SIM",       prop: "simCardNo",    width: 130 },
-  { label: "IMEI",      prop: "imei",         minWidth: 150, showOverflowTooltip: true },
+  { label: t("device.meter.customerCode"), prop: "customerCode", width: 110 },
+  { label: t("device.meter.phone"),        prop: "phone",        width: 115 },
+  { label: t("device.meter.address"),      prop: "address",      minWidth: 175, showOverflowTooltip: true },
+  { label: t("device.meter.pipeSizeShort"), prop: "pipeSize",    width: 90  },
+  { label: "SIM",                          prop: "simCardNo",    width: 130 },
+  { label: "IMEI",                         prop: "imei",         minWidth: 150, showOverflowTooltip: true },
   {
-    label: "Trạng thái", prop: "state", width: 110,
+    label: t("common.status"), prop: "state", width: 110,
     cellRenderer: ({ row }) => {
-      const s = STATE_MAP[row.state] ?? { label: `${row.state}`, type: "info" };
+      const s = stateMap.value[row.state] ?? { label: `${row.state}`, type: "info" };
       return h(ElTag, { type: s.type as any, size: "small" }, { default: () => s.label });
     }
   },
   {
-    label: "Dữ liệu cuối", prop: "lasttimeData", minWidth: 160,
+    label: t("device.meter.lastData"), prop: "lasttimeData", minWidth: 160,
     formatter: ({ lasttimeData }) =>
       lasttimeData ? new Date(lasttimeData).toLocaleString("vi-VN") : "—"
   },
-  { label: "Thao tác", fixed: "right", width: 185, slot: "operation" }
-];
+  { label: t("common.action"), fixed: "right", width: 185, slot: "operation" }
+]);
 
 async function onSearch() {
   loading.value = true;
@@ -112,15 +111,15 @@ const EMPTY_FORM = () => ({
 });
 const dialogForm = reactive(EMPTY_FORM());
 
-const dialogRules = {
-  meterNo:   [{ required: true, message: "Vui lòng nhập mã đồng hồ", trigger: "blur" }],
-  meterName: [{ required: true, message: "Vui lòng nhập tên đồng hồ", trigger: "blur" }]
-};
+const dialogRules = computed(() => ({
+  meterNo:   [{ required: true, message: t("device.meter.codeRequired"), trigger: "blur" }],
+  meterName: [{ required: true, message: t("device.meter.nameRequired"), trigger: "blur" }]
+}));
 
 function openDialog(mode: "add" | "edit" | "view", row?: any) {
   isView.value = mode === "view";
   isEdit.value = mode === "edit";
-  dialogTitle.value = mode === "add" ? "Thêm đồng hồ" : mode === "edit" ? "Sửa đồng hồ" : "Chi tiết đồng hồ";
+  dialogTitle.value = mode === "add" ? t("device.meter.addTitle") : mode === "edit" ? t("device.meter.editTitle") : t("device.meter.detailTitle");
 
   if (row) {
     Object.assign(dialogForm, {
@@ -154,7 +153,7 @@ async function handleSubmit() {
     ? await updateWaterMeter(dialogForm.meterNo, payload)
     : await addWaterMeter(payload);
   if (res.code === 0) {
-    message(isEdit.value ? "Cập nhật thành công" : "Thêm mới thành công", { type: "success" });
+    message(isEdit.value ? t("common.updateSuccess") : t("common.addSuccess"), { type: "success" });
     dialogVisible.value = false;
     onSearch();
   } else {
@@ -165,7 +164,7 @@ async function handleSubmit() {
 async function handleDelete(row: any) {
   const res = await deleteWaterMeter(row.meterNo);
   if (res.code === 0) {
-    message(`Đã xóa: ${row.meterNo}`, { type: "success" });
+    message(t("common.deleteSuccess"), { type: "success" });
     onSearch();
   } else {
     message(res.message, { type: "error" });
@@ -180,38 +179,37 @@ onMounted(() => { loadRegions(); onSearch(); });
 
 <template>
   <div class="main">
-    <!-- Search bar -->
     <el-form ref="formRef" :inline="true" :model="form"
       class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto">
-      <el-form-item label="Tìm kiếm" prop="keyword">
-        <el-input v-model="form.keyword" placeholder="Mã ĐH / Tên / Mã KH" clearable class="!w-52" />
+      <el-form-item :label="t('common.search')" prop="keyword">
+        <el-input v-model="form.keyword" :placeholder="t('device.meter.searchPlaceholder')" clearable class="!w-52" />
       </el-form-item>
-      <el-form-item label="Vùng" prop="regionId">
-        <el-select v-model="form.regionId" placeholder="Tất cả vùng" clearable class="!w-44">
+      <el-form-item :label="t('device.meter.zone')" prop="regionId">
+        <el-select v-model="form.regionId" :placeholder="t('device.meter.allZones')" clearable class="!w-44">
           <el-option v-for="r in regionList" :key="r.id" :label="r.name" :value="r.id" />
         </el-select>
       </el-form-item>
-      <el-form-item label="Trạng thái" prop="state">
-        <el-select v-model="form.state" placeholder="Tất cả" clearable class="!w-36">
-          <el-option label="Chưa lắp"  :value="0" />
-          <el-option label="Đang dùng" :value="1" />
-          <el-option label="Hỏng"      :value="2" />
-          <el-option label="Tháo ra"   :value="3" />
+      <el-form-item :label="t('common.status')" prop="state">
+        <el-select v-model="form.state" :placeholder="t('common.all')" clearable class="!w-36">
+          <el-option :label="t('device.meter.stateNotInstalled')" :value="0" />
+          <el-option :label="t('device.meter.stateInUse')"        :value="1" />
+          <el-option :label="t('device.meter.stateBroken')"       :value="2" />
+          <el-option :label="t('device.meter.stateRemoved')"      :value="3" />
         </el-select>
       </el-form-item>
       <el-form-item>
         <el-button type="primary" :icon="useRenderIcon('ri/search-line')" :loading="loading"
           @click="() => { pagination.currentPage = 1; onSearch(); }">
-          Tìm kiếm
+          {{ t("common.search") }}
         </el-button>
-        <el-button :icon="useRenderIcon(Refresh)" @click="resetForm">Đặt lại</el-button>
+        <el-button :icon="useRenderIcon(Refresh)" @click="resetForm">{{ t("common.reset") }}</el-button>
       </el-form-item>
     </el-form>
 
-    <PureTableBar title="Quản lý Đồng hồ" :columns="columns" @refresh="onSearch">
+    <PureTableBar :title="t('device.meter.management')" :columns="columns" @refresh="onSearch">
       <template #buttons>
         <el-button type="primary" :icon="useRenderIcon(AddFill)" @click="openDialog('add')">
-          Thêm mới
+          {{ t("common.add") }}
         </el-button>
       </template>
       <template v-slot="{ size, dynamicColumns }">
@@ -223,13 +221,13 @@ onMounted(() => { loadRegions(); onSearch(); });
           @page-size-change="handleSizeChange" @page-current-change="handleCurrentChange">
           <template #operation="{ row }">
             <el-button class="reset-margin" link type="primary" :size="size"
-              :icon="useRenderIcon(View)" @click="openDialog('view', row)">Xem</el-button>
+              :icon="useRenderIcon(View)" @click="openDialog('view', row)">{{ t("common.view") }}</el-button>
             <el-button class="reset-margin" link type="primary" :size="size"
-              :icon="useRenderIcon(EditPen)" @click="openDialog('edit', row)">Sửa</el-button>
-            <el-popconfirm :title="`Xác nhận xóa đồng hồ: ${row.meterNo}?`" @confirm="handleDelete(row)">
+              :icon="useRenderIcon(EditPen)" @click="openDialog('edit', row)">{{ t("common.edit") }}</el-button>
+            <el-popconfirm :title="`${t('device.meter.confirmDelete')}: ${row.meterNo}?`" @confirm="handleDelete(row)">
               <template #reference>
                 <el-button class="reset-margin" link type="danger" :size="size"
-                  :icon="useRenderIcon(Delete)">Xóa</el-button>
+                  :icon="useRenderIcon(Delete)">{{ t("common.delete") }}</el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -237,69 +235,60 @@ onMounted(() => { loadRegions(); onSearch(); });
       </template>
     </PureTableBar>
 
-    <!-- Dialog thêm / sửa / xem -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="700px" draggable>
       <el-form ref="dialogRef" :model="dialogForm" :rules="isView ? {} : dialogRules"
-        label-width="120px" label-position="right">
+        label-width="130px" label-position="right">
         <el-row :gutter="16">
-
-          <!-- Mã + Tên -->
           <el-col :span="12">
-            <el-form-item label="Mã đồng hồ" prop="meterNo">
-              <el-input v-model="dialogForm.meterNo" :disabled="isView || isEdit" placeholder="VD: DH001" />
+            <el-form-item :label="t('device.meter.code')" prop="meterNo">
+              <el-input v-model="dialogForm.meterNo" :disabled="isView || isEdit" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="Tên đồng hồ" prop="meterName">
+            <el-form-item :label="t('device.meter.name')" prop="meterName">
               <el-input v-model="dialogForm.meterName" :disabled="isView" />
             </el-form-item>
           </el-col>
-
-          <!-- Vùng -->
           <el-col :span="12">
-            <el-form-item label="Vùng">
-              <el-select v-model="dialogForm.regionId" placeholder="Chọn vùng" clearable :disabled="isView" class="!w-full">
+            <el-form-item :label="t('device.meter.zone')">
+              <el-select v-model="dialogForm.regionId" :placeholder="t('device.meter.zone')" clearable :disabled="isView" class="!w-full">
                 <el-option v-for="r in regionList" :key="r.id" :label="r.name" :value="r.id" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="Trạng thái">
+            <el-form-item :label="t('common.status')">
               <el-select v-model="dialogForm.state" :disabled="isView" class="!w-full">
-                <el-option label="Chưa lắp"  :value="0" />
-                <el-option label="Đang dùng" :value="1" />
-                <el-option label="Hỏng"      :value="2" />
-                <el-option label="Tháo ra"   :value="3" />
+                <el-option :label="t('device.meter.stateNotInstalled')" :value="0" />
+                <el-option :label="t('device.meter.stateInUse')"        :value="1" />
+                <el-option :label="t('device.meter.stateBroken')"       :value="2" />
+                <el-option :label="t('device.meter.stateRemoved')"      :value="3" />
               </el-select>
             </el-form-item>
           </el-col>
-
-          <!-- Khách hàng -->
           <el-col :span="12">
-            <el-form-item label="Mã khách hàng">
+            <el-form-item :label="t('device.meter.customerCodeFull')">
               <el-input v-model="dialogForm.customerCode" :disabled="isView" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="Số điện thoại">
+            <el-form-item :label="t('device.meter.phone')">
               <el-input v-model="dialogForm.phone" :disabled="isView" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="Địa chỉ">
+            <el-form-item :label="t('device.meter.address')">
               <el-input v-model="dialogForm.address" :disabled="isView" />
             </el-form-item>
           </el-col>
-
-          <!-- Thiết bị -->
           <el-col :span="12">
-            <el-form-item label="Loại ĐH">
-              <el-input v-model="dialogForm.meterType" :disabled="isView" placeholder="VD: 1" />
+            <el-form-item :label="t('device.meter.meterType')">
+              <el-input v-model="dialogForm.meterType" :disabled="isView" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="Kích thước ống">
-              <el-input v-model="dialogForm.pipeSize" :disabled="isView" placeholder="VD: DN20" />
+            <el-form-item :label="t('device.meter.pipeSize')">
+              <el-input v-model="dialogForm.pipeSize" :disabled="isView" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -308,12 +297,10 @@ onMounted(() => { loadRegions(); onSearch(); });
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="Bảo hành (tháng)">
+            <el-form-item :label="t('device.meter.warranty')">
               <el-input-number v-model="dialogForm.warranty" :disabled="isView" :min="0" class="!w-full" />
             </el-form-item>
           </el-col>
-
-          <!-- Module / SIM -->
           <el-col :span="12">
             <el-form-item label="SIM">
               <el-input v-model="dialogForm.simCardNo" :disabled="isView" />
@@ -325,22 +312,20 @@ onMounted(() => { loadRegions(); onSearch(); });
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="Module No">
+            <el-form-item :label="t('device.meter.moduleNo')">
               <el-input v-model="dialogForm.moduleNo" :disabled="isView" />
             </el-form-item>
           </el-col>
-
-          <!-- Ghi chú -->
           <el-col :span="24">
-            <el-form-item label="Ghi chú">
+            <el-form-item :label="t('common.note')">
               <el-input v-model="dialogForm.note" type="textarea" :rows="2" :disabled="isView" />
             </el-form-item>
           </el-col>
         </el-row>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">{{ isView ? "Đóng" : "Hủy" }}</el-button>
-        <el-button v-if="!isView" type="primary" @click="handleSubmit">Lưu</el-button>
+        <el-button @click="dialogVisible = false">{{ isView ? t("common.close") : t("common.cancel") }}</el-button>
+        <el-button v-if="!isView" type="primary" @click="handleSubmit">{{ t("common.save") }}</el-button>
       </template>
     </el-dialog>
   </div>

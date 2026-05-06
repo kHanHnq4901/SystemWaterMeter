@@ -1,169 +1,212 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
 import { useDark, useECharts } from "@pureadmin/utils";
 import dayjs from "dayjs";
+import { getLoggerZoneSummary, getLoggerProduction } from "@/api/waterMeter";
 
 defineOptions({ name: "ReportLossTotal" });
 
+const { t } = useI18n();
 const { isDark } = useDark();
 const theme = computed(() => (isDark.value ? "dark" : "light"));
 
 const loading = ref(false);
 const year = ref(dayjs().format("YYYY"));
 
-const statCards = [
-  { label: "Tổng thất thoát năm", value: "42,680", unit: "m³", color: "#f56c6c", bg: "#fef0f0" },
-  { label: "Tỷ lệ bình quân", value: "16.4", unit: "%", color: "#e6a23c", bg: "#fdf6ec" },
-  { label: "Giảm so với năm trước", value: "↓ 2.1", unit: "%", color: "#67c23a", bg: "#f0f9eb" },
-  { label: "Tổng đầu vào năm", value: "260,100", unit: "m³", color: "#409eff", bg: "#ecf5ff" }
-];
+type ZonePie = { name: string; value: number; regionId: number };
+const zoneData = ref<ZonePie[]>([]);
 
-const months = ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12"];
+type MonthTrend = { period: string; totalFlow: number };
+const monthlyData = ref<MonthTrend[]>([]);
+
+const statTotals = computed(() => {
+  const total   = zoneData.value.reduce((s, r) => s + r.value, 0);
+  const months  = monthlyData.value.length;
+  const avgMonth = months ? +(total / months).toFixed(0) : 0;
+  const topZone  = zoneData.value.reduce((a, b) => b.value > a.value ? b : a, { name: "—", value: 0 } as any);
+  return { total: +total.toFixed(0), avgMonth, topZone: topZone.name, zones: zoneData.value.length };
+});
 
 const pieChartRef = ref();
 const lineChartRef = ref();
-const { setOptions: setPieOptions } = useECharts(pieChartRef, { theme });
+const { setOptions: setPieOptions }  = useECharts(pieChartRef,  { theme });
 const { setOptions: setLineOptions } = useECharts(lineChartRef, { theme });
 
-const zoneData = [
-  { name: "Vùng A", value: 11200, rate: 16.1 },
-  { name: "Vùng B", value: 7800, rate: 13.9 },
-  { name: "Vùng C", value: 13500, rate: 22.1 },
-  { name: "Vùng D", value: 6180, rate: 12.4 },
-  { name: "Vùng E", value: 4000, rate: 10.8 }
-];
-
 function renderPie() {
+  if (!zoneData.value.length) return;
   setPieOptions({
     tooltip: { trigger: "item", formatter: "{b}: {c} m³ ({d}%)" },
     legend: { orient: "vertical", left: "left", top: "center" },
     series: [{
-      type: "pie",
-      radius: ["40%", "70%"],
-      center: ["60%", "50%"],
-      data: zoneData.map(d => ({ name: d.name, value: d.value })),
-      label: { formatter: "{b}\n{d}%" },
-      emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: "rgba(0,0,0,0.3)" } }
+      type: "pie", radius: ["40%", "70%"], center: ["60%", "50%"],
+      data: zoneData.value.map(d => ({ name: d.name, value: d.value })),
+      label: { formatter: "{b}\n{c} m³" },
+      emphasis: { itemStyle: { shadowBlur: 10, shadowColor: "rgba(0,0,0,0.3)" } }
     }]
   });
 }
 
 function renderLine() {
-  const lossVals = months.map(() => +(14 + Math.random() * 8).toFixed(1));
-  const prevVals = months.map(() => +(16 + Math.random() * 6).toFixed(1));
+  const months = ["T1","T2","T3","T4","T5","T6","T7","T8","T9","T10","T11","T12"];
+  const monthMap: Record<string, number> = {};
+  monthlyData.value.forEach(r => {
+    if (r.period) monthMap[r.period] = (monthMap[r.period] ?? 0) + r.totalFlow;
+  });
+  const thisYear = Array.from({ length: 12 }, (_, i) => {
+    const key = `${year.value}-${String(i + 1).padStart(2, "0")}`;
+    return +(monthMap[key] ?? 0).toFixed(0);
+  });
 
   setLineOptions({
-    tooltip: { trigger: "axis", formatter: (params: any) =>
-      `${params[0].axisValue}<br/>${params.map((p: any) => `${p.marker}${p.seriesName}: ${p.value}%`).join("<br/>")}`
+    tooltip: {
+      trigger: "axis",
+      formatter: (params: any) =>
+        `${params[0].axisValue}<br/>` +
+        params.map((p: any) => `${p.marker}${p.seriesName}: ${p.value.toLocaleString()} m³`).join("<br/>")
     },
-    legend: { data: ["Năm nay", "Năm trước"], bottom: 0 },
-    grid: { left: 50, right: 20, top: 20, bottom: 50 },
+    legend: { data: ["Lưu lượng (m³)"], bottom: 0 },
+    grid: { left: 60, right: 20, top: 20, bottom: 50 },
     xAxis: { type: "category", data: months },
-    yAxis: { type: "value", name: "%", min: 0, max: 30, axisLabel: { formatter: "{value}%" } },
-    series: [
-      {
-        name: "Năm nay",
-        type: "line",
-        smooth: true,
-        data: lossVals,
-        lineStyle: { color: "#f56c6c", width: 2 },
-        areaStyle: { color: "rgba(245,108,108,0.1)" },
-        itemStyle: { color: "#f56c6c" }
-      },
-      {
-        name: "Năm trước",
-        type: "line",
-        smooth: true,
-        data: prevVals,
-        lineStyle: { color: "#909399", width: 2, type: "dashed" },
-        itemStyle: { color: "#909399" }
-      }
-    ]
+    yAxis: { type: "value", name: "m³", axisLabel: { formatter: (v: number) => v.toLocaleString() } },
+    series: [{
+      name: "Lưu lượng (m³)",
+      type: "line", smooth: true,
+      data: thisYear,
+      lineStyle: { color: "#409eff", width: 2 },
+      areaStyle: { color: "rgba(64,158,255,0.1)" },
+      itemStyle: { color: "#409eff" }
+    }]
   });
 }
 
-function handleSearch() {
+async function handleSearch() {
   loading.value = true;
-  setTimeout(() => { loading.value = false; renderPie(); renderLine(); }, 600);
+  try {
+    const dateFrom = `${year.value}-01-01`;
+    const dateTo   = `${year.value}-12-31`;
+
+    const [zoneRes, monthRes] = await Promise.all([
+      getLoggerZoneSummary({ dateFrom, dateTo, groupBy: "year" }),
+      getLoggerZoneSummary({ dateFrom, dateTo, groupBy: "month" })
+    ]);
+
+    // Pie: zone totals for the year
+    if (zoneRes.code === 0 && zoneRes.data?.length) {
+      const map: Record<number, ZonePie> = {};
+      (zoneRes.data as any[]).forEach((r: any) => {
+        const id = r.regionId ?? 0;
+        if (!map[id]) map[id] = { name: r.regionName, value: 0, regionId: id };
+        map[id].value += +(r.totalFlow ?? 0);
+      });
+      zoneData.value = Object.values(map)
+        .filter(z => z.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .map(z => ({ ...z, value: +z.value.toFixed(0) }));
+    } else {
+      zoneData.value = [];
+    }
+
+    // Line: monthly trend
+    if (monthRes.code === 0 && monthRes.data?.length) {
+      const monthMap: Record<string, number> = {};
+      (monthRes.data as any[]).forEach((r: any) => {
+        if (r.period) monthMap[r.period] = (monthMap[r.period] ?? 0) + (r.totalFlow ?? 0);
+      });
+      monthlyData.value = Object.entries(monthMap).map(([period, totalFlow]) => ({ period, totalFlow }));
+    } else {
+      monthlyData.value = [];
+    }
+
+    renderPie();
+    renderLine();
+  } finally {
+    loading.value = false;
+  }
 }
 
-onMounted(async () => { await nextTick(); renderPie(); renderLine(); });
+onMounted(async () => {
+  await nextTick();
+  await handleSearch();
+});
 watch(theme, () => { renderPie(); renderLine(); });
 </script>
 
 <template>
   <div class="main p-4 space-y-4">
-    <!-- Filter -->
     <div class="bg-bg_color rounded-lg p-4 flex flex-wrap items-center gap-3">
-      <el-date-picker
-        v-model="year"
-        type="year"
-        placeholder="Chọn năm"
-        format="YYYY"
-        value-format="YYYY"
-        style="width: 120px"
-      />
-      <el-button type="primary" :loading="loading" @click="handleSearch">Tìm kiếm</el-button>
+      <el-date-picker v-model="year" type="year" :placeholder="t('report.lossTotal.selectYear')"
+        format="YYYY" value-format="YYYY" style="width: 120px" />
+      <el-button type="primary" :loading="loading" @click="handleSearch">{{ t("report.lossTotal.search") }}</el-button>
       <el-button type="success" class="ml-auto">
         <template #icon><i class="i-ri:download-line" /></template>
-        Xuất Excel
+        {{ t("report.lossTotal.exportExcel") }}
       </el-button>
     </div>
 
-    <!-- Stat cards -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <div
-        v-for="card in statCards"
-        :key="card.label"
-        class="rounded-lg p-4"
-        :style="{ background: card.bg }"
-      >
-        <div class="text-xs text-gray-500 mb-1">{{ card.label }}</div>
-        <div class="text-2xl font-bold" :style="{ color: card.color }">
-          {{ card.value }}
-          <span class="text-sm font-normal ml-1">{{ card.unit }}</span>
+      <div class="rounded-lg p-4 bg-[#fef0f0]">
+        <div class="text-xs text-gray-500 mb-1">{{ t("report.lossTotal.totalFlowYear") }}</div>
+        <div class="text-2xl font-bold text-[#f56c6c]">
+          {{ statTotals.total.toLocaleString() }}<span class="text-sm font-normal ml-1">m³</span>
+        </div>
+      </div>
+      <div class="rounded-lg p-4 bg-[#fdf6ec]">
+        <div class="text-xs text-gray-500 mb-1">{{ t("report.lossTotal.avgPerMonth") }}</div>
+        <div class="text-2xl font-bold text-[#e6a23c]">
+          {{ statTotals.avgMonth.toLocaleString() }}<span class="text-sm font-normal ml-1">m³</span>
+        </div>
+      </div>
+      <div class="rounded-lg p-4 bg-[#f5f0ff]">
+        <div class="text-xs text-gray-500 mb-1">{{ t("report.lossTotal.topZone") }}</div>
+        <div class="text-xl font-bold text-[#9b59b6] truncate">{{ statTotals.topZone }}</div>
+      </div>
+      <div class="rounded-lg p-4 bg-[#ecf5ff]">
+        <div class="text-xs text-gray-500 mb-1">{{ t("report.lossTotal.zoneCount") }}</div>
+        <div class="text-2xl font-bold text-[#409eff]">
+          {{ statTotals.zones }}<span class="text-sm font-normal ml-1">vùng</span>
         </div>
       </div>
     </div>
 
-    <!-- Charts row -->
     <div class="grid grid-cols-1 xl:grid-cols-5 gap-4">
       <div class="xl:col-span-2 bg-bg_color rounded-lg p-4">
-        <div class="font-semibold text-sm mb-3">Phân bổ thất thoát theo vùng</div>
-        <div ref="pieChartRef" style="height: 280px" />
+        <div class="font-semibold text-sm mb-3">{{ t("report.lossTotal.flowByZone") }} – {{ year }}</div>
+        <div v-if="zoneData.length" ref="pieChartRef" style="height: 280px" />
+        <el-empty v-else :description="t('report.lossTotal.noData')" style="height: 280px" />
       </div>
       <div class="xl:col-span-3 bg-bg_color rounded-lg p-4">
-        <div class="font-semibold text-sm mb-3">Xu hướng tỷ lệ thất thoát theo tháng (%)</div>
-        <div ref="lineChartRef" style="height: 280px" />
+        <div class="font-semibold text-sm mb-3">{{ t("report.lossTotal.monthlyTrend") }}</div>
+        <div v-if="monthlyData.length" ref="lineChartRef" style="height: 280px" />
+        <el-empty v-else :description="t('report.lossTotal.noData')" style="height: 280px" />
       </div>
     </div>
 
-    <!-- Zone summary table -->
     <div class="bg-bg_color rounded-lg p-4">
-      <div class="font-semibold text-sm mb-3">Tổng hợp thất thoát theo vùng</div>
-      <el-table :data="zoneData" size="small" stripe border>
-        <el-table-column prop="name" label="Vùng" />
-        <el-table-column prop="value" label="Lượng thất thoát (m³)" align="right">
+      <div class="font-semibold text-sm mb-3">{{ t("report.lossTotal.zoneSummary") }} – {{ year }}</div>
+      <el-table :data="zoneData" size="small" stripe border v-loading="loading">
+        <el-table-column prop="name" :label="t('report.lossTotal.zone')" />
+        <el-table-column prop="value" :label="t('report.lossTotal.flow')" align="right">
           <template #default="{ row }">{{ row.value.toLocaleString() }}</template>
         </el-table-column>
-        <el-table-column prop="rate" label="Tỷ lệ (%)" align="center" width="120">
+        <el-table-column :label="t('report.lossTotal.ratio')" align="center" width="160">
           <template #default="{ row }">
             <el-progress
-              :percentage="row.rate"
-              :color="row.rate >= 20 ? '#f56c6c' : row.rate >= 15 ? '#e6a23c' : '#67c23a'"
+              :percentage="+((row.value / (statTotals.total || 1)) * 100).toFixed(1)"
+              :color="'#409eff'"
               :stroke-width="14"
               :show-text="false"
             />
-            <span class="text-xs ml-1">{{ row.rate }}%</span>
+            <span class="text-xs ml-1">{{ ((row.value / (statTotals.total || 1)) * 100).toFixed(1) }}%</span>
           </template>
         </el-table-column>
-        <el-table-column label="Mức độ" align="center" width="110">
+        <el-table-column :label="t('report.lossTotal.level')" align="center" width="110">
           <template #default="{ row }">
             <el-tag
-              :type="row.rate >= 20 ? 'danger' : row.rate >= 15 ? 'warning' : 'success'"
+              :type="row.value / (statTotals.total || 1) >= 0.3 ? 'danger' : row.value / (statTotals.total || 1) >= 0.15 ? 'warning' : 'success'"
               size="small"
             >
-              {{ row.rate >= 20 ? "Nguy hiểm" : row.rate >= 15 ? "Cảnh báo" : "Đạt chuẩn" }}
+              {{ row.value / (statTotals.total || 1) >= 0.3 ? t("report.lossTotal.levelHigh") : row.value / (statTotals.total || 1) >= 0.15 ? t("report.lossTotal.levelMid") : t("report.lossTotal.levelLow") }}
             </el-tag>
           </template>
         </el-table-column>

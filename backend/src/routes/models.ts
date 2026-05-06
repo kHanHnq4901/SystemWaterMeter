@@ -23,25 +23,26 @@ router.post("/meter/list", async (req: Request, res: Response) => {
       return r;
     };
 
-    const countResult = await addParams(connection.request()).query(
-      `SELECT COUNT(*) as total FROM BASIC_METER_MODEL ${where}`
-    );
-
     const dataReq = addParams(connection.request());
-    dataReq.input("offset", mssql.Int, offset);
+    dataReq.input("offset",   mssql.Int, offset);
     dataReq.input("pageSize", mssql.Int, Number(pageSize));
 
-    const dataResult = await dataReq.query(`
-      SELECT
-        METER_MODEL_ID   as meterModelId,
-        METER_MODEL_DESC as meterModelDesc,
-        CONSTANT         as constant,
-        CLASS            as class
-      FROM BASIC_METER_MODEL
-      ${where}
-      ORDER BY METER_MODEL_ID ASC
-      OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
-    `);
+    const [countResult, dataResult] = await Promise.all([
+      addParams(connection.request()).query(
+        `SELECT COUNT(*) as total FROM BASIC_METER_MODEL WITH(NOLOCK) ${where}`
+      ),
+      dataReq.query(`
+        SELECT
+          METER_MODEL_ID   as meterModelId,
+          METER_MODEL_DESC as meterModelDesc,
+          CONSTANT         as constant,
+          CLASS            as class
+        FROM BASIC_METER_MODEL WITH(NOLOCK)
+        ${where}
+        ORDER BY METER_MODEL_ID ASC
+        OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
+      `)
+    ]);
 
     res.json({
       code: 0, message: "common.success",
@@ -55,7 +56,8 @@ router.post("/meter/list", async (req: Request, res: Response) => {
 router.post("/meter/add", async (req: Request, res: Response) => {
   try {
     const { meterModelId, meterModelDesc, constant, cls } = req.body;
-    await (await pool.connect()).request()
+    const connection = await pool.connect();
+    await connection.request()
       .input("METER_MODEL_ID",   mssql.VarChar,  meterModelId)
       .input("METER_MODEL_DESC", mssql.NVarChar, meterModelDesc || "")
       .input("CONSTANT",         mssql.Float,    constant ?? null)
@@ -70,7 +72,8 @@ router.post("/meter/add", async (req: Request, res: Response) => {
 router.put("/meter/update/:id", async (req: Request, res: Response) => {
   try {
     const { meterModelDesc, constant, cls } = req.body;
-    await (await pool.connect()).request()
+    const connection = await pool.connect();
+    await connection.request()
       .input("METER_MODEL_ID",   mssql.VarChar,  req.params.id)
       .input("METER_MODEL_DESC", mssql.NVarChar, meterModelDesc || "")
       .input("CONSTANT",         mssql.Float,    constant ?? null)
@@ -84,7 +87,8 @@ router.put("/meter/update/:id", async (req: Request, res: Response) => {
 
 router.delete("/meter/:id", async (req: Request, res: Response) => {
   try {
-    await (await pool.connect()).request()
+    const connection = await pool.connect();
+    await connection.request()
       .input("METER_MODEL_ID", mssql.VarChar, req.params.id)
       .query(`DELETE FROM BASIC_METER_MODEL WHERE METER_MODEL_ID=@METER_MODEL_ID`);
     res.json({ code: 0, message: "common.deleteSuccess" });
@@ -112,24 +116,25 @@ router.post("/gateway/list", async (req: Request, res: Response) => {
       return r;
     };
 
-    const countResult = await addParams(connection.request()).query(
-      `SELECT COUNT(*) as total FROM BASIC_GATEWAY_MODEL ${where}`
-    );
-
     const dataReq = addParams(connection.request());
-    dataReq.input("offset", mssql.Int, offset);
+    dataReq.input("offset",   mssql.Int, offset);
     dataReq.input("pageSize", mssql.Int, Number(pageSize));
 
-    const dataResult = await dataReq.query(`
-      SELECT
-        GATEWAY_MODEL_ID      as gatewayModelId,
-        GATEWAY_MODEL_DESC    as gatewayModelDesc,
-        GATEWAY_MODEL_DESC_VN as gatewayModelDescVn
-      FROM BASIC_GATEWAY_MODEL
-      ${where}
-      ORDER BY GATEWAY_MODEL_ID ASC
-      OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
-    `);
+    const [countResult, dataResult] = await Promise.all([
+      addParams(connection.request()).query(
+        `SELECT COUNT(*) as total FROM BASIC_GATEWAY_MODEL WITH(NOLOCK) ${where}`
+      ),
+      dataReq.query(`
+        SELECT
+          GATEWAY_MODEL_ID      as gatewayModelId,
+          GATEWAY_MODEL_DESC    as gatewayModelDesc,
+          GATEWAY_MODEL_DESC_VN as gatewayModelDescVn
+        FROM BASIC_GATEWAY_MODEL WITH(NOLOCK)
+        ${where}
+        ORDER BY GATEWAY_MODEL_ID ASC
+        OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
+      `)
+    ]);
 
     res.json({
       code: 0, message: "common.success",
@@ -143,7 +148,8 @@ router.post("/gateway/list", async (req: Request, res: Response) => {
 router.post("/gateway/add", async (req: Request, res: Response) => {
   try {
     const { gatewayModelId, gatewayModelDesc, gatewayModelDescVn } = req.body;
-    await (await pool.connect()).request()
+    const connection = await pool.connect();
+    await connection.request()
       .input("GATEWAY_MODEL_ID",      mssql.VarChar,  gatewayModelId)
       .input("GATEWAY_MODEL_DESC",    mssql.NVarChar, gatewayModelDesc || "")
       .input("GATEWAY_MODEL_DESC_VN", mssql.NVarChar, gatewayModelDescVn || "")
@@ -157,7 +163,8 @@ router.post("/gateway/add", async (req: Request, res: Response) => {
 router.put("/gateway/update/:id", async (req: Request, res: Response) => {
   try {
     const { gatewayModelDesc, gatewayModelDescVn } = req.body;
-    await (await pool.connect()).request()
+    const connection = await pool.connect();
+    await connection.request()
       .input("GATEWAY_MODEL_ID",      mssql.VarChar,  req.params.id)
       .input("GATEWAY_MODEL_DESC",    mssql.NVarChar, gatewayModelDesc || "")
       .input("GATEWAY_MODEL_DESC_VN", mssql.NVarChar, gatewayModelDescVn || "")
@@ -170,7 +177,8 @@ router.put("/gateway/update/:id", async (req: Request, res: Response) => {
 
 router.delete("/gateway/:id", async (req: Request, res: Response) => {
   try {
-    await (await pool.connect()).request()
+    const connection = await pool.connect();
+    await connection.request()
       .input("GATEWAY_MODEL_ID", mssql.VarChar, req.params.id)
       .query(`DELETE FROM BASIC_GATEWAY_MODEL WHERE GATEWAY_MODEL_ID=@GATEWAY_MODEL_ID`);
     res.json({ code: 0, message: "common.deleteSuccess" });

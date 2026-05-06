@@ -1,18 +1,24 @@
 <script setup lang="ts">
-import { ref, reactive, computed } from "vue";
+import { ref, computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import {
   ChartBar,
   ChartLine,
   ChartPie
 } from "@/views/welcome/components/charts";
+import { downloadChartAsImage } from "@/utils/chartExport";
 
-defineOptions({
-  name: "Loss"
-});
+defineOptions({ name: "Loss" });
+
+const { t } = useI18n();
 
 const dateRange = ref("");
 const selectedArea = ref("all");
+
+const lineChartRef = ref<HTMLElement>();
+const pieChartRef  = ref<HTMLElement>();
+const barChartRef  = ref<HTMLElement>();
 
 interface SummaryItem {
   label: string;
@@ -23,30 +29,30 @@ interface SummaryItem {
   unit?: string;
 }
 
-const summaryData = ref<SummaryItem[]>([
+const summaryData = computed<SummaryItem[]>(() => [
   {
-    label: "Tỷ lệ tổn thất TB",
+    label: t("monitor.loss.lossRate"),
     value: "17.2%",
     trend: "-1.5%",
     color: "#10b981",
     icon: "ri:trending-down-line"
   },
   {
-    label: "Tổng sản lượng nước sạch",
+    label: t("monitor.loss.totalClean"),
     value: "1,245,680",
     unit: "m³",
     color: "#3b82f6",
     icon: "ri:water-flash-line"
   },
   {
-    label: "Tổng sản lượng tính cước",
+    label: t("monitor.loss.totalBilled"),
     value: "1,031,450",
     unit: "m³",
     color: "#8b5cf6",
     icon: "ri:file-chart-line"
   },
   {
-    label: "Tổng tổn thất",
+    label: t("monitor.loss.totalLoss"),
     value: "214,230",
     unit: "m³",
     color: "#ef4444",
@@ -55,38 +61,10 @@ const summaryData = ref<SummaryItem[]>([
 ]);
 
 const lossByArea = ref([
-  {
-    area: "Cầu Giấy",
-    input: 425000,
-    billed: 351200,
-    loss: 73800,
-    lossPercent: 17.4,
-    status: "normal"
-  },
-  {
-    area: "Ba Đình",
-    input: 312000,
-    billed: 268500,
-    loss: 43500,
-    lossPercent: 13.9,
-    status: "good"
-  },
-  {
-    area: "Đống Đa",
-    input: 285000,
-    billed: 229800,
-    loss: 55200,
-    lossPercent: 19.4,
-    status: "warning"
-  },
-  {
-    area: "Hoàn Kiếm",
-    input: 223680,
-    billed: 181950,
-    loss: 41730,
-    lossPercent: 18.7,
-    status: "warning"
-  }
+  { area: "Cầu Giấy",  input: 425000, billed: 351200, loss: 73800,  lossPercent: 17.4, status: "normal" },
+  { area: "Ba Đình",   input: 312000, billed: 268500, loss: 43500,  lossPercent: 13.9, status: "good" },
+  { area: "Đống Đa",   input: 285000, billed: 229800, loss: 55200,  lossPercent: 19.4, status: "warning" },
+  { area: "Hoàn Kiếm", input: 223680, billed: 181950, loss: 41730,  lossPercent: 18.7, status: "warning" }
 ]);
 
 const lossTrendData = {
@@ -103,14 +81,14 @@ const lossTrendData = {
 };
 
 const causeData = ref([
-  { name: "Rò rỉ đường ống", value: 45, color: "#ef4444" },
-  { name: "Sai số đồng hồ", value: 25, color: "#f59e0b" },
+  { name: "Rò rỉ đường ống",      value: 45, color: "#ef4444" },
+  { name: "Sai số đồng hồ",       value: 25, color: "#f59e0b" },
   { name: "Đường ống bị phá hoại", value: 15, color: "#8b5cf6" },
-  { name: "Công tác bảo trì", value: 10, color: "#3b82f6" },
-  { name: "Khác", value: 5, color: "#6b7280" }
+  { name: "Công tác bảo trì",     value: 10, color: "#3b82f6" },
+  { name: "Khác",                 value: 5,  color: "#6b7280" }
 ]);
 
-const hourlyLossData = Array.from({ length: 24 }).map((_, i) =>
+const hourlyLossData = Array.from({ length: 24 }).map(() =>
   Math.floor(Math.random() * 50 + 10)
 );
 
@@ -122,8 +100,16 @@ const avgLossPercent = computed(() => {
   return ((total / input) * 100).toFixed(1);
 });
 
-const handleExport = () => console.log("Export");
+const statusLabel = (status: string) => {
+  if (status === "good")   return t("monitor.loss.good");
+  if (status === "normal") return t("monitor.loss.normal");
+  return t("monitor.loss.warning");
+};
+
+const handleExport  = () => console.log("Export");
 const handleRefresh = () => (loading.value = true);
+const saveChart = (el: HTMLElement | undefined, name: string) =>
+  downloadChartAsImage(el ?? null, name);
 </script>
 
 <template>
@@ -131,35 +117,24 @@ const handleRefresh = () => (loading.value = true);
     <!-- Filters -->
     <el-card shadow="never" class="mb-4">
       <div class="flex flex-wrap gap-4 items-center">
-        <el-select v-model="selectedArea" placeholder="Khu vực" class="w-40">
-          <el-option label="Tất cả" value="all" />
-          <el-option label="Cầu Giấy" value="caugiay" />
-          <el-option label="Ba Đình" value="badinh" />
-          <el-option label="Đống Đa" value="dongda" />
+        <el-select v-model="selectedArea" :placeholder="t('common.all')" class="w-40">
+          <el-option :label="t('common.all')" value="all" />
+          <el-option label="Cầu Giấy"  value="caugiay" />
+          <el-option label="Ba Đình"   value="badinh" />
+          <el-option label="Đống Đa"   value="dongda" />
           <el-option label="Hoàn Kiếm" value="hoankiem" />
         </el-select>
         <el-date-picker
           v-model="dateRange"
           type="daterange"
           range-separator="-"
-          start-placeholder="Từ ngày"
-          end-placeholder="Đến ngày"
+          :start-placeholder="t('report.pressure.from')"
+          :end-placeholder="t('report.pressure.to')"
           class="w-72"
         />
-        <el-button type="primary" :icon="useRenderIcon('ri:search-line')"
-          >Tìm kiếm</el-button
-        >
-        <el-button
-          :icon="useRenderIcon('ri:refresh-line')"
-          @click="handleRefresh"
-          >Làm mới</el-button
-        >
-        <el-button
-          type="success"
-          :icon="useRenderIcon('ri:file-excel-line')"
-          @click="handleExport"
-          >Xuất Excel</el-button
-        >
+        <el-button type="primary" :icon="useRenderIcon('ri:search-line')">{{ t("common.search") }}</el-button>
+        <el-button :icon="useRenderIcon('ri:refresh-line')" @click="handleRefresh">{{ t("common.refresh") }}</el-button>
+        <el-button type="success" :icon="useRenderIcon('ri:file-excel-line')" @click="handleExport">{{ t("common.exportExcel") }}</el-button>
       </div>
     </el-card>
 
@@ -171,36 +146,15 @@ const handleRefresh = () => (loading.value = true);
             <div>
               <div class="text-sm text-gray-500 mb-1">{{ item.label }}</div>
               <div class="text-2xl font-bold" :style="{ color: item.color }">
-                {{ item.value
-                }}<span
-                  v-if="item.unit"
-                  class="text-sm font-normal text-gray-400 ml-1"
-                  >{{ item.unit }}</span
-                >
+                {{ item.value }}<span v-if="item.unit" class="text-sm font-normal text-gray-400 ml-1">{{ item.unit }}</span>
               </div>
-              <div
-                v-if="item.trend"
-                class="mt-2 text-sm"
-                :class="
-                  item.trend.startsWith('-') ? 'text-green-500' : 'text-red-500'
-                "
-              >
-                <span class="mr-1">{{
-                  item.trend.startsWith("-") ? "↓" : "↑"
-                }}</span>
-                {{ item.trend }} so với tháng trước
+              <div v-if="item.trend" class="mt-2 text-sm" :class="item.trend.startsWith('-') ? 'text-green-500' : 'text-red-500'">
+                <span class="mr-1">{{ item.trend.startsWith("-") ? "↓" : "↑" }}</span>
+                {{ item.trend }} {{ t("monitor.loss.comparedToPrev") }}
               </div>
             </div>
-            <div
-              class="w-10 h-10 rounded-lg flex items-center justify-center"
-              :style="{ backgroundColor: item.color + '20' }"
-            >
-              <component
-                :is="useRenderIcon(item.icon)"
-                :color="item.color"
-                width="20"
-                height="20"
-              />
+            <div class="w-10 h-10 rounded-lg flex items-center justify-center" :style="{ backgroundColor: item.color + '20' }">
+              <component :is="useRenderIcon(item.icon)" :color="item.color" width="20" height="20" />
             </div>
           </div>
         </el-card>
@@ -212,25 +166,37 @@ const handleRefresh = () => (loading.value = true);
       <el-col :span="16">
         <el-card shadow="never">
           <div class="flex justify-between items-center mb-4">
-            <span class="text-md font-medium">Tỷ lệ tổn thất 30 ngày (%)</span>
+            <span class="text-md font-medium">{{ t("monitor.loss.trend30") }}</span>
             <div class="flex items-center gap-2">
-              <span class="text-sm text-gray-500"
-                >Trung bình: {{ avgLossPercent }}%</span
-              >
+              <span class="text-sm text-gray-500">{{ t("monitor.loss.avgLabel") }}: {{ avgLossPercent }}%</span>
               <el-tag type="success" size="small">-1.5%</el-tag>
+              <el-tooltip :content="t('common.saveImage')" placement="top">
+                <el-button
+                  circle size="small"
+                  :icon="useRenderIcon('ri:image-download-line')"
+                  @click="saveChart(lineChartRef, t('monitor.loss.trend30'))"
+                />
+              </el-tooltip>
             </div>
           </div>
-          <div class="h-72">
+          <div ref="lineChartRef" class="h-72">
             <ChartLine color="#ef4444" :data="lossTrendData.series" />
           </div>
         </el-card>
       </el-col>
       <el-col :span="8">
         <el-card shadow="never">
-          <div class="mb-4">
-            <span class="text-md font-medium">Nguyên nhân tổn thất</span>
+          <div class="flex justify-between items-center mb-4">
+            <span class="text-md font-medium">{{ t("monitor.loss.causes") }}</span>
+            <el-tooltip :content="t('common.saveImage')" placement="top">
+              <el-button
+                circle size="small"
+                :icon="useRenderIcon('ri:image-download-line')"
+                @click="saveChart(pieChartRef, t('monitor.loss.causes'))"
+              />
+            </el-tooltip>
           </div>
-          <div class="h-64">
+          <div ref="pieChartRef" class="h-64">
             <ChartPie :data="causeData" />
           </div>
         </el-card>
@@ -241,12 +207,17 @@ const handleRefresh = () => (loading.value = true);
     <el-row :gutter="16" class="mb-4">
       <el-col :span="24">
         <el-card shadow="never">
-          <div class="mb-4">
-            <span class="text-md font-medium"
-              >Tổn thất theo giờ trong ngày (m³)</span
-            >
+          <div class="flex justify-between items-center mb-4">
+            <span class="text-md font-medium">{{ t("monitor.loss.hourly") }}</span>
+            <el-tooltip :content="t('common.saveImage')" placement="top">
+              <el-button
+                circle size="small"
+                :icon="useRenderIcon('ri:image-download-line')"
+                @click="saveChart(barChartRef, t('monitor.loss.hourly'))"
+              />
+            </el-tooltip>
           </div>
-          <div class="h-56">
+          <div ref="barChartRef" class="h-56">
             <ChartBar :requireData="hourlyLossData" :questionData="[]" />
           </div>
         </el-card>
@@ -256,76 +227,47 @@ const handleRefresh = () => (loading.value = true);
     <!-- Detail Table -->
     <el-card shadow="never">
       <div class="flex justify-between items-center mb-4">
-        <span class="text-md font-medium">Chi tiết tổn thất theo khu vực</span>
+        <span class="text-md font-medium">{{ t("monitor.loss.detail") }}</span>
       </div>
       <el-table :data="lossByArea" stripe>
-        <el-table-column prop="area" label="Khu vực" width="130" />
-        <el-table-column label="Nước vào (m³)" width="130">
+        <el-table-column prop="area" :label="t('monitor.loss.colArea')" width="130" />
+        <el-table-column :label="t('monitor.loss.colInput')" width="130">
           <template #default="{ row }">
             <span class="font-medium">{{ row.input.toLocaleString() }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="Tính cước (m³)" width="130">
+        <el-table-column :label="t('monitor.loss.colBilled')" width="130">
           <template #default="{ row }">
             <span>{{ row.billed.toLocaleString() }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="Tổn thất (m³)" width="130">
+        <el-table-column :label="t('monitor.loss.colLoss')" width="130">
           <template #default="{ row }">
-            <span class="text-red-500 font-medium">{{
-              row.loss.toLocaleString()
-            }}</span>
+            <span class="text-red-500 font-medium">{{ row.loss.toLocaleString() }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="lossPercent" label="Tỷ lệ (%)" width="150">
+        <el-table-column prop="lossPercent" :label="t('monitor.loss.colLossRate')" width="150">
           <template #default="{ row }">
             <div class="flex items-center gap-2">
               <el-progress
                 :percentage="row.lossPercent"
                 :stroke-width="14"
                 :show-text="false"
-                :color="
-                  row.lossPercent < 15
-                    ? '#10b981'
-                    : row.lossPercent < 18
-                      ? '#f59e0b'
-                      : '#ef4444'
-                "
+                :color="row.lossPercent < 15 ? '#10b981' : row.lossPercent < 18 ? '#f59e0b' : '#ef4444'"
               />
-              <span
-                class="font-medium"
-                :class="
-                  row.lossPercent < 15
-                    ? 'text-green-500'
-                    : row.lossPercent < 18
-                      ? 'text-yellow-500'
-                      : 'text-red-500'
-                "
-              >
+              <span class="font-medium" :class="row.lossPercent < 15 ? 'text-green-500' : row.lossPercent < 18 ? 'text-yellow-500' : 'text-red-500'">
                 {{ row.lossPercent }}%
               </span>
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="Đánh giá" width="120">
+        <el-table-column prop="status" :label="t('monitor.loss.colEval')" width="120">
           <template #default="{ row }">
             <el-tag
-              :type="
-                row.status === 'good'
-                  ? 'success'
-                  : row.status === 'normal'
-                    ? 'primary'
-                    : 'warning'
-              "
+              :type="row.status === 'good' ? 'success' : row.status === 'normal' ? 'primary' : 'warning'"
               size="small"
             >
-              {{
-                row.status === "good"
-                  ? "Tốt"
-                  : row.status === "normal"
-                    ? "Bình thường"
-                    : "Cảnh báo"
-              }}
+              {{ statusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -335,13 +277,9 @@ const handleRefresh = () => (loading.value = true);
 </template>
 
 <style lang="scss" scoped>
-.loss-container {
-  padding: 16px;
-}
+.loss-container { padding: 16px; }
 .stat-card {
   transition: transform 0.2s;
-  &:hover {
-    transform: translateY(-2px);
-  }
+  &:hover { transform: translateY(-2px); }
 }
 </style>

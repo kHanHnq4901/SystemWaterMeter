@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
+import { useRoute } from "vue-router";
 import LayFrame from "../lay-frame/index.vue";
 import LayFooter from "../lay-footer/index.vue";
 import { useTags } from "@/layout/hooks/useTag";
@@ -8,79 +9,45 @@ import BackTopIcon from "@/assets/svg/back_top.svg?component";
 import { h, computed, Transition, defineComponent } from "vue";
 import { usePermissionStoreHook } from "@/store/modules/permission";
 
-const props = defineProps({
-  fixedHeader: Boolean
-});
+const props = defineProps({ fixedHeader: Boolean });
 
 const { t } = useI18n();
 const { tagsStyle } = useTags();
 const { $storage, $config } = useGlobal<GlobalPropertiesApi>();
 
-const isKeepAlive = computed(() => {
-  return $config?.KeepAlive;
-});
+const isKeepAlive = computed(() => $config?.KeepAlive);
 
-const transitions = computed(() => {
-  return route => {
-    return route.meta.transition;
-  };
-});
+const transitions = computed(() => (r: any) => r.meta.transition);
 
-const hideTabs = computed(() => {
-  return $storage?.configure.hideTabs;
-});
+const hideTabs   = computed(() => $storage?.configure.hideTabs);
+const hideFooter = computed(() => $storage?.configure.hideFooter);
+const stretch    = computed(() => $storage?.configure.stretch);
+const layout     = computed(() => $storage?.layout.layout === "vertical");
 
-const hideFooter = computed(() => {
-  return $storage?.configure.hideFooter;
-});
+const getMainWidth = computed(() =>
+  isNumber(stretch.value) ? stretch.value + "px" : stretch.value ? "1440px" : "100%"
+);
 
-const stretch = computed(() => {
-  return $storage?.configure.stretch;
-});
-
-const layout = computed(() => {
-  return $storage?.layout.layout === "vertical";
-});
-
-const getMainWidth = computed(() => {
-  return isNumber(stretch.value)
-    ? stretch.value + "px"
-    : stretch.value
-      ? "1440px"
-      : "100%";
-});
-
-const getSectionStyle = computed(() => {
-  return [
-    hideTabs.value && layout ? "padding-top: 48px;" : "",
-    !hideTabs.value && layout
-      ? tagsStyle.value == "chrome"
-        ? "padding-top: 85px;"
-        : "padding-top: 81px;"
-      : "",
-    hideTabs.value && !layout.value ? "padding-top: 48px;" : "",
-    !hideTabs.value && !layout.value
-      ? tagsStyle.value == "chrome"
-        ? "padding-top: 85px;"
-        : "padding-top: 81px;"
-      : "",
-    props.fixedHeader
-      ? ""
-      : `padding-top: 0;${
-          hideTabs.value
-            ? "min-height: calc(100vh - 48px);"
-            : "min-height: calc(100vh - 86px);"
-        }`
-  ];
-});
+const getSectionStyle = computed(() => [
+  hideTabs.value && layout.value  ? "padding-top: 48px;" : "",
+  !hideTabs.value && layout.value
+    ? tagsStyle.value === "chrome" ? "padding-top: 85px;" : "padding-top: 81px;"
+    : "",
+  hideTabs.value && !layout.value ? "padding-top: 48px;" : "",
+  !hideTabs.value && !layout.value
+    ? tagsStyle.value === "chrome" ? "padding-top: 85px;" : "padding-top: 81px;"
+    : "",
+  props.fixedHeader
+    ? ""
+    : `padding-top: 0;${
+        hideTabs.value
+          ? "min-height: calc(100vh - 48px);"
+          : "min-height: calc(100vh - 86px);"
+      }`
+]);
 
 const transitionMain = defineComponent({
-  props: {
-    route: {
-      type: undefined,
-      required: true
-    }
-  },
+  props: { route: { type: undefined, required: true } },
   render() {
     const transitionName =
       transitions.value(this.route)?.name || "fade-transform";
@@ -99,9 +66,7 @@ const transitionMain = defineComponent({
         mode: "out-in",
         appear: true
       },
-      {
-        default: () => [this.$slots.default()]
-      }
+      { default: () => [this.$slots.default()] }
     );
   }
 });
@@ -112,96 +77,103 @@ const transitionMain = defineComponent({
     :class="[fixedHeader ? 'app-main' : 'app-main-nofixed-header']"
     :style="getSectionStyle"
   >
-    <router-view>
-      <template #default="{ Component, route }">
-        <LayFrame :currComp="Component" :currRoute="route">
-          <template #default="{ Comp, fullPath, frameInfo }">
-            <el-scrollbar
-              v-if="fixedHeader"
-              :wrap-style="{
-                display: 'flex',
-                'flex-wrap': 'wrap',
-                'max-width': getMainWidth,
-                margin: '0 auto',
-                transition: 'all 300ms cubic-bezier(0.4, 0, 0.2, 1)'
-              }"
-              :view-style="{
-                display: 'flex',
-                flex: 'auto',
-                overflow: 'hidden',
-                'flex-direction': 'column'
-              }"
-            >
-              <el-backtop
-                :title="t('buttons.pureBackTop')"
-                :visibility-height="100"
-                :right="40"
-                :bottom="40"
-              >
-                <BackTopIcon />
-              </el-backtop>
-              <div class="grow">
-                <transitionMain :route="route">
-                  <keep-alive
-                    v-if="isKeepAlive"
-                    :include="usePermissionStoreHook().cachePageList"
+    <div class="zone-layout-row">
+      <div class="zone-content-area">
+        <router-view>
+          <template #default="{ Component, route }">
+            <LayFrame :currComp="Component" :currRoute="route">
+              <template #default="{ Comp, fullPath, frameInfo }">
+                <el-scrollbar
+                  v-if="fixedHeader"
+                  :wrap-style="{
+                    display: 'flex',
+                    'flex-wrap': 'wrap',
+                    'max-width': getMainWidth,
+                    margin: '0 auto',
+                    transition: 'all 300ms cubic-bezier(0.4, 0, 0.2, 1)'
+                  }"
+                  :view-style="{
+                    display: 'flex',
+                    flex: 'auto',
+                    overflow: 'hidden',
+                    'flex-direction': 'column'
+                  }"
+                >
+                  <el-backtop
+                    :title="t('buttons.pureBackTop')"
+                    :visibility-height="100"
+                    :right="40"
+                    :bottom="40"
                   >
+                    <BackTopIcon />
+                  </el-backtop>
+                  <div class="grow">
+                    <transitionMain :route="route">
+                      <keep-alive
+                        v-if="isKeepAlive"
+                        :include="usePermissionStoreHook().cachePageList"
+                      >
+                        <component
+                          :is="Comp"
+                          :key="fullPath"
+                          :frameInfo="frameInfo"
+                          class="main-content"
+                        />
+                      </keep-alive>
+                      <component
+                        v-else
+                        :is="Comp"
+                        :key="fullPath"
+                        :frameInfo="frameInfo"
+                        class="main-content"
+                      />
+                    </transitionMain>
+                  </div>
+                  <LayFooter v-if="!hideFooter" />
+                </el-scrollbar>
+
+                <div v-else class="grow">
+                  <transitionMain :route="route">
+                    <keep-alive
+                      v-if="isKeepAlive"
+                      :include="usePermissionStoreHook().cachePageList"
+                    >
+                      <component
+                        :is="Comp"
+                        :key="fullPath"
+                        :frameInfo="frameInfo"
+                        class="main-content"
+                      />
+                    </keep-alive>
                     <component
+                      v-else
                       :is="Comp"
                       :key="fullPath"
                       :frameInfo="frameInfo"
                       class="main-content"
                     />
-                  </keep-alive>
-                  <component
-                    :is="Comp"
-                    v-else
-                    :key="fullPath"
-                    :frameInfo="frameInfo"
-                    class="main-content"
-                  />
-                </transitionMain>
-              </div>
-              <LayFooter v-if="!hideFooter" />
-            </el-scrollbar>
-            <div v-else class="grow">
-              <transitionMain :route="route">
-                <keep-alive
-                  v-if="isKeepAlive"
-                  :include="usePermissionStoreHook().cachePageList"
-                >
-                  <component
-                    :is="Comp"
-                    :key="fullPath"
-                    :frameInfo="frameInfo"
-                    class="main-content"
-                  />
-                </keep-alive>
-                <component
-                  :is="Comp"
-                  v-else
-                  :key="fullPath"
-                  :frameInfo="frameInfo"
-                  class="main-content"
-                />
-              </transitionMain>
-            </div>
+                  </transitionMain>
+                </div>
+              </template>
+            </LayFrame>
           </template>
-        </LayFrame>
-      </template>
-    </router-view>
+        </router-view>
 
-    <!-- 页脚 -->
-    <LayFooter v-if="!hideFooter && !fixedHeader" />
+        <LayFooter v-if="!hideFooter && !fixedHeader" />
+      </div>
+
+    </div>
   </section>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .app-main {
   position: relative;
   width: 100%;
   height: 100vh;
-  overflow-x: hidden;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-main-nofixed-header {
@@ -211,7 +183,23 @@ const transitionMain = defineComponent({
   width: 100%;
 }
 
-.main-content {
-  margin: 24px;
+/* ── Row that holds sidebar + content ── */
+.zone-layout-row {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  min-height: 0;
 }
+
+/* ── Content area ── */
+.zone-content-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.main-content { margin: 24px; }
 </style>

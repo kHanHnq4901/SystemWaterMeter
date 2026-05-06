@@ -6,7 +6,6 @@ import { zoneAuth, buildZoneFilter } from "../middleware/zoneAuth.js";
 const router = express.Router();
 
 // POST /api/water-meters/list — Danh sách đồng hồ (phân trang + tìm kiếm)
-// LINE_ID trong INFO_METER tương ứng với SYS_REGION.ID → zone filter dùng "LINE_ID"
 router.post("/list", zoneAuth, async (req: Request, res: Response) => {
   try {
     const { keyword, state, meterType, lineId, currentPage = 1, pageSize = 20 } = req.body;
@@ -62,7 +61,7 @@ router.post("/list", zoneAuth, async (req: Request, res: Response) => {
         m.SIM_CARD_NO     as simCardNo,
         m.IMEI            as imei,
         m.MODULE_NO       as moduleNo,
-        m.REGION_ID       as regionId,
+        m.REGION_ID as regionId,
         r.NAME            as regionName,
         m.GROUP_ID        as groupId,
         m.LOCK            as lock,
@@ -225,7 +224,7 @@ router.get("/map/data", async (_req: Request, res: Response) => {
         ISNULL(m.ADDRESS, '')       as address,
         ISNULL(m.CUSTOMER_CODE, '') as customerCode,
         m.STATE           as state,
-        m.REGION_ID       as regionId,
+        m.REGION_ID as regionId,
         r.NAME            as regionName,
         h.GATEWAY_NO      as gatewayNo,
         h.SIGNAL          as signal,
@@ -305,39 +304,97 @@ router.get("/map/data", async (_req: Request, res: Response) => {
 // TREE: Gateway → Meter (dùng cho tree view phân tích)
 // ===================================================================
 
-// GET /api/water-meters/tree
+// GET /api/water-meters/tree — full N-level region hierarchy
 router.get("/tree", async (_req: Request, res: Response) => {
   try {
-    const r = (await pool.connect()).request();
-    const result = await r.query(`
-      SELECT TOP 3000 DISTINCT
-        ISNULL(GATEWAY_NO, 'Unknown') as gatewayNo,
-        METER_NO                      as meterNo
-      FROM HIS_INSTANT_METER
-      WHERE METER_NO IS NOT NULL AND LEN(ISNULL(METER_NO,'')) > 0
-      ORDER BY gatewayNo, meterNo
-    `);
+    const conn = await pool.connect();
 
-    const map = new Map<string, string[]>();
-    for (const row of result.recordset) {
-      const gw = row.gatewayNo || "Unknown";
-      if (!map.has(gw)) map.set(gw, []);
-      map.get(gw)!.push(row.meterNo);
+    // 1. All regions (full hierarchy via PARENT_ID), include ZONE_ID for meter join
+    const regRows = (await conn.request().query(`
+      SELECT ID as id, NAME as name, PARENT_ID as parentId, ORDER_NUM as orderNum,
+             ZONE_ID as zoneId
+      FROM SYS_REGION WHERE DEL_FLAG = 0
+      ORDER BY ORDER_NUM ASC, NAME ASC
+    `)).recordset;
+
+    // 2. All meters — REGION_ID in INFO_METER references SYS_REGION.ZONE_ID
+    const meterRows = (await conn.request().query(`
+      SELECT METER_NO as meterNo, METER_NAME as meterName, STATE as state,
+             REGION_ID as regionId
+      FROM INFO_METER
+      ORDER BY METER_NO
+    `)).recordset;
+
+    // Build region node map keyed by SYS_REGION.ID (for hierarchy wiring)
+    // Also build zoneIdMap keyed by SYS_REGION.ZONE_ID (for meter attachment)
+    type ZNode = { id: string; label: string; type: string; regionId: number | null; children: any[]; _cnt: number };
+    const nodeMap    = new Map<number, ZNode>(); // key: SYS_REGION.ID
+    const zoneIdMap  = new Map<number, ZNode>(); // key: SYS_REGION.ZONE_ID
+    for (const r of regRows) {
+      const node: ZNode = {
+        id:       `Z_${r.id}`,
+        label:    r.name,
+        type:     "zone",
+        regionId: r.id,
+        children: [],
+        _cnt:     0
+      };
+      nodeMap.set(r.id, node);
+      if (r.zoneId != null) zoneIdMap.set(r.zoneId, node);
     }
 
-    const tree = [
-      {
-        id: "ALL", label: "Tất cả thiết bị", type: "root",
-        children: Array.from(map.entries()).map(([gw, meters]) => ({
-          id: `GW_${gw}`, label: gw, type: "gateway", gatewayNo: gw,
-          children: meters.map(m => ({
-            id: `M_${m}`, label: m, type: "meter", meterNo: m, gatewayNo: gw
-          }))
-        }))
+    // Wire parent → child using SYS_REGION.PARENT_ID → SYS_REGION.ID
+    const rootZones: ZNode[] = [];
+    for (const r of regRows) {
+      const node = nodeMap.get(r.id)!;
+      if (r.parentId && nodeMap.has(r.parentId)) {
+        nodeMap.get(r.parentId)!.children.push(node);
+      } else {
+        rootZones.push(node);
       }
-    ];
+    }
 
-    res.json({ code: 0, message: "common.success", data: tree });
+    // Attach meters: INFO_METER.REGION_ID → SYS_REGION.ZONE_ID (fallback to ID)
+    const unassigned: any[] = [];
+    for (const m of meterRows) {
+      const mNode = {
+        id:       `M_${m.meterNo}`,
+        label:    m.meterName ? `${m.meterNo} – ${m.meterName}` : m.meterNo,
+        type:     "meter",
+        meterNo:  m.meterNo,
+        regionId: m.regionId ?? null,
+        state:    m.state
+      };
+      const targetZone = m.regionId
+        ? (zoneIdMap.get(m.regionId) ?? nodeMap.get(m.regionId))
+        : null;
+      if (targetZone) {
+        targetZone.children.push(mNode);
+      } else {
+        unassigned.push(mNode);
+      }
+    }
+
+    // Bubble-up meter count and update label
+    function bubbleCount(node: ZNode): number {
+      let cnt = 0;
+      for (const c of node.children) {
+        cnt += c.type === "meter" ? 1 : bubbleCount(c as ZNode);
+      }
+      node._cnt = cnt;
+      node.label = `${node.label} (${cnt})`;
+      return cnt;
+    }
+    rootZones.forEach(z => bubbleCount(z));
+
+    if (unassigned.length) {
+      rootZones.push({
+        id: "Z_0", label: `Chưa phân vùng (${unassigned.length})`,
+        type: "zone", regionId: null, children: unassigned, _cnt: unassigned.length
+      });
+    }
+
+    res.json({ code: 0, message: "common.success", data: rootZones });
   } catch (error: any) {
     res.status(500).json({ code: 500, message: error.message });
   }
@@ -350,13 +407,14 @@ router.get("/tree", async (_req: Request, res: Response) => {
 // POST /api/water-meters/instant/list
 router.post("/instant/list", async (req: Request, res: Response) => {
   try {
-    const { meterNo, gatewayNo, dateFrom, dateTo, currentPage = 1, pageSize = 20 } = req.body;
+    const { meterNo, gatewayNo, regionId, dateFrom, dateTo, currentPage = 1, pageSize = 20 } = req.body;
     const offset = (Number(currentPage) - 1) * Number(pageSize);
     const connection = await pool.connect();
 
     const conds: string[] = [];
     if (meterNo)   conds.push("METER_NO LIKE @meterNo");
     if (gatewayNo) conds.push("GATEWAY_NO LIKE @gatewayNo");
+    if (regionId)  conds.push("METER_NO IN (SELECT METER_NO FROM INFO_METER WHERE REGION_ID = @regionId)");
     if (dateFrom)  conds.push("REALTIME >= @dateFrom");
     if (dateTo)    conds.push("REALTIME < DATEADD(day, 1, CAST(@dateTo as date))");
     const where = conds.length ? "WHERE " + conds.join(" AND ") : "";
@@ -364,6 +422,7 @@ router.post("/instant/list", async (req: Request, res: Response) => {
     const addP = (r: mssql.Request) => {
       if (meterNo)   r.input("meterNo",   mssql.VarChar,  `%${meterNo}%`);
       if (gatewayNo) r.input("gatewayNo", mssql.VarChar,  `%${gatewayNo}%`);
+      if (regionId)  r.input("regionId",  mssql.Int,      Number(regionId));
       if (dateFrom)  r.input("dateFrom",  mssql.VarChar,  dateFrom);
       if (dateTo)    r.input("dateTo",    mssql.VarChar,  dateTo);
       return r;
@@ -412,11 +471,12 @@ router.post("/instant/list", async (req: Request, res: Response) => {
 // POST /api/water-meters/instant/chart — Dữ liệu biểu đồ (gộp theo ngày)
 router.post("/instant/chart", async (req: Request, res: Response) => {
   try {
-    const { meterNo, gatewayNo, dateFrom, dateTo } = req.body;
+    const { meterNo, gatewayNo, regionId, dateFrom, dateTo } = req.body;
 
     const conds: string[] = [];
     if (meterNo)   conds.push("METER_NO LIKE @meterNo");
     if (gatewayNo) conds.push("GATEWAY_NO LIKE @gatewayNo");
+    if (regionId)  conds.push("METER_NO IN (SELECT METER_NO FROM INFO_METER WHERE REGION_ID = @regionId)");
     if (dateFrom)  conds.push("REALTIME >= @dateFrom");
     if (dateTo)    conds.push("REALTIME < DATEADD(day, 1, CAST(@dateTo as date))");
     const where = conds.length ? "WHERE " + conds.join(" AND ") : "";
@@ -424,6 +484,7 @@ router.post("/instant/chart", async (req: Request, res: Response) => {
     const r = (await pool.connect()).request();
     if (meterNo)   r.input("meterNo",   mssql.VarChar, `%${meterNo}%`);
     if (gatewayNo) r.input("gatewayNo", mssql.VarChar, `%${gatewayNo}%`);
+    if (regionId)  r.input("regionId",  mssql.Int,     Number(regionId));
     if (dateFrom)  r.input("dateFrom",  mssql.VarChar, dateFrom);
     if (dateTo)    r.input("dateTo",    mssql.VarChar, dateTo);
 
@@ -454,13 +515,14 @@ router.post("/instant/chart", async (req: Request, res: Response) => {
 // POST /api/water-meters/logger/list
 router.post("/logger/list", async (req: Request, res: Response) => {
   try {
-    const { meterNo, gatewayNo, dateFrom, dateTo, currentPage = 1, pageSize = 20 } = req.body;
+    const { meterNo, gatewayNo, regionId, dateFrom, dateTo, currentPage = 1, pageSize = 20 } = req.body;
     const offset = (Number(currentPage) - 1) * Number(pageSize);
     const connection = await pool.connect();
 
     const conds: string[] = [];
     if (meterNo)   conds.push("METER_NO LIKE @meterNo");
     if (gatewayNo) conds.push("GATEWAY_NO LIKE @gatewayNo");
+    if (regionId)  conds.push("METER_NO IN (SELECT METER_NO FROM INFO_METER WHERE REGION_ID = @regionId)");
     if (dateFrom)  conds.push("DATA_TIME >= @dateFrom");
     if (dateTo)    conds.push("DATA_TIME < DATEADD(day, 1, CAST(@dateTo as date))");
     const where = conds.length ? "WHERE " + conds.join(" AND ") : "";
@@ -468,6 +530,7 @@ router.post("/logger/list", async (req: Request, res: Response) => {
     const addP = (r: mssql.Request) => {
       if (meterNo)   r.input("meterNo",   mssql.VarChar, `%${meterNo}%`);
       if (gatewayNo) r.input("gatewayNo", mssql.VarChar, `%${gatewayNo}%`);
+      if (regionId)  r.input("regionId",  mssql.Int,     Number(regionId));
       if (dateFrom)  r.input("dateFrom",  mssql.VarChar, dateFrom);
       if (dateTo)    r.input("dateTo",    mssql.VarChar, dateTo);
       return r;
@@ -516,11 +579,12 @@ router.post("/logger/list", async (req: Request, res: Response) => {
 // POST /api/water-meters/logger/production — Sản lượng gộp theo ngày hoặc tháng
 router.post("/logger/production", async (req: Request, res: Response) => {
   try {
-    const { meterNo, gatewayNo, dateFrom, dateTo, groupBy = "day" } = req.body;
+    const { meterNo, gatewayNo, regionId, dateFrom, dateTo, groupBy = "day" } = req.body;
 
     const conds: string[] = [];
     if (meterNo)   conds.push("METER_NO LIKE @meterNo");
     if (gatewayNo) conds.push("GATEWAY_NO LIKE @gatewayNo");
+    if (regionId)  conds.push("METER_NO IN (SELECT METER_NO FROM INFO_METER WHERE REGION_ID = @regionId)");
     if (dateFrom)  conds.push("DATA_TIME >= @dateFrom");
     if (dateTo)    conds.push("DATA_TIME < DATEADD(day, 1, CAST(@dateTo as date))");
     const where = conds.length ? "WHERE " + conds.join(" AND ") : "";
@@ -532,6 +596,7 @@ router.post("/logger/production", async (req: Request, res: Response) => {
     const r = (await pool.connect()).request();
     if (meterNo)   r.input("meterNo",   mssql.VarChar, `%${meterNo}%`);
     if (gatewayNo) r.input("gatewayNo", mssql.VarChar, `%${gatewayNo}%`);
+    if (regionId)  r.input("regionId",  mssql.Int,     Number(regionId));
     if (dateFrom)  r.input("dateFrom",  mssql.VarChar, dateFrom);
     if (dateTo)    r.input("dateTo",    mssql.VarChar, dateTo);
 
@@ -560,11 +625,12 @@ router.post("/logger/production", async (req: Request, res: Response) => {
 // POST /api/water-meters/logger/chart — Dữ liệu biểu đồ (gộp theo ngày)
 router.post("/logger/chart", async (req: Request, res: Response) => {
   try {
-    const { meterNo, gatewayNo, dateFrom, dateTo } = req.body;
+    const { meterNo, gatewayNo, regionId, dateFrom, dateTo } = req.body;
 
     const conds: string[] = [];
     if (meterNo)   conds.push("METER_NO LIKE @meterNo");
     if (gatewayNo) conds.push("GATEWAY_NO LIKE @gatewayNo");
+    if (regionId)  conds.push("METER_NO IN (SELECT METER_NO FROM INFO_METER WHERE REGION_ID = @regionId)");
     if (dateFrom)  conds.push("DATA_TIME >= @dateFrom");
     if (dateTo)    conds.push("DATA_TIME < DATEADD(day, 1, CAST(@dateTo as date))");
     const where = conds.length ? "WHERE " + conds.join(" AND ") : "";
@@ -572,6 +638,7 @@ router.post("/logger/chart", async (req: Request, res: Response) => {
     const r = (await pool.connect()).request();
     if (meterNo)   r.input("meterNo",   mssql.VarChar, `%${meterNo}%`);
     if (gatewayNo) r.input("gatewayNo", mssql.VarChar, `%${gatewayNo}%`);
+    if (regionId)  r.input("regionId",  mssql.Int,     Number(regionId));
     if (dateFrom)  r.input("dateFrom",  mssql.VarChar, dateFrom);
     if (dateTo)    r.input("dateTo",    mssql.VarChar, dateTo);
 
@@ -591,6 +658,256 @@ router.post("/logger/chart", async (req: Request, res: Response) => {
     `);
 
     res.json({ code: 0, message: "common.success", data: result.recordset });
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
+// POST /api/water-meters/logger/multi-chart — Per-meter chart data for multiple meters
+router.post("/logger/multi-chart", async (req: Request, res: Response) => {
+  try {
+    const { meterNos, dateFrom, dateTo, groupBy = "day" } = req.body;
+    if (!meterNos?.length) return res.json({ code: 0, message: "common.success", data: [] });
+
+    const r = (await pool.connect()).request();
+    const placeholders = (meterNos as string[]).map((no: string, i: number) => {
+      r.input(`m${i}`, mssql.VarChar, no);
+      return `@m${i}`;
+    }).join(",");
+    if (dateFrom) r.input("dateFrom", mssql.VarChar, dateFrom);
+    if (dateTo)   r.input("dateTo",   mssql.VarChar, dateTo);
+
+    const conds: string[] = [`METER_NO IN (${placeholders})`];
+    if (dateFrom) conds.push("DATA_TIME >= @dateFrom");
+    if (dateTo)   conds.push("DATA_TIME < DATEADD(day, 1, CAST(@dateTo as date))");
+    const where = "WHERE " + conds.join(" AND ");
+
+    const periodExpr = groupBy === "hour"
+      ? "CONVERT(varchar(13), DATA_TIME, 120) + ':00'"
+      : "CONVERT(varchar(10), DATA_TIME, 120)";
+
+    const result = await r.query(`
+      SELECT
+        METER_NO as meterNo,
+        ${periodExpr} as period,
+        SUM(ISNULL(CAST(FLOW as float), 0))      as totalFlow,
+        AVG(ISNULL(CAST(FLOW as float), 0))      as avgFlow,
+        MIN(ISNULL(CAST(FLOW as float), 0))      as minFlow,
+        MAX(ISNULL(CAST(FLOW as float), 0))      as maxFlow,
+        AVG(ISNULL(CAST(PRESSURE as float), 0))  as avgPressure,
+        MIN(ISNULL(CAST(PRESSURE as float), 0))  as minPressure,
+        MAX(ISNULL(CAST(PRESSURE as float), 0))  as maxPressure,
+        COUNT(*) as readingCount
+      FROM HIS_DATA_METER
+      ${where}
+      GROUP BY METER_NO, ${periodExpr}
+      ORDER BY METER_NO, period
+    `);
+
+    res.json({ code: 0, message: "common.success", data: result.recordset });
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
+// POST /api/water-meters/logger/zone-summary — Zone-level aggregated stats
+router.post("/logger/zone-summary", async (req: Request, res: Response) => {
+  try {
+    const { dateFrom, dateTo, regionId, groupBy = "month" } = req.body;
+    const r = (await pool.connect()).request();
+
+    const mConds: string[] = ["1=1"];
+    const hConds: string[] = [];
+    if (regionId) { r.input("regionId", mssql.Int, Number(regionId)); mConds.push("m.REGION_ID = @regionId"); }
+    if (dateFrom) { r.input("dateFrom", mssql.VarChar, dateFrom); hConds.push("h.DATA_TIME >= @dateFrom"); }
+    if (dateTo)   { r.input("dateTo",   mssql.VarChar, dateTo);   hConds.push("h.DATA_TIME < DATEADD(day, 1, CAST(@dateTo as date))"); }
+
+    const mWhere = "WHERE " + mConds.join(" AND ");
+    const hFilter = hConds.length ? " AND " + hConds.join(" AND ") : "";
+
+    const periodExpr = groupBy === "year"
+      ? "CONVERT(varchar(4), h.DATA_TIME, 120)"
+      : "CONVERT(varchar(7), h.DATA_TIME, 120)";
+
+    const result = await r.query(`
+      SELECT
+        ISNULL(r.ID, 0)                as regionId,
+        ISNULL(r.NAME, N'Chưa phân vùng') as regionName,
+        ${periodExpr}                  as period,
+        COUNT(DISTINCT m.METER_NO)     as meterCount,
+        SUM(ISNULL(CAST(h.FLOW as float), 0))                                                                as totalFlow,
+        AVG(ISNULL(CAST(h.PRESSURE as float), 0))                                                            as avgPressure,
+        MAX(ISNULL(CAST(h.ACTIVE_TOTAL as float), 0)) - MIN(ISNULL(CAST(h.ACTIVE_TOTAL as float), 0))        as consumption
+      FROM INFO_METER m
+      LEFT JOIN SYS_REGION r ON m.REGION_ID = r.ID AND r.DEL_FLAG = 0
+      LEFT JOIN HIS_DATA_METER h ON m.METER_NO = h.METER_NO ${hFilter}
+      ${mWhere}
+      GROUP BY r.ID, r.NAME, ${periodExpr}
+      ORDER BY r.ID, period
+    `);
+
+    res.json({ code: 0, message: "common.success", data: result.recordset });
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
+// GET /api/water-meters/zone-stats — Zone meter counts + today's flow
+router.get("/zone-stats", async (_req: Request, res: Response) => {
+  try {
+    const r = (await pool.connect()).request();
+    const result = await r.query(`
+      SELECT
+        r.ID   as regionId,
+        r.NAME as regionName,
+        COUNT(m.METER_NO)                                           as totalMeters,
+        SUM(CASE WHEN m.STATE = 1 THEN 1 ELSE 0 END)               as activeMeters,
+        ISNULL((
+          SELECT SUM(ISNULL(CAST(h2.FLOW as float), 0))
+          FROM HIS_DATA_METER h2
+          INNER JOIN INFO_METER m2 ON h2.METER_NO = m2.METER_NO
+          WHERE m2.REGION_ID = r.ID
+            AND h2.DATA_TIME >= CAST(GETDATE() AS date)
+        ), 0) as todayFlow
+      FROM SYS_REGION r
+      LEFT JOIN INFO_METER m ON m.REGION_ID = r.ID
+      WHERE r.DEL_FLAG = 0
+      GROUP BY r.ID, r.NAME
+      ORDER BY r.NAME
+    `);
+    res.json({ code: 0, message: "common.success", data: result.recordset });
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
+// POST /api/water-meters/logger/hourly — Hourly consumption for a given date
+router.post("/logger/hourly", async (req: Request, res: Response) => {
+  try {
+    const { date } = req.body;
+    const targetDate = date ?? new Date().toISOString().slice(0, 10);
+    const r = (await pool.connect()).request();
+    r.input("dateFrom", mssql.VarChar, targetDate);
+    r.input("dateTo",   mssql.VarChar, targetDate);
+
+    const result = await r.query(`
+      SELECT
+        DATEPART(HOUR, DATA_TIME) as hr,
+        SUM(ISNULL(CAST(FLOW as float), 0)) as totalFlow
+      FROM HIS_DATA_METER
+      WHERE DATA_TIME >= @dateFrom
+        AND DATA_TIME < DATEADD(day, 1, CAST(@dateTo as date))
+      GROUP BY DATEPART(HOUR, DATA_TIME)
+      ORDER BY hr
+    `);
+
+    const byHour: Record<number, number> = {};
+    result.recordset.forEach((row: any) => { byHour[row.hr] = +row.totalFlow.toFixed(1); });
+    const data = Array.from({ length: 24 }, (_, i) => ({
+      hour: `${String(i).padStart(2, "0")}:00`,
+      consumption: byHour[i] ?? 0
+    }));
+
+    res.json({ code: 0, message: "common.success", data });
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
+// POST /api/water-meters/meter-status — Danh sách ĐH kèm trạng thái mới nhất
+router.post("/meter-status", async (req: Request, res: Response) => {
+  try {
+    const { keyword, regionId, state, online, currentPage = 1, pageSize = 20 } = req.body;
+    const offset = (Number(currentPage) - 1) * Number(pageSize);
+    const conn = await pool.connect();
+
+    const conds: string[] = [];
+    if (keyword)  conds.push("(m.METER_NO LIKE @kw OR m.METER_NAME LIKE @kw)");
+    if (regionId) conds.push("m.REGION_ID = @regionId");
+    if (state !== undefined && state !== "") conds.push("m.STATE = @state");
+    const where = conds.length ? "WHERE " + conds.join(" AND ") : "";
+
+    // online filter applied after CTE (on computed column)
+    const onlineFilter = (online === 1 || online === true)
+      ? "WHERE online = 1"
+      : (online === 0 || online === false)
+        ? "WHERE online = 0"
+        : "";
+
+    const addP = (r: mssql.Request) => {
+      if (keyword)  r.input("kw",       mssql.NVarChar, `%${keyword}%`);
+      if (regionId) r.input("regionId", mssql.Int,      Number(regionId));
+      if (state !== undefined && state !== "") r.input("state", mssql.Int, Number(state));
+      return r;
+    };
+
+    // OUTER APPLY TOP 1 nhanh hơn ROW_NUMBER() OVER toàn bảng
+    // Nếu có index (METER_NO, DATA_TIME DESC) → seek thay vì full scan
+    const baseSql = `
+      FROM INFO_METER m WITH(NOLOCK)
+      LEFT JOIN SYS_REGION r WITH(NOLOCK) ON m.REGION_ID = r.ID AND r.DEL_FLAG = 0
+      OUTER APPLY (
+        SELECT TOP 1 DATA_TIME, FLOW, PRESSURE, ACTIVE_TOTAL
+        FROM HIS_DATA_METER WITH(NOLOCK)
+        WHERE METER_NO = m.METER_NO
+        ORDER BY DATA_TIME DESC
+      ) d
+      OUTER APPLY (
+        SELECT TOP 1 REALTIME, SIGNAL, REMAIN_BATTERY, TEMPERATURE, GATEWAY_NO
+        FROM HIS_INSTANT_METER WITH(NOLOCK)
+        WHERE METER_NO = m.METER_NO
+        ORDER BY REALTIME DESC
+      ) i
+      ${where}
+    `;
+
+    const cteWrap = (inner: string) => `
+      WITH base AS (
+        SELECT
+          m.METER_NO        as meterNo,
+          m.METER_NAME      as meterName,
+          m.STATE           as state,
+          m.ADDRESS         as address,
+          m.REGION_ID       as regionId,
+          r.NAME            as regionName,
+          d.DATA_TIME       as lastDataTime,
+          d.FLOW            as lastFlow,
+          d.PRESSURE        as lastPressure,
+          d.ACTIVE_TOTAL    as lastActiveTotal,
+          i.REALTIME        as lastInstantTime,
+          i.SIGNAL          as signal,
+          i.REMAIN_BATTERY  as remainBattery,
+          i.TEMPERATURE     as temperature,
+          i.GATEWAY_NO      as gatewayNo,
+          CASE WHEN d.DATA_TIME >= DATEADD(hour, -24, GETDATE()) THEN 1 ELSE 0 END as online
+        ${baseSql}
+      ) ${inner}
+    `;
+
+    // Count + data chạy SONG SONG
+    const countReq = addP(conn.request());
+    const dataReq  = addP(conn.request());
+    dataReq.input("offset",   mssql.Int, offset);
+    dataReq.input("pageSize", mssql.Int, Number(pageSize));
+
+    const [countRes, dataRes] = await Promise.all([
+      countReq.query(cteWrap(`SELECT COUNT(*) as total FROM base ${onlineFilter}`)),
+      dataReq.query(cteWrap(`
+        SELECT * FROM base ${onlineFilter}
+        ORDER BY CASE WHEN online = 0 THEN 0 ELSE 1 END, lastDataTime DESC
+        OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
+      `))
+    ]);
+
+    res.json({
+      code: 0, message: "common.success",
+      data: {
+        list: dataRes.recordset,
+        total: countRes.recordset[0].total,
+        currentPage: Number(currentPage),
+        pageSize: Number(pageSize)
+      }
+    });
   } catch (error: any) {
     res.status(500).json({ code: 500, message: error.message });
   }

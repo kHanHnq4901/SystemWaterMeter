@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
+import Close from "~icons/ep/close";
+import Refresh from "~icons/ep/refresh";
 import trackasiagl from "trackasia-gl";
 import "trackasia-gl/dist/trackasia-gl.css";
 import { getMapData } from "@/api/waterMeter";
+import ZoneMeterTree from "@/components/ZoneMeterTree/index.vue";
+import type { TreeSelection } from "@/hooks/useZoneMeterTree";
 
 defineOptions({ name: "MapPage" });
 
@@ -16,28 +20,42 @@ interface Meter {
   remainBattery: number | null; lastDataTime: string | null; online: boolean;
   lat: number; lng: number; regionId: number | null; regionName: string | null;
 }
-interface Region { id: number; name: string; parentId: number | null; }
 
 // ─── State ────────────────────────────────────────────────────────────────────
-const mapEl      = ref<HTMLDivElement>();
+const mapEl  = ref<HTMLDivElement>();
 let   map: trackasiagl.Map | null = null;
 
-const loading       = ref(true);
-const panelOpen     = ref(true);
-const searchKw      = ref("");
-const showInfo      = ref(false);
-const selected      = ref<{ type: "gateway" | "meter"; data: any } | null>(null);
-const gateways      = ref<Gateway[]>([]);
-const meters        = ref<Meter[]>([]);
-const regions       = ref<Region[]>([]);
-const regionTree    = ref<any[]>([]);
-const expandedReg   = ref<Set<number>>(new Set());
-const selectedRegId = ref<number | null>(null);
-const layers        = reactive({ online: true, offline: true, inactive: true });
+const loading    = ref(true);
+const refreshing = ref(false);
+const panelOpen  = ref(true);
+const treeComp   = ref<InstanceType<typeof ZoneMeterTree>>();
 
-// ─── Zone colors ──────────────────────────────────────────────────────────────
-const PALETTE = ["#3b82f6","#22c55e","#f59e0b","#ef4444","#8b5cf6","#14b8a6","#f97316","#ec4899","#6366f1","#0ea5e9","#84cc16","#a855f7"];
-const zoneColor = (id: number | null) => id ? PALETTE[id % PALETTE.length] : "#64748b";
+const iconClass = computed(() => [
+  "size-5.5", "flex-c", "outline-hidden", "rounded-sm",
+  "cursor-pointer", "transition-colors",
+  "hover:bg-[#0000000f]", "dark:hover:bg-[#ffffff1f]", "dark:hover:text-[#ffffffd9]"
+]);
+const showInfo = ref(false);
+const infoSel  = ref<{ type: "gateway" | "meter"; data: any } | null>(null);
+const gateways = ref<Gateway[]>([]);
+const meters   = ref<Meter[]>([]);
+const layers   = reactive({ online: true, offline: true, inactive: true, gateway: true });
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+const stats = computed(() => {
+  const gw = gateways.value, ms = meters.value;
+  const mOnline  = ms.filter(m => m.state === 1 && m.online).length;
+  const mOffline = ms.filter(m => m.state === 1 && !m.online).length;
+  const mBroken  = ms.filter(m => m.state === 2).length;
+  const mInactive = ms.filter(m => m.state === 0 || m.state === 3).length;
+  const total = ms.length;
+  return {
+    total, mOnline, mOffline, mBroken, mInactive,
+    onlinePct: total ? Math.round(mOnline / total * 100) : 0,
+    gwOnline:  gw.filter(g => g.online).length,
+    gwTotal:   gw.length
+  };
+});
 
 // ─── Meter helpers ────────────────────────────────────────────────────────────
 function meterStatusColor(m: Meter) {
@@ -68,55 +86,41 @@ function ago(t: string | null) {
 }
 function flyToMeter(m: Meter) {
   map?.flyTo({ center: [m.lng, m.lat], zoom: 16, speed: 1.5 });
-  selected.value = { type: "meter", data: m };
+  infoSel.value = { type: "meter", data: m };
   showInfo.value = true;
 }
-
-// ─── Region tree ──────────────────────────────────────────────────────────────
-function buildRegionTree(list: Region[]): any[] {
-  const mp = new Map(list.map(r => [r.id, { ...r, children: [] as any[] }]));
-  const roots: any[] = [];
-  mp.forEach(n => { if (n.parentId && mp.has(n.parentId)) mp.get(n.parentId)!.children.push(n); else roots.push(n); });
-  return roots;
-}
-function getDescendantIds(node: any): number[] {
-  return [node.id, ...(node.children || []).flatMap(getDescendantIds)];
+function fitAll() {
+  if (!meters.value.length) return;
+  const lngs = meters.value.map(m => m.lng), lats = meters.value.map(m => m.lat);
+  map?.fitBounds([[Math.min(...lngs)-0.01, Math.min(...lats)-0.01],[Math.max(...lngs)+0.01, Math.max(...lats)+0.01]], { padding: 60, maxZoom: 15 });
 }
 
-// Meters grouped by regionId (direct children only)
-const metersByRegion = computed(() => {
-  const m: Record<number, Meter[]> = {};
-  meters.value.forEach(meter => {
-    if (meter.regionId != null) {
-      (m[meter.regionId] ??= []).push(meter);
-    }
-  });
-  return m;
-});
-
-const meterCountByRegion = computed(() => {
-  const c: Record<number, number> = {};
-  meters.value.forEach(m => { if (m.regionId) c[m.regionId] = (c[m.regionId] || 0) + 1; });
-  return c;
-});
-function nodeCount(node: any): number {
-  return getDescendantIds(node).reduce((s, id) => s + (meterCountByRegion.value[id] || 0), 0);
+// ─── Zone → filter map ────────────────────────────────────────────────────────
+function updateMapSource(list: Meter[]) {
+  const src = map?.getSource("meters-src") as any;
+  if (!src) return;
+  src.setData({ type: "FeatureCollection", features: buildMeterFeatures(list) });
+  if (list.length > 0) {
+    const lngs = list.map(m => m.lng), lats = list.map(m => m.lat);
+    map?.fitBounds([[Math.min(...lngs)-0.003, Math.min(...lats)-0.003],[Math.max(...lngs)+0.003, Math.max(...lats)+0.003]], { padding: 60, maxZoom: 16 });
+  }
+}
+function onZoneSelect(sel: TreeSelection) {
+  if (sel.type === "root") {
+    const src = map?.getSource("meters-src") as any;
+    src?.setData({ type: "FeatureCollection", features: buildMeterFeatures(meters.value) });
+  } else if (sel.type === "zone") {
+    const list = sel.zoneMeterNos.length
+      ? meters.value.filter(m => sel.zoneMeterNos.includes(m.meterNo))
+      : meters.value.filter(m => m.regionId === sel.regionId);
+    updateMapSource(list);
+  } else if (sel.type === "meter") {
+    const m = meters.value.find(x => x.meterNo === sel.meterNo);
+    if (m) flyToMeter(m);
+  }
 }
 
-const kw = computed(() => searchKw.value.toLowerCase().trim());
-function nodeMatchesSearch(node: any): boolean {
-  if (!kw.value) return true;
-  if (node.name.toLowerCase().includes(kw.value)) return true;
-  return (node.children || []).some(nodeMatchesSearch);
-}
-
-// ─── Zone selection → filter map ──────────────────────────────────────────────
-function selectZone(node: any | null) {
-  if (node && node.id === selectedRegId.value) { selectedRegId.value = null; filterMapByZone(null); return; }
-  selectedRegId.value = node?.id ?? null;
-  filterMapByZone(node ? getDescendantIds(node) : null);
-}
-
+// ─── Map layers ───────────────────────────────────────────────────────────────
 function buildMeterFeatures(list: Meter[]) {
   return list.map(m => ({
     type: "Feature" as const,
@@ -131,44 +135,17 @@ function buildMeterFeatures(list: Meter[]) {
   }));
 }
 
-function filterMapByZone(regionIds: number[] | null) {
-  const src = map?.getSource("meters-src") as any;
-  if (!src) return;
-  const list = regionIds ? meters.value.filter(m => m.regionId != null && regionIds.includes(m.regionId)) : meters.value;
-  src.setData({ type: "FeatureCollection", features: buildMeterFeatures(list) });
-  if (regionIds && list.length > 0) {
-    const lngs = list.map(m => m.lng), lats = list.map(m => m.lat);
-    map?.fitBounds([[Math.min(...lngs) - 0.003, Math.min(...lats) - 0.003],[Math.max(...lngs) + 0.003, Math.max(...lats) + 0.003]], { padding: 60, maxZoom: 16 });
-  }
-}
-
-// ─── Stats ────────────────────────────────────────────────────────────────────
-const stats = computed(() => {
-  const gw = gateways.value, ms = meters.value;
-  return {
-    gwOnline:  gw.filter(g => g.online).length,
-    gwOffline: gw.filter(g => !g.online).length,
-    mOnline:   ms.filter(m => m.online).length,
-    mOffline:  ms.filter(m => m.state === 1 && !m.online).length,
-    mBroken:   ms.filter(m => m.state === 2).length,
-    mInactive: ms.filter(m => m.state === 0 || m.state === 3).length,
-    total:     ms.length
-  };
-});
-
-// ─── Map layers ───────────────────────────────────────────────────────────────
 function addMapLayers(data: { gateways: Gateway[]; meters: Meter[] }) {
   if (!map) return;
-
   map.addSource("meters-src", {
     type: "geojson",
     data: { type: "FeatureCollection", features: buildMeterFeatures(data.meters) },
     cluster: true, clusterMaxZoom: 14, clusterRadius: 45
   });
-  map.addLayer({ id: "meter-clusters", type: "circle", source: "meters-src", filter: ["has", "point_count"],
+  map.addLayer({ id: "meter-clusters", type: "circle", source: "meters-src", filter: ["has","point_count"],
     paint: { "circle-color": ["step",["get","point_count"],"#41b6ff",20,"#67c23a",100,"#e6a23c"], "circle-radius": ["step",["get","point_count"],18,20,26,100,34], "circle-stroke-width": 2, "circle-stroke-color": "#fff", "circle-opacity": 0.9 }
   });
-  map.addLayer({ id: "meter-cluster-count", type: "symbol", source: "meters-src", filter: ["has", "point_count"],
+  map.addLayer({ id: "meter-cluster-count", type: "symbol", source: "meters-src", filter: ["has","point_count"],
     layout: { "text-field": "{point_count_abbreviated}", "text-size": 12 }, paint: { "text-color": "#fff" }
   });
   map.addLayer({ id: "meters-online",  type: "circle", source: "meters-src", filter: ["all",["!",["has","point_count"]],["==",["get","cat"],"online"]],
@@ -180,29 +157,28 @@ function addMapLayers(data: { gateways: Gateway[]; meters: Meter[] }) {
   map.addLayer({ id: "meters-broken",  type: "circle", source: "meters-src", filter: ["all",["!",["has","point_count"]],["in",["get","cat"],["literal",["broken","inactive"]]]],
     paint: { "circle-radius": 6, "circle-color": "#ef4444", "circle-stroke-width": 1.5, "circle-stroke-color": "#fff", "circle-opacity": 0.85 }
   });
-
   map.addSource("gateways-src", {
     type: "geojson",
     data: { type: "FeatureCollection", features: data.gateways.map(g => ({ type: "Feature" as const, geometry: { type: "Point" as const, coordinates: [g.lng, g.lat] }, properties: { ...g } })) }
   });
-  map.addLayer({ id: "gateways-ring", type: "circle", source: "gateways-src", paint: { "circle-radius": 16, "circle-opacity": 0.15, "circle-color": ["case",["==",["get","online"],true],"#f59e0b","#9ca3af"] } });
-  map.addLayer({ id: "gateways-dot",  type: "circle", source: "gateways-src", paint: { "circle-radius": 10, "circle-color": ["case",["==",["get","online"],true],"#f59e0b","#6b7280"], "circle-stroke-width": 2.5, "circle-stroke-color": "#fff" } });
-  map.addLayer({ id: "gateways-label",type: "symbol", source: "gateways-src", layout: { "text-field": ["get","gatewayNo"], "text-size": 10, "text-offset": [0,1.8], "text-anchor": "top" }, paint: { "text-color": "#374151", "text-halo-color": "#fff", "text-halo-width": 1.5 } });
+  map.addLayer({ id: "gateways-ring",  type: "circle", source: "gateways-src", paint: { "circle-radius": 16, "circle-opacity": 0.15, "circle-color": ["case",["==",["get","online"],true],"#f59e0b","#9ca3af"] } });
+  map.addLayer({ id: "gateways-dot",   type: "circle", source: "gateways-src", paint: { "circle-radius": 10, "circle-color": ["case",["==",["get","online"],true],"#f59e0b","#6b7280"], "circle-stroke-width": 2.5, "circle-stroke-color": "#fff" } });
+  map.addLayer({ id: "gateways-label", type: "symbol", source: "gateways-src", layout: { "text-field": ["get","gatewayNo"], "text-size": 10, "text-offset": [0,1.8], "text-anchor": "top" }, paint: { "text-color": "#374151", "text-halo-color": "#fff", "text-halo-width": 1.5 } });
 
   ["meters-online","meters-offline","meters-broken"].forEach(id => {
     map!.on("click", id, (e: any) => {
       const m = data.meters.find(x => x.meterNo === e.features[0].properties.meterNo);
-      if (m) { selected.value = { type: "meter", data: m }; showInfo.value = true; }
+      if (m) { infoSel.value = { type: "meter", data: m }; showInfo.value = true; }
     });
     map!.on("mouseenter", id, () => { map!.getCanvas().style.cursor = "pointer"; });
     map!.on("mouseleave", id, () => { map!.getCanvas().style.cursor = ""; });
   });
   map.on("click", "gateways-dot", (e: any) => {
     const g = data.gateways.find(x => x.gatewayNo === e.features[0].properties.gatewayNo);
-    if (g) { selected.value = { type: "gateway", data: g }; showInfo.value = true; }
+    if (g) { infoSel.value = { type: "gateway", data: g }; showInfo.value = true; }
   });
-  map.on("mouseenter","gateways-dot", () => { map!.getCanvas().style.cursor = "pointer"; });
-  map.on("mouseleave","gateways-dot", () => { map!.getCanvas().style.cursor = ""; });
+  map.on("mouseenter","gateways-dot",  () => { map!.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave","gateways-dot",  () => { map!.getCanvas().style.cursor = ""; });
   map.on("click","meter-clusters", (e: any) => {
     (map!.getSource("meters-src") as any).getClusterExpansionZoom(e.features[0].properties.cluster_id, (_: any, z: number) => map!.easeTo({ center: e.features[0].geometry.coordinates, zoom: z }));
   });
@@ -212,26 +188,47 @@ function addMapLayers(data: { gateways: Gateway[]; meters: Meter[] }) {
   loading.value = false;
 }
 
-watch(() => layers.online,   v => map?.getLayer("meters-online")  && map.setLayoutProperty("meters-online",  "visibility", v ? "visible" : "none"));
-watch(() => layers.offline,  v => map?.getLayer("meters-offline") && map.setLayoutProperty("meters-offline", "visibility", v ? "visible" : "none"));
-watch(() => layers.inactive, v => map?.getLayer("meters-broken")  && map.setLayoutProperty("meters-broken",  "visibility", v ? "visible" : "none"));
+watch(() => layers.online,   v => map?.getLayer("meters-online")  && map.setLayoutProperty("meters-online",  "visibility", v ? "visible":"none"));
+watch(() => layers.offline,  v => map?.getLayer("meters-offline") && map.setLayoutProperty("meters-offline", "visibility", v ? "visible":"none"));
+watch(() => layers.inactive, v => map?.getLayer("meters-broken")  && map.setLayoutProperty("meters-broken",  "visibility", v ? "visible":"none"));
+watch(() => layers.gateway,  v => {
+  ["gateways-ring","gateways-dot","gateways-label"].forEach(id => map?.getLayer(id) && map.setLayoutProperty(id, "visibility", v ? "visible":"none"));
+});
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
+// ─── Init / Refresh ───────────────────────────────────────────────────────────
 async function init() {
+  loading.value = true;
   const res = await getMapData();
   if (res.code !== 0 || !res.data) { loading.value = false; return; }
-  const data = res.data as { gateways: Gateway[]; meters: Meter[]; regions: Region[] };
-  gateways.value   = data.gateways;
-  meters.value     = data.meters;
-  regions.value    = data.regions ?? [];
-  regionTree.value = buildRegionTree(regions.value);
-  regionTree.value.forEach(n => expandedReg.value.add(n.id));
+  const data = res.data as { gateways: Gateway[]; meters: Meter[] };
+  gateways.value = data.gateways;
+  meters.value   = data.meters;
   await nextTick();
   if (!mapEl.value) return;
-  map = new trackasiagl.Map({ container: mapEl.value, style: "https://maps.track-asia.com/styles/v2/streets.json?key=f4a6c08959b47211756357354b1b73ac74", center: [105.8342, 21.0278], zoom: 12 });
+  map = new trackasiagl.Map({
+    container: mapEl.value,
+    style: "https://maps.track-asia.com/styles/v2/streets.json?key=f4a6c08959b47211756357354b1b73ac74",
+    center: [105.8342, 21.0278], zoom: 12
+  });
   map.addControl(new trackasiagl.NavigationControl(), "top-right");
   map.addControl(new trackasiagl.ScaleControl({ unit: "metric" }), "bottom-right");
   map.on("load", () => addMapLayers(data));
+}
+
+async function handleRefresh() {
+  refreshing.value = true;
+  const res = await getMapData();
+  if (res.code === 0 && res.data) {
+    const data = res.data as { gateways: Gateway[]; meters: Meter[] };
+    gateways.value = data.gateways;
+    meters.value   = data.meters;
+    const mSrc = map?.getSource("meters-src") as any;
+    const gSrc = map?.getSource("gateways-src") as any;
+    mSrc?.setData({ type: "FeatureCollection", features: buildMeterFeatures(data.meters) });
+    gSrc?.setData({ type: "FeatureCollection", features: data.gateways.map(g => ({ type: "Feature" as const, geometry: { type: "Point" as const, coordinates: [g.lng, g.lat] }, properties: { ...g } })) });
+    treeComp.value?.loadTree();
+  }
+  refreshing.value = false;
 }
 
 onMounted(() => init());
@@ -239,398 +236,397 @@ onUnmounted(() => map?.remove());
 </script>
 
 <template>
-  <div class="map-page">
-    <div ref="mapEl" class="map-canvas" v-loading="loading" />
+  <div class="main">
 
-    <!-- STATS BAR -->
-    <div class="stats-bar">
-      <span class="si"><span class="sd online" />{{ stats.mOnline }} online</span>
-      <span class="sdv" />
-      <span class="si"><span class="sd offline" />{{ stats.mOffline }} offline</span>
-      <span class="sdv" />
-      <span class="si"><span class="sd broken" />{{ stats.mBroken }} hỏng</span>
-      <span class="sdv" />
-      <span class="si-total">Tổng <b>{{ stats.total }}</b> đồng hồ</span>
+    <!-- ── STATS BAR ──────────────────────────────────────────────────── -->
+    <div class="stats-bar bg-bg_color">
+      <!-- Tổng -->
+      <div class="kpi-card">
+        <span class="kpi-icon" style="background:#eff6ff">
+          <IconifyIconOnline icon="ri:drop-fill" color="#3b82f6" width="14" />
+        </span>
+        <div class="kpi-body">
+          <span class="kpi-label">Tổng đồng hồ</span>
+          <span class="kpi-val">{{ stats.total }}</span>
+        </div>
+      </div>
+      <div class="stat-sep" />
+      <!-- Online -->
+      <div class="kpi-card">
+        <span class="kpi-icon" style="background:#f0fdf4">
+          <span class="kpi-dot" style="background:#22c55e" />
+        </span>
+        <div class="kpi-body">
+          <span class="kpi-label">Online</span>
+          <span class="kpi-val text-green-500">{{ stats.mOnline }} <em>{{ stats.onlinePct }}%</em></span>
+        </div>
+      </div>
+      <!-- Offline -->
+      <div class="kpi-card">
+        <span class="kpi-icon" style="background:#fff7ed">
+          <span class="kpi-dot" style="background:#f97316" />
+        </span>
+        <div class="kpi-body">
+          <span class="kpi-label">Offline</span>
+          <span class="kpi-val text-orange-400">{{ stats.mOffline }}</span>
+        </div>
+      </div>
+      <!-- Hỏng -->
+      <div class="kpi-card">
+        <span class="kpi-icon" style="background:#fef2f2">
+          <span class="kpi-dot" style="background:#ef4444" />
+        </span>
+        <div class="kpi-body">
+          <span class="kpi-label">Hỏng</span>
+          <span class="kpi-val text-red-500">{{ stats.mBroken }}</span>
+        </div>
+      </div>
+      <!-- Không HĐ -->
+      <div class="kpi-card">
+        <span class="kpi-icon" style="background:#f9fafb">
+          <span class="kpi-dot" style="background:#9ca3af" />
+        </span>
+        <div class="kpi-body">
+          <span class="kpi-label">Không HĐ</span>
+          <span class="kpi-val text-gray-400">{{ stats.mInactive }}</span>
+        </div>
+      </div>
+      <div class="stat-sep" />
+      <!-- Gateway -->
+      <div class="kpi-card">
+        <span class="kpi-icon" style="background:#fffbeb">
+          <IconifyIconOnline icon="ri:router-line" color="#f59e0b" width="14" />
+        </span>
+        <div class="kpi-body">
+          <span class="kpi-label">Gateway online</span>
+          <span class="kpi-val">
+            <span class="text-amber-500">{{ stats.gwOnline }}</span>
+            <span class="kpi-total">/{{ stats.gwTotal }}</span>
+          </span>
+        </div>
+      </div>
+      <div class="stat-sep" />
+      <!-- Progress -->
+      <div class="kpi-card" style="gap:8px">
+        <div class="kpi-body">
+          <span class="kpi-label">Tỉ lệ online</span>
+          <div class="flex items-center gap-2 mt-1">
+            <el-progress
+              :percentage="stats.onlinePct"
+              :color="stats.onlinePct>=80?'#22c55e':stats.onlinePct>=50?'#f97316':'#ef4444'"
+              :show-text="false" :stroke-width="5" style="width:72px;flex-shrink:0"
+            />
+            <span class="text-xs font-semibold"
+              :class="stats.onlinePct>=80?'text-green-500':stats.onlinePct>=50?'text-orange-400':'text-red-500'">
+              {{ stats.onlinePct }}%
+            </span>
+          </div>
+        </div>
+      </div>
+      <!-- Actions -->
+      <div class="ml-auto flex items-center gap-1.5 pr-1">
+        <el-tooltip content="Zoom toàn bộ" placement="bottom">
+          <el-button size="small" circle @click="fitAll">
+            <IconifyIconOnline icon="ri:fullscreen-line" width="13" />
+          </el-button>
+        </el-tooltip>
+        <el-tooltip content="Làm mới" placement="bottom">
+          <el-button size="small" circle :loading="refreshing" @click="handleRefresh">
+            <IconifyIconOffline v-if="!refreshing" :icon="Refresh" width="13" />
+          </el-button>
+        </el-tooltip>
+      </div>
     </div>
 
-    <!-- LEFT PANEL -->
-    <transition name="slide-left">
-      <div v-show="panelOpen" class="left-panel">
+    <!-- ── MAIN ROW: MAP + PANEL ──────────────────────────────────────── -->
+    <div class="flex">
 
-        <div class="panel-hd">
-          <div class="panel-hd-left">
-            <span class="panel-icon">💧</span>
-            <span class="panel-title">Vùng Đồng hồ</span>
-          </div>
-          <button class="hd-btn" @click="panelOpen = false">
-            <IconifyIconOnline icon="ri:layout-left-line" width="14" />
-          </button>
-        </div>
+      <!-- MAP AREA -->
+      <div
+        class="map-wrap flex-1"
+        style="transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1)"
+      >
+        <div ref="mapEl" class="map-canvas" v-loading="loading" />
 
-        <div class="panel-search">
-          <el-input v-model="searchKw" placeholder="Tìm tên vùng..." clearable size="small">
-            <template #prefix><IconifyIconOnline icon="ri:search-line" width="13" color="#475569" /></template>
-          </el-input>
-        </div>
+        <!-- Nút mở panel -->
+        <button v-if="!panelOpen" class="open-panel-btn" @click="panelOpen = true">
+          <IconifyIconOnline icon="ri:layout-right-line" color="#41b6ff" width="14" class="mr-1" />
+          Vùng / ĐH
+        </button>
 
-        <!-- Layer toggles -->
+        <!-- Layer toggles overlay -->
         <div class="layer-bar">
-          <label class="lyr"><el-checkbox v-model="layers.online"   size="small" /><span class="lyd" style="background:#22c55e"/>Online<span class="lyc">{{ stats.mOnline }}</span></label>
-          <label class="lyr"><el-checkbox v-model="layers.offline"  size="small" /><span class="lyd" style="background:#f97316"/>Offline<span class="lyc">{{ stats.mOffline }}</span></label>
-          <label class="lyr"><el-checkbox v-model="layers.inactive" size="small" /><span class="lyd" style="background:#ef4444"/>Hỏng<span class="lyc">{{ stats.mBroken + stats.mInactive }}</span></label>
+          <label :class="['ly-pill', layers.online  && 'ly-pill--on']" @click="layers.online  = !layers.online">
+            <span class="ly-dot" style="background:#22c55e" />Online
+            <span class="ly-cnt">{{ stats.mOnline }}</span>
+          </label>
+          <label :class="['ly-pill', layers.offline && 'ly-pill--on']" @click="layers.offline = !layers.offline">
+            <span class="ly-dot" style="background:#f97316" />Offline
+            <span class="ly-cnt">{{ stats.mOffline }}</span>
+          </label>
+          <label :class="['ly-pill', layers.inactive && 'ly-pill--on']" @click="layers.inactive = !layers.inactive">
+            <span class="ly-dot" style="background:#ef4444" />Hỏng
+            <span class="ly-cnt">{{ stats.mBroken }}</span>
+          </label>
+          <label :class="['ly-pill', layers.gateway && 'ly-pill--on']" @click="layers.gateway = !layers.gateway">
+            <span class="ly-dot" style="background:#f59e0b" />Gateway
+            <span class="ly-cnt">{{ stats.gwTotal }}</span>
+          </label>
         </div>
 
-        <!-- Zone tree -->
-        <div class="tree-area">
-          <el-scrollbar class="tree-scroll">
-            <!-- Tất cả -->
-            <div :class="['zone-row','root-row', selectedRegId === null && 'is-active']" @click="selectZone(null)">
-              <IconifyIconOnline icon="ri:earth-line" width="13" class="earth-icon" />
-              <span class="zone-name">Tất cả khu vực</span>
-              <span class="zone-cnt">{{ meters.length }}</span>
+        <!-- Legend -->
+        <div class="legend-box">
+          <div class="leg-row"><span class="lg" style="background:#22c55e" />Online</div>
+          <div class="leg-row"><span class="lg" style="background:#f97316" />Offline</div>
+          <div class="leg-row"><span class="lg" style="background:#ef4444" />Hỏng/Không HĐ</div>
+          <div class="leg-row"><span class="lg" style="background:#f59e0b;width:12px;height:12px" />Gateway</div>
+          <div class="leg-row"><span class="lg" style="background:#41b6ff;width:17px;height:17px;opacity:.85" />Cụm ĐH</div>
+        </div>
+
+        <!-- Info float -->
+        <transition name="info-fade">
+          <div v-if="showInfo && infoSel" class="info-float">
+            <div class="info-float-hd">
+              <div class="flex items-center gap-2">
+                <span class="info-icon-badge" :style="infoSel.type==='gateway' ? 'background:#fffbeb' : 'background:#eff6ff'">
+                  <IconifyIconOnline
+                    :icon="infoSel.type==='gateway'?'ri:router-line':'ri:drop-line'"
+                    :color="infoSel.type==='gateway'?'#f59e0b':'#3b82f6'" width="14" />
+                </span>
+                <div>
+                  <p class="text-xs font-semibold leading-tight">{{ infoSel.type==="gateway" ? "Gateway" : "Đồng hồ nước" }}</p>
+                  <p class="text-[10px] text-[var(--el-text-color-placeholder)] leading-tight">
+                    {{ infoSel.type==="gateway" ? "Thiết bị thu phát" : "Đồng hồ đo nước" }}
+                  </p>
+                </div>
+              </div>
+              <span :class="iconClass">
+                <IconifyIconOffline :icon="Close" width="14" height="14" @click="showInfo=false" />
+              </span>
             </div>
+            <el-scrollbar max-height="400px">
+              <div class="px-3 pb-3">
 
-            <template v-for="node in regionTree" :key="node.id">
-              <ZoneNode
-                v-if="nodeMatchesSearch(node)"
-                :node="node" :depth="0"
-                :expanded="expandedReg"
-                :selected-id="selectedRegId"
-                :node-count="nodeCount"
-                :zone-color="zoneColor"
-                :meters-by-region="metersByRegion"
-                :meter-status-color="meterStatusColor"
-                @select="selectZone"
-                @select-meter="flyToMeter"
-                @toggle="(id: number) => expandedReg.has(id) ? expandedReg.delete(id) : expandedReg.add(id)"
-              />
-            </template>
-          </el-scrollbar>
-        </div>
+                <!-- Gateway info -->
+                <template v-if="infoSel.type==='gateway'">
+                  <div class="icode">{{ infoSel.data.gatewayNo }}</div>
+                  <el-tag :type="infoSel.data.online?'success':'info'" size="small" class="mb-3">
+                    {{ infoSel.data.online ? "● Online" : "○ Offline" }}
+                  </el-tag>
+                  <div class="igrid">
+                    <div class="ifield"><span class="il">Đồng hồ</span><span class="iv">{{ infoSel.data.meterCount }}</span></div>
+                    <div class="ifield"><span class="il">Tín hiệu TB</span><span class="iv">{{ infoSel.data.avgSignal }}%</span></div>
+                    <div class="ifield full"><span class="il">Ping cuối</span><span class="iv">{{ fmtTime(infoSel.data.lastPing) }}</span></div>
+                    <div class="ifield full"><span class="il">Cách đây</span><span class="iv text-orange-500">{{ ago(infoSel.data.lastPing) }}</span></div>
+                  </div>
+                  <div class="mt-3">
+                    <div class="progress-label"><span>Cường độ tín hiệu</span><span>{{ infoSel.data.avgSignal }}%</span></div>
+                    <el-progress :percentage="infoSel.data.avgSignal" :color="infoSel.data.avgSignal>70?'#22c55e':infoSel.data.avgSignal>40?'#f97316':'#ef4444'" :show-text="false" :stroke-width="5" />
+                  </div>
+                  <div v-if="metersOfGw(infoSel.data.gatewayNo).length" class="mt-3">
+                    <p class="sub-label">Đồng hồ thuộc gateway</p>
+                    <div v-for="m in metersOfGw(infoSel.data.gatewayNo).slice(0,8)" :key="m.meterNo" class="sub-meter-row" @click="flyToMeter(m)">
+                      <span class="s-dot" :style="{background: meterStatusColor(m)}" />
+                      <span class="s-no">{{ m.meterNo }}</span>
+                      <el-tag :type="stateTag(m)" size="small">{{ meterStatusLabel(m) }}</el-tag>
+                    </div>
+                    <p v-if="metersOfGw(infoSel.data.gatewayNo).length>8" class="text-[10px] text-[var(--el-text-color-placeholder)] mt-1 text-right">
+                      +{{ metersOfGw(infoSel.data.gatewayNo).length-8 }} đồng hồ khác
+                    </p>
+                  </div>
+                </template>
 
-      </div>
-    </transition>
+                <!-- Meter info -->
+                <template v-else-if="infoSel.type==='meter'">
+                  <div class="icode">{{ infoSel.data.meterNo }}</div>
+                  <div class="iname">{{ infoSel.data.meterName || "—" }}</div>
+                  <el-tag :type="stateTag(infoSel.data)" size="small" class="mb-3">{{ meterStatusLabel(infoSel.data) }}</el-tag>
+                  <div class="igrid">
+                    <div class="ifield full"><span class="il">Vùng</span><span class="iv">{{ infoSel.data.regionName || "Chưa phân vùng" }}</span></div>
+                    <div class="ifield full"><span class="il">Mã khách hàng</span><span class="iv">{{ infoSel.data.customerCode || "—" }}</span></div>
+                    <div class="ifield full"><span class="il">Địa chỉ</span><span class="iv" style="color:var(--el-text-color-secondary)">{{ infoSel.data.address || "—" }}</span></div>
+                    <div class="ifield full"><span class="il">Dữ liệu cuối</span><span class="iv">{{ fmtTime(infoSel.data.lastDataTime) }}</span></div>
+                    <div class="ifield full"><span class="il">Cách đây</span>
+                      <span class="iv" :class="infoSel.data.online?'text-green-500':'text-orange-500'">{{ ago(infoSel.data.lastDataTime) }}</span>
+                    </div>
+                  </div>
+                  <template v-if="infoSel.data.signal!=null||infoSel.data.remainBattery!=null">
+                    <div v-if="infoSel.data.signal!=null" class="mt-2">
+                      <div class="progress-label"><span>Tín hiệu</span><span>{{ infoSel.data.signal }}%</span></div>
+                      <el-progress :percentage="Number(infoSel.data.signal)" :color="Number(infoSel.data.signal)>70?'#22c55e':Number(infoSel.data.signal)>40?'#f97316':'#ef4444'" :show-text="false" :stroke-width="5" />
+                    </div>
+                    <div v-if="infoSel.data.remainBattery!=null" class="mt-2">
+                      <div class="progress-label"><span>Pin</span><span>{{ infoSel.data.remainBattery }}%</span></div>
+                      <el-progress :percentage="Number(infoSel.data.remainBattery)" :color="Number(infoSel.data.remainBattery)>50?'#22c55e':Number(infoSel.data.remainBattery)>20?'#f97316':'#ef4444'" :show-text="false" :stroke-width="5" />
+                    </div>
+                  </template>
+                  <div class="mt-3 flex gap-2">
+                    <el-button size="small" type="primary" plain
+                      @click="() => $router.push({ path:'/analysis/data', query:{ meterNo: infoSel!.data.meterNo } })">
+                      <IconifyIconOnline icon="ri:line-chart-line" width="13" class="mr-1" />Xem dữ liệu
+                    </el-button>
+                    <el-button size="small" plain @click="showInfo=false">Đóng</el-button>
+                  </div>
+                </template>
 
-    <button v-if="!panelOpen" class="reopen-btn" @click="panelOpen = true">
-      <IconifyIconOnline icon="ri:layout-right-line" color="#fff" width="17" />
-    </button>
-
-    <!-- INFO DRAWER -->
-    <transition name="slide-right">
-      <div v-if="showInfo && selected" class="info-drawer">
-        <div class="info-hd">
-          <div class="flex items-center gap-2">
-            <IconifyIconOnline :icon="selected.type === 'gateway' ? 'ri:router-line' : 'ri:drop-line'" :color="selected.type === 'gateway' ? '#f59e0b' : '#41b6ff'" width="17" />
-            <span class="info-hd-title">{{ selected.type === "gateway" ? "Thông tin Gateway" : "Thông tin Đồng hồ" }}</span>
+              </div>
+            </el-scrollbar>
           </div>
-          <button class="close-btn" @click="showInfo = false">✕</button>
-        </div>
-
-        <el-scrollbar class="info-scroll">
-          <template v-if="selected.type === 'gateway'">
-            <div class="info-body">
-              <div class="icode">{{ selected.data.gatewayNo }}</div>
-              <el-tag :type="selected.data.online ? 'success' : 'info'" size="small" class="mb-3">{{ selected.data.online ? '● Online' : '○ Offline' }}</el-tag>
-              <div class="igrid">
-                <div class="ifield"><span class="il">Số ĐH</span><span class="iv">{{ selected.data.meterCount }}</span></div>
-                <div class="ifield"><span class="il">Tín hiệu</span><span class="iv">{{ selected.data.avgSignal }}%</span></div>
-                <div class="ifield full"><span class="il">Ping cuối</span><span class="iv">{{ fmtTime(selected.data.lastPing) }}</span></div>
-                <div class="ifield full"><span class="il">Cách đây</span><span class="iv" style="color:#f97316">{{ ago(selected.data.lastPing) }}</span></div>
-              </div>
-              <div class="mt-3">
-                <div class="progress-label"><span>Tín hiệu</span><span>{{ selected.data.avgSignal }}%</span></div>
-                <el-progress :percentage="selected.data.avgSignal" :color="selected.data.avgSignal > 70 ? '#22c55e' : selected.data.avgSignal > 40 ? '#f97316' : '#ef4444'" :show-text="false" :stroke-width="6" />
-              </div>
-              <div class="mt-4">
-                <p class="sub-label">ĐỒNG HỒ THUỘC GATEWAY</p>
-                <div v-for="m in metersOfGw(selected.data.gatewayNo).slice(0,10)" :key="m.meterNo" class="sub-meter-row" @click="flyToMeter(m)">
-                  <span class="s-dot" :style="{background: meterStatusColor(m)}" />
-                  <span class="s-no">{{ m.meterNo }}</span>
-                  <el-tag :type="stateTag(m)" size="small">{{ meterStatusLabel(m) }}</el-tag>
-                </div>
-              </div>
-            </div>
-          </template>
-
-          <template v-else-if="selected.type === 'meter'">
-            <div class="info-body">
-              <div class="icode">{{ selected.data.meterNo }}</div>
-              <div class="iname">{{ selected.data.meterName || "—" }}</div>
-              <el-tag :type="stateTag(selected.data)" size="small" class="mb-3">{{ meterStatusLabel(selected.data) }}</el-tag>
-              <div class="igrid">
-                <div class="ifield full">
-                  <span class="il">Vùng</span>
-                  <span class="iv" :style="{color: zoneColor(selected.data.regionId)}">{{ selected.data.regionName || "Chưa phân vùng" }}</span>
-                </div>
-                <div class="ifield full"><span class="il">Khách hàng</span><span class="iv">{{ selected.data.customerCode || "—" }}</span></div>
-                <div class="ifield full"><span class="il">Địa chỉ</span><span class="iv" style="color:#94a3b8">{{ selected.data.address || "—" }}</span></div>
-                <div class="ifield full"><span class="il">Dữ liệu cuối</span><span class="iv">{{ fmtTime(selected.data.lastDataTime) }}</span></div>
-                <div class="ifield full"><span class="il">Cách đây</span><span class="iv" :class="selected.data.online ? 'text-green-400' : 'text-orange-400'">{{ ago(selected.data.lastDataTime) }}</span></div>
-              </div>
-              <div class="mt-3" v-if="selected.data.signal != null || selected.data.remainBattery != null">
-                <div v-if="selected.data.signal != null">
-                  <div class="progress-label"><span>Tín hiệu</span><span>{{ selected.data.signal }}%</span></div>
-                  <el-progress :percentage="Number(selected.data.signal)" :color="Number(selected.data.signal)>70?'#22c55e':Number(selected.data.signal)>40?'#f97316':'#ef4444'" :show-text="false" :stroke-width="6" />
-                </div>
-                <div v-if="selected.data.remainBattery != null" class="mt-2">
-                  <div class="progress-label"><span>Pin</span><span>{{ selected.data.remainBattery }}%</span></div>
-                  <el-progress :percentage="Number(selected.data.remainBattery)" :color="Number(selected.data.remainBattery)>50?'#22c55e':Number(selected.data.remainBattery)>20?'#f97316':'#ef4444'" :show-text="false" :stroke-width="6" />
-                </div>
-              </div>
-              <div class="mt-4 flex gap-2">
-                <el-button size="small" type="primary" plain @click="() => $router.push({ path: '/analysis/data', query: { meterNo: selected!.data.meterNo } })">
-                  <IconifyIconOnline icon="ri:line-chart-line" width="13" class="mr-1" />Xem dữ liệu
-                </el-button>
-              </div>
-            </div>
-          </template>
-        </el-scrollbar>
+        </transition>
       </div>
-    </transition>
 
-    <!-- LEGEND -->
-    <div class="legend-box">
-      <div class="leg-row"><span class="lg" style="background:#22c55e"/>Online</div>
-      <div class="leg-row"><span class="lg" style="background:#f97316"/>Offline</div>
-      <div class="leg-row"><span class="lg" style="background:#ef4444"/>Hỏng</div>
-      <div class="leg-row"><span class="lg" style="background:#f59e0b;width:14px;height:14px"/>Gateway</div>
-      <div class="leg-row"><span class="lg" style="background:#41b6ff;width:20px;height:20px;opacity:.75"/>Cụm</div>
+      <!-- ZONE PANEL -->
+      <div
+        v-if="panelOpen"
+        class="w-[280px]! flex-shrink-0 mt-2 px-2 pb-2 bg-bg_color ml-2 overflow-auto"
+      >
+        <div class="flex justify-between w-full px-3 pt-5 pb-3">
+          <div class="flex">
+            <span :class="iconClass">
+              <IconifyIconOffline class="dark:text-white" width="18px" height="18px" :icon="Close" @click="panelOpen=false" />
+            </span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <IconifyIconOnline icon="ri:map-2-line" color="#41b6ff" width="14" />
+            <p class="font-bold text-sm truncate">Vùng / Đồng hồ</p>
+            <span class="panel-badge">{{ stats.total }}</span>
+          </div>
+        </div>
+        <div class="panel-divider" />
+
+        <ZoneMeterTree
+          ref="treeComp"
+          title="Chọn vùng / đồng hồ"
+          height="calc(100vh - 220px)"
+          @select="onZoneSelect"
+        />
+      </div>
+
     </div>
   </div>
 </template>
 
 <style lang="scss" scoped>
-.map-page { position:relative; width:100%; height:calc(100vh - 86px); overflow:hidden; background:#0f172a; }
-.map-canvas { position:absolute; inset:0; :deep(.el-loading-mask){background:rgba(0,0,0,.55)} }
-
-/* Stats bar */
+/* ── Stats bar ── */
 .stats-bar {
-  position:absolute; top:12px; left:50%; transform:translateX(-50%);
-  z-index:10; display:flex; align-items:center; gap:12px;
-  background:rgba(10,17,32,.92); backdrop-filter:blur(12px);
-  border:1px solid rgba(255,255,255,.08); border-radius:20px;
-  padding:7px 20px; font-size:.73rem; color:#94a3b8; white-space:nowrap;
-  box-shadow:0 4px 20px rgba(0,0,0,.5);
+  display: flex; align-items: center; flex-wrap: wrap;
+  padding: 0 8px;
+  height: 52px;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
 }
-.si { display:flex; align-items:center; gap:5px; }
-.si-total { color:#64748b; b { color:#cbd5e1; } }
-.sd { width:8px; height:8px; border-radius:50%; flex-shrink:0;
-  &.online { background:#22c55e; } &.offline { background:#f97316; } &.broken { background:#ef4444; } }
-.sdv { width:1px; height:12px; background:rgba(255,255,255,.1); }
+.kpi-card {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px; height: 100%;
+  border-radius: 6px; transition: background .12s;
+  &:hover { background: var(--el-fill-color-light); }
+}
+.kpi-icon {
+  width: 28px; height: 28px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.kpi-dot  { width: 9px; height: 9px; border-radius: 50%; }
+.kpi-body { display: flex; flex-direction: column; gap: 1px; }
+.kpi-label { font-size: .63rem; color: var(--el-text-color-secondary); white-space: nowrap; }
+.kpi-val   { font-size: .82rem; font-weight: 700; color: var(--el-text-color-primary); line-height: 1;
+  em { font-size: .65rem; font-style: normal; font-weight: 500; color: var(--el-text-color-placeholder); margin-left: 3px; } }
+.kpi-total { font-size: .72rem; font-weight: 400; color: var(--el-text-color-placeholder); }
+.stat-sep  { width: 1px; height: 28px; background: var(--el-border-color-light); flex-shrink: 0; }
 
-/* Left panel */
-.left-panel {
-  position:absolute; top:0; left:0; bottom:0; width:272px; z-index:20;
-  background:#0d1521; border-right:1px solid rgba(255,255,255,.06);
-  display:flex; flex-direction:column;
-  box-shadow:6px 0 32px rgba(0,0,0,.6);
+/* ── Map area ── */
+.map-wrap {
+  position: relative;
+  height: calc(100vh - 150px);
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--el-border-color-lighter);
+  margin-top: 8px;
+}
+.map-canvas { position: absolute; inset: 0; }
+
+/* Open panel button */
+.open-panel-btn {
+  position: absolute; top: 12px; left: 12px; z-index: 10;
+  display: flex; align-items: center;
+  background: var(--el-bg-color); border: 1px solid var(--el-border-color);
+  border-radius: 20px; padding: 5px 12px;
+  font-size: .72rem; color: var(--el-text-color-regular);
+  cursor: pointer; box-shadow: var(--el-box-shadow-light);
+  &:hover { background: var(--el-fill-color); }
 }
 
-.panel-hd {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:15px 14px 13px;
-  border-bottom:1px solid rgba(255,255,255,.05);
-  flex-shrink:0;
-}
-.panel-hd-left { display:flex; align-items:center; gap:8px; }
-.panel-icon { font-size:16px; line-height:1; }
-.panel-title { font-size:.84rem; font-weight:700; color:#e2e8f0; letter-spacing:.01em; }
-.hd-btn {
-  width:28px; height:28px; border-radius:6px; border:none; cursor:pointer;
-  background:rgba(255,255,255,.04); color:#475569; display:flex; align-items:center; justify-content:center;
-  &:hover { background:rgba(255,255,255,.09); color:#94a3b8; }
-}
-
-.panel-search {
-  padding:10px 12px 8px; border-bottom:1px solid rgba(255,255,255,.04); flex-shrink:0;
-  :deep(.el-input__wrapper) { background:rgba(255,255,255,.05); border-color:rgba(255,255,255,.08); border-radius:8px; }
-  :deep(.el-input__inner) { color:#e2e8f0; font-size:.77rem; }
-}
-
+/* Layer pill toggles (top-center of map) */
 .layer-bar {
-  padding:8px 14px 10px; border-bottom:1px solid rgba(255,255,255,.04); flex-shrink:0;
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10;
+  display: flex; align-items: center; gap: 4px;
+  background: var(--el-bg-color); border: 1px solid var(--el-border-color-lighter);
+  border-radius: 20px; padding: 4px 6px; box-shadow: var(--el-box-shadow-light);
 }
-.lyr {
-  display:flex; align-items:center; gap:7px; padding:3px 0;
-  font-size:.73rem; color:#64748b; cursor:default;
-  .lyc { margin-left:auto; font-size:.65rem; color:#334155;
-    background:rgba(255,255,255,.04); border-radius:8px; padding:1px 6px; }
+.ly-pill {
+  display: flex; align-items: center; gap: 5px;
+  font-size: .69rem; color: var(--el-text-color-placeholder);
+  cursor: pointer; padding: 3px 9px; border-radius: 14px;
+  border: 1px solid transparent; transition: all .15s;
+  opacity: .55;
+  &:hover { background: var(--el-fill-color); opacity: .8; }
+  &--on { background: var(--el-fill-color); border-color: var(--el-border-color); color: var(--el-text-color-regular); opacity: 1; }
 }
-.lyd { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-
-/* Zone tree */
-.tree-area { flex:1; overflow:hidden; display:flex; flex-direction:column; padding-top:6px; }
-.tree-scroll { flex:1; }
-
-.zone-row {
-  display:flex; align-items:center; gap:0; height:36px;
-  padding-right:12px; cursor:pointer; user-select:none;
-  border-left:3px solid transparent;
-  transition:background .12s, border-color .12s;
-  &:hover { background:rgba(255,255,255,.03); }
-  &.is-active {
-    background:rgba(65,182,255,.08);
-    border-left-color:#41b6ff;
-    .zone-name { color:#7dd3fc; font-weight:600; }
-    .zone-cnt { color:#3b82f6; background:rgba(59,130,246,.15); }
-  }
-  &.root-row {
-    height:38px; border-bottom:1px solid rgba(255,255,255,.04); margin-bottom:4px;
-    .earth-icon { margin-left:13px; margin-right:8px; color:#475569; }
-    .zone-name { font-weight:600; font-size:.78rem; }
-  }
-}
-.zone-name { flex:1; font-size:.75rem; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.zone-cnt  { font-size:.64rem; color:#475569; background:rgba(255,255,255,.05); border-radius:9px; padding:1px 7px; flex-shrink:0; }
-
-/* Meter rows in tree */
-.meter-row {
-  display:flex; align-items:center; gap:6px; height:30px;
-  padding-right:12px; cursor:pointer;
-  border-left:3px solid transparent;
-  transition:background .1s;
-  &:hover { background:rgba(255,255,255,.04); }
-  .m-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
-  .m-no  { font-size:.71rem; color:#64748b; white-space:nowrap; flex-shrink:0; }
-  .m-name{ font-size:.69rem; color:#475569; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-}
-
-/* Reopen button */
-.reopen-btn {
-  position:absolute; top:50%; left:8px; transform:translateY(-50%);
-  z-index:21; width:32px; height:32px; border-radius:8px;
-  background:rgba(10,17,32,.9); border:1px solid rgba(255,255,255,.1);
-  cursor:pointer; display:flex; align-items:center; justify-content:center;
-  &:hover { background:rgba(65,182,255,.2); }
-}
-
-/* Info drawer */
-.info-drawer {
-  position:absolute; top:0; right:0; bottom:0; width:296px; z-index:20;
-  background:#0d1521; border-left:1px solid rgba(255,255,255,.06);
-  display:flex; flex-direction:column; box-shadow:-6px 0 28px rgba(0,0,0,.5);
-}
-.info-hd { display:flex; align-items:center; justify-content:space-between; padding:14px 14px 12px; border-bottom:1px solid rgba(255,255,255,.06); flex-shrink:0; }
-.info-hd-title { font-size:.82rem; font-weight:600; color:#f1f5f9; }
-.close-btn { color:#475569; background:none; border:none; cursor:pointer; font-size:13px; width:26px; height:26px; border-radius:5px; display:flex; align-items:center; justify-content:center; &:hover{color:#e2e8f0;background:rgba(255,255,255,.07)} }
-.info-scroll { flex:1; }
-.info-body { padding:16px; }
-.icode  { font-size:1.05rem; font-weight:700; color:#f1f5f9; margin-bottom:3px; }
-.iname  { font-size:.75rem; color:#475569; margin-bottom:10px; }
-.igrid  { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
-.ifield { display:flex; flex-direction:column; gap:3px; &.full{grid-column:1/-1} }
-.il { font-size:.61rem; color:#334155; text-transform:uppercase; letter-spacing:.07em; }
-.iv { font-size:.78rem; color:#e2e8f0; }
-.progress-label { display:flex; justify-content:space-between; font-size:.7rem; color:#475569; margin-bottom:4px; }
-.sub-label { font-size:.62rem; color:#334155; font-weight:700; letter-spacing:.07em; margin-bottom:8px; }
-.sub-meter-row { display:flex; align-items:center; gap:7px; padding:6px 8px; border-radius:6px; cursor:pointer; background:rgba(255,255,255,.03); margin-bottom:4px; &:hover{background:rgba(65,182,255,.08)} }
-.s-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
-.s-no  { font-size:.72rem; color:#94a3b8; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ly-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ly-cnt { font-size: .63rem; background: var(--el-fill-color-darker); border-radius: 8px; padding: 0 5px; color: var(--el-text-color-secondary); }
+.ly-pill--on .ly-cnt { background: var(--el-fill-color-extra-light); }
 
 /* Legend */
-.legend-box { position:absolute; bottom:30px; left:284px; z-index:10; background:rgba(10,17,32,.88); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,.07); border-radius:9px; padding:10px 13px; box-shadow:0 4px 16px rgba(0,0,0,.4); }
-.leg-row { display:flex; align-items:center; gap:7px; font-size:.71rem; color:#64748b; margin-bottom:5px; &:last-child{margin-bottom:0} }
-.lg { width:10px; height:10px; border-radius:50%; flex-shrink:0; display:inline-block; }
+.legend-box {
+  position: absolute; bottom: 24px; left: 12px; z-index: 10;
+  background: var(--el-bg-color); border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px; padding: 8px 12px; box-shadow: var(--el-box-shadow-light);
+}
+.leg-row { display: flex; align-items: center; gap: 6px; font-size: .69rem; color: var(--el-text-color-secondary); margin-bottom: 4px; &:last-child { margin-bottom: 0; } }
+.lg { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+
+/* Floating info panel */
+.info-float {
+  position: absolute; top: 12px; right: 12px; z-index: 20;
+  width: 292px; max-height: calc(100% - 24px);
+  background: var(--el-bg-color); border: 1px solid var(--el-border-color-lighter);
+  border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.info-float-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+  flex-shrink: 0;
+}
+.info-icon-badge {
+  width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.icode  { font-size: .95rem; font-weight: 700; color: var(--el-text-color-primary); margin: 10px 0 2px; }
+.iname  { font-size: .72rem; color: var(--el-text-color-secondary); margin-bottom: 8px; }
+.igrid  { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.ifield { display: flex; flex-direction: column; gap: 2px; &.full { grid-column: 1 / -1; } }
+.il { font-size: .58rem; color: var(--el-text-color-placeholder); text-transform: uppercase; letter-spacing: .05em; }
+.iv { font-size: .78rem; color: var(--el-text-color-primary); }
+.progress-label { display: flex; justify-content: space-between; font-size: .69rem; color: var(--el-text-color-secondary); margin-bottom: 4px; }
+.sub-label { font-size: .58rem; color: var(--el-text-color-placeholder); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; margin-top: 14px; }
+.sub-meter-row { display: flex; align-items: center; gap: 7px; padding: 5px 8px; border-radius: 7px; cursor: pointer; background: var(--el-fill-color-light); margin-bottom: 3px; transition: background .1s; &:hover { background: var(--el-color-primary-light-9); } }
+.s-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.s-no  { font-size: .71rem; color: var(--el-text-color-regular); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Zone panel */
+.panel-badge {
+  font-size: .62rem; font-weight: 600; padding: 1px 7px; border-radius: 10px;
+  background: var(--el-color-primary-light-9); color: var(--el-color-primary);
+}
+.panel-divider {
+  height: 1px; background: var(--el-border-color-extra-light); margin: 0 12px 8px;
+}
 
 /* Transitions */
-.slide-left-enter-active,.slide-left-leave-active   { transition:transform .22s ease; }
-.slide-left-enter-from,.slide-left-leave-to         { transform:translateX(-100%); }
-.slide-right-enter-active,.slide-right-leave-active { transition:transform .22s ease; }
-.slide-right-enter-from,.slide-right-leave-to       { transform:translateX(100%); }
+.info-fade-enter-active, .info-fade-leave-active { transition: opacity .2s ease, transform .2s ease; }
+.info-fade-enter-from, .info-fade-leave-to { opacity: 0; transform: translateY(-8px) scale(.98); }
 
-:deep(.maplibregl-ctrl-top-right),
-:deep(.maplibregl-ctrl-bottom-right) { right:308px !important; }
-:deep(.maplibregl-ctrl-bottom-left)  { display:none; }
+:deep(.maplibregl-ctrl-top-right)    { top: 12px; right: 12px; }
+:deep(.maplibregl-ctrl-bottom-right) { bottom: 24px; right: 12px; }
+:deep(.maplibregl-ctrl-bottom-left)  { display: none; }
 </style>
-
-<!-- ─── ZoneNode component ─────────────────────────────────────────────────── -->
-<script lang="ts">
-import { defineComponent, h } from "vue";
-
-const ZoneNode = defineComponent({
-  name: "ZoneNode",
-  props: {
-    node:             { type: Object,   required: true },
-    depth:            { type: Number,   default: 0 },
-    expanded:         { type: Object,   required: true },
-    selectedId:       { type: Number,   default: null },
-    nodeCount:        { type: Function, required: true },
-    zoneColor:        { type: Function, required: true },
-    metersByRegion:   { type: Object,   required: true },
-    meterStatusColor: { type: Function, required: true }
-  },
-  emits: ["select", "toggle", "select-meter"],
-  setup(props, { emit }) {
-    return () => {
-      const directMeters: any[] = (props.metersByRegion as any)[props.node.id] ?? [];
-      const hasChildren = (props.node.children || []).length > 0;
-      const hasContent  = hasChildren || directMeters.length > 0;
-      const isOpen      = (props.expanded as Set<number>).has(props.node.id);
-      const isActive    = props.selectedId === props.node.id;
-      const count       = props.nodeCount(props.node);
-      const color       = props.zoneColor(props.node.id) as string;
-      const baseIndent  = 14 + props.depth * 16;
-
-      // Arrow / bullet
-      const arrow = hasContent
-        ? h("span", {
-            style: `width:18px;flex-shrink:0;text-align:center;font-size:10px;color:#334155;cursor:pointer;padding-left:${baseIndent}px`,
-            onClick: (e: Event) => { e.stopPropagation(); emit("toggle", props.node.id); }
-          }, isOpen ? "▾" : "▸")
-        : h("span", { style: `width:${baseIndent + 18}px;flex-shrink:0` });
-
-      // Color dot
-      const dot = h("span", {
-        style: `width:9px;height:9px;border-radius:50%;background:${color};flex-shrink:0;margin-right:7px;box-shadow:0 0 0 2px ${color}22`
-      });
-
-      // Zone row
-      const row = h("div", {
-        class: ["zone-row", isActive ? "is-active" : ""],
-        style: { borderLeftColor: isActive ? color : "transparent" },
-        onClick: () => emit("select", props.node)
-      }, [
-        arrow, dot,
-        h("span", { class: "zone-name" }, props.node.name),
-        count > 0 ? h("span", { class: "zone-cnt" }, count) : null
-      ]);
-
-      // Child zone nodes
-      const childNodes = isOpen && hasChildren
-        ? (props.node.children || []).map((child: any) =>
-            h(ZoneNode, {
-              node: child, depth: props.depth + 1,
-              expanded: props.expanded, selectedId: props.selectedId,
-              nodeCount: props.nodeCount, zoneColor: props.zoneColor,
-              metersByRegion: props.metersByRegion,
-              meterStatusColor: props.meterStatusColor,
-              onSelect: (n: any) => emit("select", n),
-              onToggle: (id: number) => emit("toggle", id),
-              "onSelect-meter": (m: any) => emit("select-meter", m)
-            })
-          )
-        : [];
-
-      // Direct meter rows
-      const meterIndent = baseIndent + 36;
-      const meterRows = isOpen && directMeters.length > 0
-        ? directMeters.map((m: any) =>
-            h("div", {
-              class: "meter-row",
-              style: { paddingLeft: `${meterIndent}px` },
-              onClick: () => emit("select-meter", m)
-            }, [
-              h("span", { class: "m-dot", style: { background: (props.meterStatusColor as any)(m) } }),
-              h("span", { class: "m-no" }, m.meterNo),
-              m.meterName ? h("span", { class: "m-name" }, m.meterName) : null
-            ])
-          )
-        : [];
-
-      return h("div", {}, [row, ...childNodes, ...meterRows]);
-    };
-  }
-});
-
-export { ZoneNode };
-</script>

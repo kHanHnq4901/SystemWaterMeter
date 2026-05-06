@@ -4,7 +4,7 @@ import pool from "../config/database.js";
 
 const router = express.Router();
 
-// POST /api/logs/login — Nhật ký đăng nhập (phân trang + tìm kiếm)
+// POST /api/logs/login
 router.post("/login", async (req: Request, res: Response) => {
   try {
     const { username, loginStatus, currentPage = 1, pageSize = 10 } = req.body;
@@ -17,36 +17,37 @@ router.post("/login", async (req: Request, res: Response) => {
       conditions.push("LOGIN_STATUS = @loginStatus");
     const where = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
 
-    const addParams = (req: mssql.Request) => {
-      if (username) req.input("username", mssql.NVarChar, `%${username}%`);
+    const addParams = (r: mssql.Request) => {
+      if (username) r.input("username", mssql.NVarChar, `%${username}%`);
       if (loginStatus !== undefined && loginStatus !== "")
-        req.input("loginStatus", mssql.Int, Number(loginStatus));
-      return req;
+        r.input("loginStatus", mssql.Int, Number(loginStatus));
+      return r;
     };
 
-    const countResult = await addParams(connection.request()).query(
-      `SELECT COUNT(*) as total FROM SYS_LOGIN_LOG ${where}`
-    );
-
     const dataReq = addParams(connection.request());
-    dataReq.input("offset", mssql.Int, offset);
+    dataReq.input("offset",   mssql.Int, offset);
     dataReq.input("pageSize", mssql.Int, Number(pageSize));
 
-    const dataResult = await dataReq.query(`
-      SELECT
-        ID             as id,
-        USER_NAME      as username,
-        IP             as ip,
-        LOGIN_LOCATION as loginLocation,
-        BROWSER        as browser,
-        OS             as os,
-        LOGIN_STATUS   as loginStatus,
-        CREATE_TIME    as createTime
-      FROM SYS_LOGIN_LOG
-      ${where}
-      ORDER BY CREATE_TIME DESC
-      OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
-    `);
+    const [countResult, dataResult] = await Promise.all([
+      addParams(connection.request()).query(
+        `SELECT COUNT(*) as total FROM SYS_LOGIN_LOG WITH(NOLOCK) ${where}`
+      ),
+      dataReq.query(`
+        SELECT
+          ID             as id,
+          USER_NAME      as username,
+          IP             as ip,
+          LOGIN_LOCATION as loginLocation,
+          BROWSER        as browser,
+          OS             as os,
+          LOGIN_STATUS   as loginStatus,
+          CREATE_TIME    as createTime
+        FROM SYS_LOGIN_LOG WITH(NOLOCK)
+        ${where}
+        ORDER BY CREATE_TIME DESC
+        OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
+      `)
+    ]);
 
     res.json({
       code: 0,
@@ -64,7 +65,7 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/logs/system — Nhật ký hệ thống (phân trang + tìm kiếm + lọc ngày)
+// POST /api/logs/system
 router.post("/system", async (req: Request, res: Response) => {
   try {
     const { module, startTime, endTime, currentPage = 1, pageSize = 10 } = req.body;
@@ -84,30 +85,31 @@ router.post("/system", async (req: Request, res: Response) => {
       return r;
     };
 
-    const countResult = await addParams(connection.request()).query(
-      `SELECT COUNT(*) as total FROM SYS_LOG ${where}`
-    );
-
     const dataReq = addParams(connection.request());
-    dataReq.input("offset", mssql.Int, offset);
+    dataReq.input("offset",   mssql.Int, offset);
     dataReq.input("pageSize", mssql.Int, Number(pageSize));
 
-    const dataResult = await dataReq.query(`
-      SELECT
-        ID          as id,
-        USER_NAME   as username,
-        OPERATION   as operation,
-        METHOD      as method,
-        PARAMS      as params,
-        TIME        as time,
-        IP          as ip,
-        CREATE_BY   as createBy,
-        CREATE_TIME as createTime
-      FROM SYS_LOG
-      ${where}
-      ORDER BY CREATE_TIME DESC
-      OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
-    `);
+    const [countResult, dataResult] = await Promise.all([
+      addParams(connection.request()).query(
+        `SELECT COUNT(*) as total FROM SYS_LOG WITH(NOLOCK) ${where}`
+      ),
+      dataReq.query(`
+        SELECT
+          ID          as id,
+          USER_NAME   as username,
+          OPERATION   as operation,
+          METHOD      as method,
+          PARAMS      as params,
+          TIME        as time,
+          IP          as ip,
+          CREATE_BY   as createBy,
+          CREATE_TIME as createTime
+        FROM SYS_LOG WITH(NOLOCK)
+        ${where}
+        ORDER BY CREATE_TIME DESC
+        OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
+      `)
+    ]);
 
     res.json({
       code: 0,
@@ -125,7 +127,7 @@ router.post("/system", async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /api/logs/system/clear-all — Xóa toàn bộ nhật ký hệ thống
+// DELETE /api/logs/system/clear-all
 router.delete("/system/clear-all", async (_req: Request, res: Response) => {
   try {
     const connection = await pool.connect();
@@ -136,7 +138,7 @@ router.delete("/system/clear-all", async (_req: Request, res: Response) => {
   }
 });
 
-// POST /api/logs/system/batch-delete — Xóa nhiều bản ghi nhật ký
+// POST /api/logs/system/batch-delete
 router.post("/system/batch-delete", async (req: Request, res: Response) => {
   try {
     const { ids } = req.body;

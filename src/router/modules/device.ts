@@ -16,21 +16,13 @@ export default {
       path: "/device/gateway",
       name: "DeviceGateway",
       component: () => import("@/views/device/gateway/index.vue"),
-      meta: {
-        icon: "ri:router-line",
-        title: "Quản lý Gateway",
-        showLink: true
-      }
+      meta: { icon: "ri:router-line", title: "Quản lý Gateway", showLink: true }
     },
     {
       path: "/device/meter",
       name: "DeviceMeter",
       component: () => import("@/views/device/meter/index.vue"),
-      meta: {
-        icon: "ri:drop-line",
-        title: "Quản lý Đồng hồ",
-        showLink: true
-      }
+      meta: { icon: "ri:drop-line", title: "Quản lý Đồng hồ", showLink: true }
     }
   ]
 } satisfies RouteConfigsTable;

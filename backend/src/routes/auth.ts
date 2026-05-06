@@ -104,7 +104,7 @@ router.post("/login", async (req, res) => {
       .input("username", mssql.NVarChar, username)
       .query(`
         SELECT ID, NAME, NICK_NAME, AVATAR, PASSWORD, SALT, STATUS, COM_ID
-        FROM SYS_USER
+        FROM SYS_USER WITH(NOLOCK)
         WHERE NAME = @username AND DEL_FLAG = 0
       `);
 
@@ -127,57 +127,46 @@ router.post("/login", async (req, res) => {
     console.log("=> Đăng nhập thành công!");
     await writeLoginLog(username, 1, ip, browser, os);
 
-    // Lấy roles thật từ DB
+    // Roles + zones 3 queries chạy song song trên cùng 1 connection pool
     let roles: string[] = [];
     let zones: number[] = [];
 
     try {
-      const conn2 = await pool.connect();
-      const roleRes = await conn2.request()
-        .input("userId2", mssql.Int, user.ID)
-        .query(`
-          SELECT r.CODE
-          FROM SYS_ROLE r
-          JOIN SYS_USER_ROLE ur ON r.ID = ur.ROLE_ID
-          WHERE ur.USER_ID = @userId2 AND r.STATUS = 1
-        `);
-      roles = roleRes.recordset.map((r: any) => r.CODE);
-      if (roles.length === 0) roles = ["common"];
-    } catch (e) {
-      console.warn("[Auth] Không đọc được roles:", e);
-      roles = ["common"];
-    }
-
-    // Lấy zones (tách riêng để không ảnh hưởng roles nếu lỗi)
-    if (!roles.includes("admin")) {
-      // Zone trực tiếp từ SYS_USER_ZONE
-      try {
-        const conn3 = await pool.connect();
-        const uzRes = await conn3.request()
-          .input("userId3", mssql.Int, user.ID)
-          .query("SELECT ZONE_ID FROM SYS_USER_ZONE WHERE USER_ID = @userId3");
-        zones.push(...uzRes.recordset.map((r: any) => Number(r.ZONE_ID)));
-      } catch (e) {
-        console.warn("[Auth] Không đọc được SYS_USER_ZONE:", (e as any)?.originalError?.message ?? e);
-      }
-
-      // Zone qua role từ SYS_ROLE_REGION
-      try {
-        const conn4 = await pool.connect();
-        const rzRes = await conn4.request()
-          .input("userId4", mssql.Int, user.ID)
+      const [roleRes, uzRes, rzRes] = await Promise.all([
+        connection.request()
+          .input("userId", mssql.Int, user.ID)
+          .query(`
+            SELECT r.CODE
+            FROM SYS_ROLE r WITH(NOLOCK)
+            JOIN SYS_USER_ROLE ur WITH(NOLOCK) ON r.ID = ur.ROLE_ID
+            WHERE ur.USER_ID = @userId AND r.STATUS = 1
+          `),
+        connection.request()
+          .input("userIdUz", mssql.Int, user.ID)
+          .query("SELECT ZONE_ID FROM SYS_USER_ZONE WITH(NOLOCK) WHERE USER_ID = @userIdUz"),
+        connection.request()
+          .input("userIdRr", mssql.Int, user.ID)
           .query(`
             SELECT DISTINCT rr.REGION_ID
-            FROM SYS_ROLE_REGION rr
-            JOIN SYS_USER_ROLE ur ON rr.ROLE_ID = ur.ROLE_ID
-            WHERE ur.USER_ID = @userId4
-          `);
-        zones.push(...rzRes.recordset.map((r: any) => Number(r.REGION_ID)));
-      } catch (e) {
-        console.warn("[Auth] Không đọc được SYS_ROLE_REGION:", (e as any)?.originalError?.message ?? e);
-      }
+            FROM SYS_ROLE_REGION rr WITH(NOLOCK)
+            JOIN SYS_USER_ROLE ur WITH(NOLOCK) ON rr.ROLE_ID = ur.ROLE_ID
+            WHERE ur.USER_ID = @userIdRr
+          `)
+      ]);
 
-      zones = [...new Set(zones)];
+      roles = roleRes.recordset.map((r: any) => r.CODE);
+      if (roles.length === 0) roles = ["common"];
+
+      if (!roles.includes("admin")) {
+        zones = [
+          ...uzRes.recordset.map((r: any) => Number(r.ZONE_ID)),
+          ...rzRes.recordset.map((r: any) => Number(r.REGION_ID))
+        ];
+        zones = [...new Set(zones)];
+      }
+    } catch (e) {
+      console.warn("[Auth] Không đọc được roles/zones:", e);
+      roles = ["common"];
     }
 
     const now = Date.now();
@@ -225,7 +214,7 @@ router.get("/mine", async (req, res) => {
     const conn = await pool.connect();
     const result = await conn.request()
       .input("id", mssql.Int, userId)
-      .query(`SELECT ID, NAME, NICK_NAME, AVATAR, EMAIL, MOBILE, REMARKS FROM SYS_USER WHERE ID=@id AND DEL_FLAG=0`);
+      .query(`SELECT ID, NAME, NICK_NAME, AVATAR, EMAIL, MOBILE, REMARKS FROM SYS_USER WITH(NOLOCK) WHERE ID=@id AND DEL_FLAG=0`);
     const u = result.recordset[0];
     if (!u) return res.status(404).json({ code: 404, message: "Không tìm thấy người dùng" });
     res.json({
@@ -274,7 +263,7 @@ router.put("/mine/password", async (req, res) => {
     const conn = await pool.connect();
     const result = await conn.request()
       .input("id", mssql.Int, userId)
-      .query("SELECT PASSWORD, SALT FROM SYS_USER WHERE ID=@id");
+      .query("SELECT PASSWORD, SALT FROM SYS_USER WITH(NOLOCK) WHERE ID=@id");
     const u = result.recordset[0];
     if (!u) return res.status(404).json({ code: 404, message: "Không tìm thấy người dùng" });
 
@@ -303,7 +292,7 @@ router.get("/mine-logs", async (req, res) => {
     const conn = await pool.connect();
     const userRes = await conn.request()
       .input("id", mssql.Int, userId)
-      .query("SELECT NAME FROM SYS_USER WHERE ID=@id");
+      .query("SELECT NAME FROM SYS_USER WITH(NOLOCK) WHERE ID=@id");
     const username = userRes.recordset[0]?.NAME;
     if (!username) return res.status(404).json({ code: 404, message: "Không tìm thấy người dùng" });
 
@@ -313,7 +302,7 @@ router.get("/mine-logs", async (req, res) => {
 
     const [countRes, dataRes] = await Promise.all([
       conn.request().input("un", mssql.NVarChar, username)
-        .query("SELECT COUNT(*) as total FROM SYS_LOGIN_LOG WHERE USER_NAME=@un"),
+        .query("SELECT COUNT(*) as total FROM SYS_LOGIN_LOG WITH(NOLOCK) WHERE USER_NAME=@un"),
       conn.request()
         .input("un",       mssql.NVarChar, username)
         .input("offset",   mssql.Int,      offset)
@@ -326,7 +315,7 @@ router.get("/mine-logs", async (req, res) => {
             OS             as system,
             LOGIN_STATUS   as loginStatus,
             CREATE_TIME    as operatingTime
-          FROM SYS_LOGIN_LOG
+          FROM SYS_LOGIN_LOG WITH(NOLOCK)
           WHERE USER_NAME=@un
           ORDER BY CREATE_TIME DESC
           OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY

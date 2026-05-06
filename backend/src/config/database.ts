@@ -13,14 +13,16 @@ const config = {
     encrypt: true,
     trustServerCertificate: true
   },
+  requestTimeout:    60_000,   // 60s — đủ cho query nặng
+  connectionTimeout: 15_000,   // 15s
   pool: {
-    max: 10,
-    min: 0,
-    idleTimeoutMillis: 30000
+    max: 20,                   // tăng từ 10 → 20 để xử lý parallel queries
+    min: 2,                    // giữ sẵn 2 connection, tránh cold-start
+    idleTimeoutMillis: 30_000,
+    acquireTimeoutMillis: 15_000
   }
 };
 
-// Create connection pool
 const pool = new mssql.ConnectionPool(config);
 
 export const testConnection = async () => {

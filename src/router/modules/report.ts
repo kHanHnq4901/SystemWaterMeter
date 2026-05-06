@@ -19,7 +19,8 @@ export default {
       meta: {
         icon: "ri:speed-up-line",
         title: "Áp lực",
-        showLink: true
+        showLink: true,
+
       }
     },
     {
@@ -29,7 +30,8 @@ export default {
       meta: {
         icon: "ri:water-flash-line",
         title: "Lưu lượng",
-        showLink: true
+        showLink: true,
+
       }
     },
     {
@@ -39,7 +41,8 @@ export default {
       meta: {
         icon: "ri:error-warning-line",
         title: "Thất thoát chi tiết",
-        showLink: true
+        showLink: true,
+
       }
     },
     {
@@ -49,7 +52,8 @@ export default {
       meta: {
         icon: "ri:pie-chart-2-line",
         title: "Thất thoát tổng",
-        showLink: true
+        showLink: true,
+
       }
     },
     {
@@ -59,7 +63,8 @@ export default {
       meta: {
         icon: "ri:bar-chart-grouped-line",
         title: "Báo cáo sản lượng",
-        showLink: true
+        showLink: true,
+
       }
     }
   ]

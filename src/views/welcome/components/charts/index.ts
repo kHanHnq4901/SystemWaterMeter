@@ -4,3 +4,4 @@ export { default as ChartRound } from "./ChartRound.vue";
 export { default as ChartPie } from "./ChartPie.vue";
 export { default as ChartCollectionBar } from "./ChartCollectionBar.vue";
 export { default as ChartArea } from "./ChartArea.vue";
+export { default as ChartOnlineTrend } from "./ChartOnlineTrend.vue";

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, h } from "vue";
+import { useI18n } from "vue-i18n";
 import { ElTag } from "element-plus";
 import { PureTableBar } from "@/components/RePureTableBar";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
@@ -8,41 +9,34 @@ import Refresh from "~icons/ep/refresh";
 
 defineOptions({ name: "LoginLog" });
 
+const { t } = useI18n();
 const formRef = ref();
 const loading = ref(false);
 const dataList = ref([]);
 
-const form = reactive({
-  username: "",
-  loginStatus: ""
-});
+const form = reactive({ username: "", loginStatus: "" });
 
-const pagination = reactive({
-  currentPage: 1,
-  pageSize: 10,
-  total: 0
-});
+const pagination = reactive({ currentPage: 1, pageSize: 10, total: 0 });
 
 const columns: TableColumnList = [
-  { type: "index", label: "STT", width: 60 },
-  { label: "Tên đăng nhập", prop: "username", minWidth: 120 },
-  { label: "Địa chỉ IP", prop: "ip", width: 140 },
-  { label: "Vị trí", prop: "loginLocation", minWidth: 140 },
-  { label: "Trình duyệt", prop: "browser", width: 130 },
-  { label: "Hệ điều hành", prop: "os", width: 130 },
+  { type: "index", label: t("common.stt"), width: 60 },
+  { label: t("logs.login.username"),   prop: "username",      minWidth: 120 },
+  { label: t("logs.login.ip"),         prop: "ip",            width: 140 },
+  { label: t("logs.login.location"),   prop: "loginLocation", minWidth: 140 },
+  { label: t("logs.login.browser"),    prop: "browser",       width: 130 },
+  { label: t("logs.login.os"),         prop: "os",            width: 130 },
   {
-    label: "Trạng thái",
+    label: t("logs.login.status"),
     prop: "loginStatus",
     width: 120,
     cellRenderer: ({ row }) =>
-      h(
-        ElTag,
+      h(ElTag,
         { type: row.loginStatus === 1 ? "success" : "danger", size: "small" },
-        { default: () => (row.loginStatus === 1 ? "Thành công" : "Thất bại") }
+        { default: () => (row.loginStatus === 1 ? t("logs.login.statusSuccess") : t("logs.login.statusFail")) }
       )
   },
   {
-    label: "Thời gian đăng nhập",
+    label: t("logs.login.loginTime"),
     prop: "createTime",
     minWidth: 170,
     formatter: ({ createTime }) =>
@@ -74,99 +68,47 @@ function resetForm() {
   onSearch();
 }
 
-function onPageChange(page: number) {
-  pagination.currentPage = page;
-  onSearch();
-}
-
-function onSizeChange(size: number) {
-  pagination.pageSize = size;
-  pagination.currentPage = 1;
-  onSearch();
-}
+function onPageChange(page: number) { pagination.currentPage = page; onSearch(); }
+function onSizeChange(size: number) { pagination.pageSize = size; pagination.currentPage = 1; onSearch(); }
 
 onMounted(() => onSearch());
 </script>
 
 <template>
   <div class="main">
-    <el-form
-      ref="formRef"
-      :inline="true"
-      :model="form"
-      class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto"
-    >
-      <el-form-item label="Tên đăng nhập:" prop="username">
-        <el-input
-          v-model="form.username"
-          placeholder="Nhập tên đăng nhập"
-          clearable
-          class="w-44!"
-        />
+    <el-form ref="formRef" :inline="true" :model="form"
+      class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto">
+      <el-form-item :label="t('logs.login.username') + ':'" prop="username">
+        <el-input v-model="form.username" :placeholder="t('logs.login.usernamePlaceholder')" clearable class="w-44!" />
       </el-form-item>
-      <el-form-item label="Trạng thái:" prop="loginStatus">
-        <el-select
-          v-model="form.loginStatus"
-          placeholder="Tất cả"
-          clearable
-          class="w-36!"
-        >
-          <el-option label="Thành công" :value="1" />
-          <el-option label="Thất bại" :value="0" />
+      <el-form-item :label="t('logs.login.status') + ':'" prop="loginStatus">
+        <el-select v-model="form.loginStatus" :placeholder="t('logs.login.all')" clearable class="w-36!">
+          <el-option :label="t('logs.login.statusSuccess')" :value="1" />
+          <el-option :label="t('logs.login.statusFail')"    :value="0" />
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button
-          type="primary"
-          :icon="useRenderIcon('ri/search-line')"
-          :loading="loading"
-          @click="() => { pagination.currentPage = 1; onSearch(); }"
-        >
-          Tìm kiếm
+        <el-button type="primary" :icon="useRenderIcon('ri/search-line')" :loading="loading"
+          @click="() => { pagination.currentPage = 1; onSearch(); }">
+          {{ t("common.search") }}
         </el-button>
-        <el-button :icon="useRenderIcon(Refresh)" @click="resetForm">
-          Đặt lại
-        </el-button>
+        <el-button :icon="useRenderIcon(Refresh)" @click="resetForm">{{ t("common.reset") }}</el-button>
       </el-form-item>
     </el-form>
 
-    <PureTableBar
-      title="Nhật ký Đăng nhập"
-      :columns="columns"
-      @refresh="onSearch"
-    >
+    <PureTableBar :title="t('logs.login.title')" :columns="columns" @refresh="onSearch">
       <template v-slot="{ size, dynamicColumns }">
-        <pure-table
-          adaptive
-          :adaptiveConfig="{ offsetBottom: 45 }"
-          align-whole="center"
-          row-key="id"
-          showOverflowTooltip
-          table-layout="auto"
-          :loading="loading"
-          :size="size"
-          :data="dataList"
-          :columns="dynamicColumns"
-          :pagination="{
-            ...pagination,
-            pageSizes: [10, 20, 50, 100]
-          }"
-          :header-cell-style="{
-            background: 'var(--el-fill-color-light)',
-            color: 'var(--el-text-color-primary)'
-          }"
-          @page-size-change="onSizeChange"
-          @page-current-change="onPageChange"
-        />
+        <pure-table adaptive :adaptiveConfig="{ offsetBottom: 45 }" align-whole="center"
+          row-key="id" showOverflowTooltip table-layout="auto" :loading="loading"
+          :size="size" :data="dataList" :columns="dynamicColumns"
+          :pagination="{ ...pagination, pageSizes: [10, 20, 50, 100] }"
+          :header-cell-style="{ background: 'var(--el-fill-color-light)', color: 'var(--el-text-color-primary)' }"
+          @page-size-change="onSizeChange" @page-current-change="onPageChange" />
       </template>
     </PureTableBar>
   </div>
 </template>
 
 <style lang="scss" scoped>
-.search-form {
-  :deep(.el-form-item) {
-    margin-bottom: 12px;
-  }
-}
+.search-form { :deep(.el-form-item) { margin-bottom: 12px; } }
 </style>

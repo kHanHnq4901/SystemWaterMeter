@@ -4,7 +4,7 @@ import pool from "../config/database.js";
 
 const router = express.Router();
 
-// POST /api/gateways/list — Danh sách Gateway (phân trang + tìm kiếm)
+// POST /api/gateways/list
 router.post("/list", async (req: Request, res: Response) => {
   try {
     const { keyword, gatewayType, currentPage = 1, pageSize = 20 } = req.body;
@@ -22,36 +22,35 @@ router.post("/list", async (req: Request, res: Response) => {
       return r;
     };
 
-    const countResult = await addParams(connection.request()).query(
-      `SELECT COUNT(*) as total FROM INFO_GATEWAY ${where}`
-    );
-
     const dataReq = addParams(connection.request());
-    dataReq.input("offset", mssql.Int, offset);
+    dataReq.input("offset",   mssql.Int, offset);
     dataReq.input("pageSize", mssql.Int, Number(pageSize));
 
-    const dataResult = await dataReq.query(`
-      SELECT
-        GATEWAY_NO        as gatewayNo,
-        GATEWAY_NAME      as gatewayName,
-        GATEWAY_MODEL_ID  as gatewayModelId,
-        GATEWAY_TYPE      as gatewayType,
-        SIM_CARD_NO       as simCardNo,
-        LINE_ID           as lineId,
-        ADDRESS           as address,
-        NOTE              as note,
-        GROUP_ID          as groupId,
-        IMEI              as imei,
-        VERSION           as version,
-        COORDINATE        as coordinate,
-        CREATED           as created,
-        LASTTIME_CONNECT  as lasttimeConnect,
-        LASTTIME_RECORD   as lasttimeRecord
-      FROM INFO_GATEWAY
-      ${where}
-      ORDER BY CREATED DESC
-      OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
-    `);
+    const [countResult, dataResult] = await Promise.all([
+      addParams(connection.request()).query(`SELECT COUNT(*) as total FROM INFO_GATEWAY WITH(NOLOCK) ${where}`),
+      dataReq.query(`
+        SELECT
+          GATEWAY_NO        as gatewayNo,
+          GATEWAY_NAME      as gatewayName,
+          GATEWAY_MODEL_ID  as gatewayModelId,
+          GATEWAY_TYPE      as gatewayType,
+          SIM_CARD_NO       as simCardNo,
+          LINE_ID           as lineId,
+          ADDRESS           as address,
+          NOTE              as note,
+          GROUP_ID          as groupId,
+          IMEI              as imei,
+          VERSION           as version,
+          COORDINATE        as coordinate,
+          CREATED           as created,
+          LASTTIME_CONNECT  as lasttimeConnect,
+          LASTTIME_RECORD   as lasttimeRecord
+        FROM INFO_GATEWAY WITH(NOLOCK)
+        ${where}
+        ORDER BY CREATED DESC
+        OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
+      `)
+    ]);
 
     res.json({
       code: 0,
@@ -68,7 +67,7 @@ router.post("/list", async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/gateways/add — Thêm mới Gateway
+// POST /api/gateways/add
 router.post("/add", async (req: Request, res: Response) => {
   try {
     const { gatewayNo, gatewayName, gatewayModelId, gatewayType, simCardNo, lineId, address, note, groupId, imei, version, coordinate } = req.body;
@@ -98,7 +97,7 @@ router.post("/add", async (req: Request, res: Response) => {
   }
 });
 
-// PUT /api/gateways/update/:no — Cập nhật Gateway
+// PUT /api/gateways/update/:no
 router.put("/update/:no", async (req: Request, res: Response) => {
   try {
     const { gatewayName, gatewayModelId, gatewayType, simCardNo, lineId, address, note, groupId, imei, version, coordinate } = req.body;
@@ -130,7 +129,7 @@ router.put("/update/:no", async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /api/gateways/:no — Xóa Gateway
+// DELETE /api/gateways/:no
 router.delete("/:no", async (req: Request, res: Response) => {
   try {
     const connection = await pool.connect();

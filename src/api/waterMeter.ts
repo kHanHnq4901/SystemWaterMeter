@@ -152,6 +152,19 @@ export const getLoggerChart = (data?: object) =>
 export const getLoggerProduction = (data?: object) =>
   http.request<Result>("post", "/api/water-meters/logger/production", { data });
 
+// Multi-meter & zone analytics
+export const getLoggerMultiChart = (data?: object) =>
+  http.request<Result>("post", "/api/water-meters/logger/multi-chart", { data });
+export const getLoggerZoneSummary = (data?: object) =>
+  http.request<Result>("post", "/api/water-meters/logger/zone-summary", { data });
+export const getZoneStats = () =>
+  http.request<Result>("get", "/api/water-meters/zone-stats");
+export const getLoggerHourly = (data?: object) =>
+  http.request<Result>("post", "/api/water-meters/logger/hourly", { data });
+
+export const getMeterStatus = (data?: object) =>
+  http.request<Result>("post", "/api/water-meters/meter-status", { data });
+
 // Unit Management (Hierarchy Tree)
 export const getUnitTree = () =>
   http.request<Result>("get", "/api/hierarchy/tree");

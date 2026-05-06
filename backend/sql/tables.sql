@@ -271,4 +271,35 @@ VALUES (3, N'Tiêu thụ bất thường đồng hồ MTR001', GETDATE(), 1, 'me
 INSERT INTO WM_ALERT (ALERT_TYPE, ALERT_MESSAGE, ALERT_TIME, RELATED_ID, RELATED_TYPE, IS_READ)
 VALUES (5, N'Cập nhật firmware thành công', GETDATE(), 1, 'meter', 1);
 
+-- =============================================
+-- RPT_VOLUME — Báo cáo sản lượng tiêu thụ
+-- =============================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'RPT_VOLUME')
+CREATE TABLE RPT_VOLUME (
+    RPT_ID      INT           PRIMARY KEY IDENTITY(1,1),
+    NAME        NVARCHAR(200) NOT NULL,
+    CREATED     DATETIME      DEFAULT GETDATE(),
+    USER_ID     INT           NULL,
+    START_DATE  DATE          NOT NULL,
+    PERIOD_NUM  INT           NOT NULL DEFAULT 12,
+    TIME_RECORD VARCHAR(10)   NOT NULL DEFAULT 'MONTH'  -- MONTH | DAY | YEAR
+);
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'RPT_VOLUME_GROUP')
+CREATE TABLE RPT_VOLUME_GROUP (
+    GROUP_ID    INT           PRIMARY KEY IDENTITY(1,1),
+    RPT_ID      INT           NOT NULL REFERENCES RPT_VOLUME(RPT_ID) ON DELETE CASCADE,
+    NAME        NVARCHAR(200) NOT NULL,
+    ORDER_NO    INT           DEFAULT 0
+);
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'RPT_VOLUME_GROUP_METER')
+CREATE TABLE RPT_VOLUME_GROUP_METER (
+    ID          INT           PRIMARY KEY IDENTITY(1,1),
+    GROUP_ID    INT           NOT NULL REFERENCES RPT_VOLUME_GROUP(GROUP_ID) ON DELETE CASCADE,
+    METER_NO    VARCHAR(50)   NOT NULL,
+    ORDER_NO    INT           DEFAULT 0,
+    STATE       INT           DEFAULT 1
+);
+
 PRINT N'Database tables created successfully!';

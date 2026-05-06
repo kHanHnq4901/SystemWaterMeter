@@ -19,7 +19,7 @@ type ResultTable = {
 
 // Dashboard
 export const getWaterDashboard = () =>
-  http.request<Result>("get", "/api/dashboard/summary");
+  http.request<Result>("get", "/api/dashboard/stats");
 export const getConsumptionChart = (data?: any) =>
   http.request<ResultTable>("get", "/api/dashboard/consumption-chart", {
     data
