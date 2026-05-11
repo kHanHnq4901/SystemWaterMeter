@@ -1055,20 +1055,28 @@ router.post("/collection-rate", zoneAuth, async (req: Request, res: Response) =>
       return conds.length ? "WHERE " + conds.join(" AND ") : "";
     };
 
-    // Tổng số đồng hồ (theo zone + region filter)
+    // Tổng đồng hồ STATE=1 (đang hoạt động) theo zone/region filter
     const totalReq = conn.request();
-    const totalWhere = buildMeterFilter(totalReq);
+    const totalConds: string[] = ["m.STATE = 1"];
+    if (regionIds) {
+      regionIds.forEach((id, i) => totalReq.input(`tr${i}`, mssql.Int, id));
+      totalConds.push(`m.REGION_ID IN (${regionIds.map((_, i) => `@tr${i}`).join(",")})`);
+    }
+    if (zones) {
+      zones.forEach((id, i) => totalReq.input(`tz${i}`, mssql.Int, id));
+      totalConds.push(`m.REGION_ID IN (${zones.map((_, i) => `@tz${i}`).join(",")})`);
+    }
     const totalRes = await totalReq.query(
-      `SELECT COUNT(*) as total FROM INFO_METER m WITH(NOLOCK) ${totalWhere}`
+      `SELECT COUNT(*) as total FROM INFO_METER m WITH(NOLOCK) WHERE ${totalConds.join(" AND ")}`
     );
     const total = Number(totalRes.recordset[0]?.total ?? 0);
 
-    // Đồng hồ có gửi dữ liệu mỗi ngày (HIS_DATA_METER — logger data)
+    // Đồng hồ có ≥1 bản tin trong ngày (HIS_DATA_METER.DATA_TIME) = online
     const dataReq = conn.request();
     if (dateFrom) dataReq.input("dateFrom", mssql.VarChar, dateFrom);
     if (dateTo)   dataReq.input("dateTo",   mssql.VarChar, dateTo);
 
-    const meterSubConds: string[] = [];
+    const meterSubConds: string[] = ["im.STATE = 1"];
     if (regionIds) {
       regionIds.forEach((id, i) => dataReq.input(`dr${i}`, mssql.Int, id));
       meterSubConds.push(`im.REGION_ID IN (${regionIds.map((_, i) => `@dr${i}`).join(",")})`);
@@ -1077,23 +1085,21 @@ router.post("/collection-rate", zoneAuth, async (req: Request, res: Response) =>
       zones.forEach((id, i) => dataReq.input(`dz${i}`, mssql.Int, id));
       meterSubConds.push(`im.REGION_ID IN (${zones.map((_, i) => `@dz${i}`).join(",")})`);
     }
-    const meterSubWhere = meterSubConds.length
-      ? `AND h.METER_NO IN (SELECT im.METER_NO FROM INFO_METER im WITH(NOLOCK) WHERE ${meterSubConds.join(" AND ")})`
-      : "";
+    const meterSubWhere = `AND h.METER_NO IN (SELECT im.METER_NO FROM INFO_METER im WITH(NOLOCK) WHERE ${meterSubConds.join(" AND ")})`;
 
     const dateConds: string[] = [];
-    if (dateFrom) dateConds.push("CAST(h.CREATED AS date) >= CAST(@dateFrom AS date)");
-    if (dateTo)   dateConds.push("CAST(h.CREATED AS date) <= CAST(@dateTo AS date)");
+    if (dateFrom) dateConds.push("h.DATA_TIME >= CAST(@dateFrom AS date)");
+    if (dateTo)   dateConds.push("h.DATA_TIME <  DATEADD(day,1,CAST(@dateTo AS date))");
     const dateWhere = dateConds.length ? "WHERE " + dateConds.join(" AND ") : "";
 
     const dataRes = await dataReq.query(`
       SELECT
-        CONVERT(varchar(10), h.CREATED, 120) AS day,
-        COUNT(DISTINCT h.METER_NO)           AS received
+        CONVERT(varchar(10), h.DATA_TIME, 120) AS day,
+        COUNT(DISTINCT h.METER_NO)             AS received
       FROM HIS_DATA_METER h WITH(NOLOCK)
       ${dateWhere}
       ${meterSubWhere}
-      GROUP BY CONVERT(varchar(10), h.CREATED, 120)
+      GROUP BY CONVERT(varchar(10), h.DATA_TIME, 120)
       ORDER BY day
     `);
 

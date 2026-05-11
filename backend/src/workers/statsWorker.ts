@@ -44,10 +44,10 @@ export async function computeDashboardStats(): Promise<any> {
       FROM INFO_GATEWAY WITH(NOLOCK)
     `),
 
-    // Sargable range thay vì YEAR()/MONTH() — dùng được index
+    // Sự kiện (cảnh báo) tháng này — đếm từ HIS_DATA_MESSAGE
     connection.request().query(`
       SELECT COUNT(*) as count
-      FROM HIS_INSTANT_METER WITH(NOLOCK)
+      FROM HIS_DATA_MESSAGE WITH(NOLOCK)
       WHERE CREATED >= DATEADD(month, DATEDIFF(month,0,GETDATE()), 0)
         AND CREATED <  DATEADD(month, DATEDIFF(month,0,GETDATE())+1, 0)
     `),
