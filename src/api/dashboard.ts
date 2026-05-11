@@ -34,5 +34,7 @@ export const getConsumptionChart = (data?: any) =>
     http.request<Result>("get", "/api/dashboard/realtime");
   export const getWaterAlerts = (data?: object) =>
   http.request<ResultTable>("get", "/api/alerts", { params: data });
+  export const confirmAlert = (id: number) =>
+  http.request<Result>("put", `/api/alerts/${id}/confirm`);
   export const getGatewayStats = () =>
   http.request<Result>("get", "/api/gateways/stats/summary");

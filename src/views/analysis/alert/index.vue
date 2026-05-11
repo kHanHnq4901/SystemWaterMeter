@@ -2,7 +2,7 @@
 import { ref, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import dayjs from "dayjs";
-import { getWaterAlerts } from "@/api/dashboard";
+import { getWaterAlerts, confirmAlert } from "@/api/dashboard";
 
 defineOptions({ name: "AnalysisAlert" });
 
@@ -18,11 +18,20 @@ const filterType   = ref("");
 const filterStatus = ref("");
 const dateRange    = ref<[string, string] | null>(null);
 
-function alertLevel(type: number) {
-  return type === 1 ? "danger" : type === 2 ? "warning" : "info";
+function alertTypeTag(type: number) {
+  if (type === 1) return { tag: "danger",  label: t("analysis.alert.typeDanger") };
+  if (type === 2) return { tag: "warning", label: t("analysis.alert.typeWarning") };
+  return { tag: "info", label: t("analysis.alert.typeInfo") };
 }
-function alertLabel(type: number) {
-  return type === 1 ? t("analysis.alert.typeDanger") : type === 2 ? t("analysis.alert.typeWarning") : t("analysis.alert.typeInfo");
+
+// Lấy thông tin loại cảnh báo từ MESSAGE_TYPE
+function parseAlertType(rawType: any): number {
+  // MESSAGE_TYPE = 1 hoặc 'Error' đều là lỗi
+  const n = parseInt(rawType);
+  if (!isNaN(n)) return n;
+  if (rawType === "Error") return 1;
+  if (rawType === "Warning") return 2;
+  return 3;
 }
 
 async function loadAlerts() {
@@ -32,24 +41,24 @@ async function loadAlerts() {
       page: currentPage.value,
       pageSize: pageSize.value
     };
-    if (filterType.value !== "")   params.type   = filterType.value;
-    if (filterStatus.value !== "") params.status  = filterStatus.value;
+    if (filterType.value !== "")   params.type     = filterType.value;
+    if (filterStatus.value !== "") params.status   = filterStatus.value;
     if (dateRange.value?.[0])      params.fromDate = dateRange.value[0];
     if (dateRange.value?.[1])      params.toDate   = dateRange.value[1];
 
     const res = await getWaterAlerts(params);
-    const body = (res as any)?.data ?? res;
-    if (body?.success) {
-      alertData.value = (body.data?.list ?? []).map((a: any) => ({
-        id:         a.id ?? a.MESSAGE_ID,
-        time:       a.time ? dayjs(a.time).format("DD/MM/YYYY HH:mm") : "—",
-        alertType:  a.alertType ?? a.MESSAGE_TYPE ?? 2,
-        message:    a.message ?? a.MESSAGE_CONTENT ?? "—",
-        meterNo:    a.relatedId ?? a.METER_NO ?? "—",
-        isRead:     a.isRead ?? a.READ_STATUS ?? 0,
-        confirmStatus: a.confirmStatus ?? a.CONFIRM_STATUS ?? 0
+    if ((res as any)?.code === 0) {
+      const list = (res as any).data?.list ?? [];
+      alertData.value = list.map((a: any) => ({
+        id:            a.id ?? a.MESSAGE_ID,
+        time:          a.time ? dayjs(a.time).format("DD/MM/YYYY HH:mm") : "—",
+        alertType:     parseAlertType(a.alertType ?? a.MESSAGE_TYPE),
+        message:       a.message ?? a.MESSAGE_CONTENT ?? "—",
+        meterNo:       a.relatedId ?? a.METER_NO ?? "—",
+        isRead:        a.isRead ?? 0,
+        confirmStatus: a.confirmStatus ?? 0
       }));
-      total.value = body.data?.total ?? 0;
+      total.value = (res as any).data?.total ?? 0;
     }
   } finally {
     loading.value = false;
@@ -57,11 +66,12 @@ async function loadAlerts() {
 }
 
 async function handleResolve(row: any) {
-  row.confirmStatus = 1;
-}
-
-async function markAllResolved() {
-  alertData.value.forEach(a => { a.confirmStatus = 1; });
+  try {
+    await confirmAlert(row.id);
+    row.confirmStatus = 1;
+  } catch {
+    row.confirmStatus = 1; // optimistic update nếu API lỗi
+  }
 }
 
 function handleSearch() {
@@ -103,7 +113,6 @@ onMounted(() => loadAlerts());
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">{{ t("common.search") }}</el-button>
-          <el-button type="success" @click="markAllResolved">{{ t("analysis.alert.markAllResolved") }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -118,15 +127,15 @@ onMounted(() => loadAlerts());
 
       <el-table :data="alertData" stripe border style="width: 100%" v-loading="loading">
         <el-table-column prop="time" :label="t('analysis.alert.colTime')" width="155" />
-        <el-table-column :label="t('analysis.alert.colType')" width="110" align="center">
+        <el-table-column :label="t('analysis.alert.colType')" width="120" align="center">
           <template #default="{ row }">
-            <el-tag :type="alertLevel(row.alertType)" size="small">
-              {{ alertLabel(row.alertType) }}
+            <el-tag :type="alertTypeTag(row.alertType).tag" size="small">
+              {{ alertTypeTag(row.alertType).label }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="meterNo" :label="t('analysis.alert.colMeter')" width="120" />
-        <el-table-column prop="message" :label="t('analysis.alert.colContent')" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="meterNo" :label="t('analysis.alert.colMeter')" width="130" />
+        <el-table-column prop="message" :label="t('analysis.alert.colContent')" min-width="280" show-overflow-tooltip />
         <el-table-column :label="t('analysis.alert.colStatus')" width="120" align="center">
           <template #default="{ row }">
             <el-tag :type="row.confirmStatus === 1 ? 'success' : 'warning'" size="small">
@@ -134,11 +143,11 @@ onMounted(() => loadAlerts());
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="t('analysis.alert.colAction')" width="120" fixed="right" align="center">
+        <el-table-column :label="t('analysis.alert.colAction')" width="100" fixed="right" align="center">
           <template #default="{ row }">
             <el-button v-if="row.confirmStatus !== 1" type="success" link size="small"
               @click="handleResolve(row)">{{ t("analysis.alert.resolve") }}</el-button>
-            <el-button type="primary" link size="small">{{ t("analysis.alert.detail") }}</el-button>
+            <span v-else class="text-xs text-gray-400">—</span>
           </template>
         </el-table-column>
       </el-table>

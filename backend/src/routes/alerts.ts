@@ -20,13 +20,14 @@ router.get("/", async (req, res) => {
     let whereClause = "WHERE 1=1";
     const params: { name: string; type: any; value: any }[] = [];
 
-    if (type) {
+    if (type !== undefined && type !== "") {
       params.push({ name: "type", type: mssql.Int, value: parseInt(type as string) });
       whereClause += " AND a.MESSAGE_TYPE = @type";
     }
+    // status map: 0 = chưa xử lý, 1 = đã xử lý → dùng CONFIRM_STATUS (NULL coi là 0)
     if (status !== undefined && status !== "") {
       params.push({ name: "status", type: mssql.Int, value: parseInt(status as string) });
-      whereClause += " AND a.READ_STATUS = @status";
+      whereClause += " AND ISNULL(a.CONFIRM_STATUS, 0) = @status";
     }
     if (fromDate) {
       params.push({ name: "fromDate", type: mssql.NVarChar, value: fromDate });
@@ -34,7 +35,7 @@ router.get("/", async (req, res) => {
     }
     if (toDate) {
       params.push({ name: "toDate", type: mssql.NVarChar, value: toDate });
-      whereClause += " AND a.CREATED <= @toDate";
+      whereClause += " AND a.CREATED < DATEADD(day, 1, CAST(@toDate AS date))";
     }
 
     const connection = await pool.connect();
@@ -58,8 +59,8 @@ router.get("/", async (req, res) => {
           a.MESSAGE_TYPE    as alertType,
           a.MESSAGE_CONTENT as message,
           a.CREATED         as time,
-          a.READ_STATUS     as isRead,
-          a.CONFIRM_STATUS  as confirmStatus,
+          ISNULL(a.READ_STATUS, 0)    as isRead,
+          ISNULL(a.CONFIRM_STATUS, 0) as confirmStatus,
           a.METER_NO        as relatedId,
           a.VERIFY_USER_ID  as verifyUserId
         FROM HIS_DATA_MESSAGE a WITH(NOLOCK)
@@ -70,7 +71,8 @@ router.get("/", async (req, res) => {
     ]);
 
     res.json({
-      success: true,
+      code: 0,
+      message: "common.success",
       data: {
         list: result.recordset,
         total: countResult.recordset[0].total,
@@ -80,7 +82,28 @@ router.get("/", async (req, res) => {
     });
   } catch (error: any) {
     console.error("Get alerts error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
+// GET /api/alerts/stats/summary — phải đặt trước /:id
+router.get("/stats/summary", async (_req, res) => {
+  try {
+    const connection = await pool.connect();
+    const result = await connection.request().query(`
+      SELECT
+        COUNT(*) as totalAlerts,
+        SUM(CASE WHEN ISNULL(READ_STATUS, 0) = 0 THEN 1 ELSE 0 END)    as unreadCount,
+        SUM(CASE WHEN ISNULL(CONFIRM_STATUS, 0) = 0 THEN 1 ELSE 0 END)  as pendingConfirm,
+        SUM(CASE WHEN CONFIRM_STATUS = 1 THEN 1 ELSE 0 END)              as confirmed
+      FROM HIS_DATA_MESSAGE WITH(NOLOCK)
+      WHERE CREATED >= DATEADD(day, -30, GETDATE())
+    `);
+
+    res.json({ code: 0, message: "common.success", data: result.recordset[0] });
+  } catch (error: any) {
+    console.error("Get alert stats error:", error);
+    res.status(500).json({ code: 500, message: error.message });
   }
 });
 
@@ -94,13 +117,13 @@ router.get("/:id", async (req, res) => {
       .query(`SELECT * FROM HIS_DATA_MESSAGE WITH(NOLOCK) WHERE MESSAGE_ID = @id`);
 
     if (result.recordset.length === 0) {
-      return res.status(404).json({ success: false, message: "Thông báo không tồn tại" });
+      return res.status(404).json({ code: 404, message: "Thông báo không tồn tại" });
     }
 
-    res.json({ success: true, data: result.recordset[0] });
+    res.json({ code: 0, message: "common.success", data: result.recordset[0] });
   } catch (error: any) {
     console.error("Get alert error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ code: 500, message: error.message });
   }
 });
 
@@ -113,10 +136,32 @@ router.put("/:id/read", async (req, res) => {
       .input("id", mssql.Int, req.params.id)
       .query(`UPDATE HIS_DATA_MESSAGE SET READ_STATUS = 1 WHERE MESSAGE_ID = @id`);
 
-    res.json({ success: true, message: "Đã đánh dấu đã đọc" });
+    res.json({ code: 0, message: "Đã đánh dấu đã đọc" });
   } catch (error: any) {
     console.error("Mark alert read error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
+// PUT /api/alerts/:id/confirm
+router.put("/:id/confirm", async (req, res) => {
+  try {
+    const connection = await pool.connect();
+    const { verifyUserId } = req.body;
+    await connection
+      .request()
+      .input("id", mssql.Int, req.params.id)
+      .input("verifyUserId", mssql.Int, verifyUserId ?? 0)
+      .query(`
+        UPDATE HIS_DATA_MESSAGE
+        SET CONFIRM_STATUS = 1, VERIFY_USER_ID = @verifyUserId
+        WHERE MESSAGE_ID = @id
+      `);
+
+    res.json({ code: 0, message: "Đã xác nhận xử lý" });
+  } catch (error: any) {
+    console.error("Confirm alert error:", error);
+    res.status(500).json({ code: 500, message: error.message });
   }
 });
 
@@ -126,12 +171,12 @@ router.put("/read-all", async (_req, res) => {
     const connection = await pool.connect();
     await connection
       .request()
-      .query(`UPDATE HIS_DATA_MESSAGE SET READ_STATUS = 1 WHERE READ_STATUS = 0`);
+      .query(`UPDATE HIS_DATA_MESSAGE SET READ_STATUS = 1 WHERE ISNULL(READ_STATUS, 0) = 0`);
 
-    res.json({ success: true, message: "Đã đánh dấu tất cả đã đọc" });
+    res.json({ code: 0, message: "Đã đánh dấu tất cả đã đọc" });
   } catch (error: any) {
     console.error("Mark all alerts read error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ code: 500, message: error.message });
   }
 });
 
@@ -144,31 +189,10 @@ router.delete("/:id", async (req, res) => {
       .input("id", mssql.Int, req.params.id)
       .query(`DELETE FROM HIS_DATA_MESSAGE WHERE MESSAGE_ID = @id`);
 
-    res.json({ success: true, message: "Xóa thành công" });
+    res.json({ code: 0, message: "Xóa thành công" });
   } catch (error: any) {
     console.error("Delete alert error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// GET /api/alerts/stats/summary
-router.get("/stats/summary", async (_req, res) => {
-  try {
-    const connection = await pool.connect();
-    const result = await connection.request().query(`
-      SELECT
-        COUNT(*) as totalAlerts,
-        SUM(CASE WHEN READ_STATUS = 0 THEN 1 ELSE 0 END)    as unreadCount,
-        SUM(CASE WHEN CONFIRM_STATUS = 0 THEN 1 ELSE 0 END)  as pendingConfirm,
-        SUM(CASE WHEN CONFIRM_STATUS = 1 THEN 1 ELSE 0 END)  as confirmed
-      FROM HIS_DATA_MESSAGE WITH(NOLOCK)
-      WHERE CREATED >= DATEADD(day, -30, GETDATE())
-    `);
-
-    res.json({ success: true, data: result.recordset[0] });
-  } catch (error: any) {
-    console.error("Get alert stats error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ code: 500, message: error.message });
   }
 });
 

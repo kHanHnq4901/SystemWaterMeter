@@ -1063,7 +1063,7 @@ router.post("/collection-rate", zoneAuth, async (req: Request, res: Response) =>
     );
     const total = Number(totalRes.recordset[0]?.total ?? 0);
 
-    // Đồng hồ có gửi dữ liệu mỗi ngày (HIS_INSTANT_METER)
+    // Đồng hồ có gửi dữ liệu mỗi ngày (HIS_DATA_METER — logger data)
     const dataReq = conn.request();
     if (dateFrom) dataReq.input("dateFrom", mssql.VarChar, dateFrom);
     if (dateTo)   dataReq.input("dateTo",   mssql.VarChar, dateTo);
@@ -1082,15 +1082,15 @@ router.post("/collection-rate", zoneAuth, async (req: Request, res: Response) =>
       : "";
 
     const dateConds: string[] = [];
-    if (dateFrom) dateConds.push("h.CREATED >= @dateFrom");
-    if (dateTo)   dateConds.push("h.CREATED < DATEADD(day, 1, CAST(@dateTo AS date))");
+    if (dateFrom) dateConds.push("CAST(h.CREATED AS date) >= CAST(@dateFrom AS date)");
+    if (dateTo)   dateConds.push("CAST(h.CREATED AS date) <= CAST(@dateTo AS date)");
     const dateWhere = dateConds.length ? "WHERE " + dateConds.join(" AND ") : "";
 
     const dataRes = await dataReq.query(`
       SELECT
         CONVERT(varchar(10), h.CREATED, 120) AS day,
         COUNT(DISTINCT h.METER_NO)           AS received
-      FROM HIS_INSTANT_METER h WITH(NOLOCK)
+      FROM HIS_DATA_METER h WITH(NOLOCK)
       ${dateWhere}
       ${meterSubWhere}
       GROUP BY CONVERT(varchar(10), h.CREATED, 120)
