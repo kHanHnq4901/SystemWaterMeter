@@ -30,14 +30,14 @@ export const deleteWaterMeter = (no: string) =>
 // Customers
 export const getCustomers = (data?: object) =>
   http.request<ResultTable>("get", "/api/customers", { params: data });
-export const getCustomer = (id: number) =>
-  http.request<Result>("get", `/api/customers/${id}`);
+export const getCustomer = (customerCode: string) =>
+  http.request<Result>("get", `/api/customers/${customerCode}`);
 export const createCustomer = (data: object) =>
   http.request<Result>("post", "/api/customers", { data });
-export const updateCustomer = (id: number, data: object) =>
-  http.request<Result>("put", `/api/customers/${id}`, { data });
-export const deleteCustomer = (id: number) =>
-  http.request<Result>("delete", `/api/customers/${id}`);
+export const updateCustomer = (customerCode: string, data: object) =>
+  http.request<Result>("put", `/api/customers/${customerCode}`, { data });
+export const deleteCustomer = (customerCode: string) =>
+  http.request<Result>("delete", `/api/customers/${customerCode}`);
 export const getCustomerStats = () =>
   http.request<Result>("get", "/api/customers/stats/summary");
 
