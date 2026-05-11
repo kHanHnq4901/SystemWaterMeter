@@ -73,7 +73,7 @@ async function writeLoginLog(username: string, status: 0 | 1, ip: string, browse
     const now = new Date();
     await conn.request()
       .input("USER_NAME",      mssql.NVarChar, username)
-      .input("STATUS",         mssql.Int,      status)
+      .input("STATUS",         mssql.VarChar,  String(status))
       .input("IP",             mssql.VarChar,  ip)
       .input("LOGIN_LOCATION", mssql.NVarChar, location)
       .input("BROWSER",        mssql.VarChar,  browser)
@@ -143,7 +143,12 @@ router.post("/login", async (req, res) => {
           `),
         connection.request()
           .input("userIdUz", mssql.Int, user.ID)
-          .query("SELECT ZONE_ID FROM SYS_USER_ZONE WITH(NOLOCK) WHERE USER_ID = @userIdUz"),
+          .query(`
+            SELECT DISTINCT sr.ID as REGION_ID
+            FROM SYS_USER_ZONE uz WITH(NOLOCK)
+            JOIN SYS_REGION sr WITH(NOLOCK) ON sr.ZONE_ID = uz.ZONE_ID AND sr.DEL_FLAG = 0
+            WHERE uz.USER_ID = @userIdUz
+          `),
         connection.request()
           .input("userIdRr", mssql.Int, user.ID)
           .query(`
@@ -158,11 +163,31 @@ router.post("/login", async (req, res) => {
       if (roles.length === 0) roles = ["common"];
 
       if (!roles.includes("admin")) {
-        zones = [
-          ...uzRes.recordset.map((r: any) => Number(r.ZONE_ID)),
+        const direct = [
+          ...uzRes.recordset.map((r: any) => Number(r.REGION_ID)),
           ...rzRes.recordset.map((r: any) => Number(r.REGION_ID))
         ];
-        zones = [...new Set(zones)];
+        const unique = [...new Set(direct)];
+        if (unique.length > 0) {
+          // Expand sang các region con để UI hiển thị đúng vùng phân cấp
+          const expReq = connection.request();
+          unique.forEach((id, i) => expReq.input(`z${i}`, mssql.Int, id));
+          const inClause = unique.map((_, i) => `@z${i}`).join(", ");
+          const expRes = await expReq.query(`
+            WITH BaseZones AS (
+              SELECT ID FROM SYS_REGION WHERE ID IN (${inClause}) AND DEL_FLAG = 0
+            ),
+            RegionCTE AS (
+              SELECT ID FROM BaseZones
+              UNION ALL
+              SELECT r.ID FROM SYS_REGION r
+              JOIN RegionCTE rc ON r.PARENT_ID = rc.ID
+              WHERE r.DEL_FLAG = 0
+            )
+            SELECT DISTINCT ID FROM RegionCTE
+          `);
+          zones = expRes.recordset.map((r: any) => Number(r.ID));
+        }
       }
     } catch (e) {
       console.warn("[Auth] Không đọc được roles/zones:", e);

@@ -199,7 +199,6 @@ function handleAsyncRoutes(routeList) {
 /** 初始化路由（`new Promise` 写法防止在异步请求中造成无限循环）*/
 function initRouter() {
   if (getConfig()?.CachingAsyncRoutes) {
-    // 开启动态路由缓存本地localStorage
     const key = "async-routes";
     const asyncRouteList = storageLocal().getItem(key) as any;
     if (asyncRouteList && asyncRouteList?.length > 0) {
@@ -209,27 +208,35 @@ function initRouter() {
       });
     } else {
       return new Promise(resolve => {
-        getAsyncRoutes().then(({ code, data }) => {
-          if (code === 0) {
-            handleAsyncRoutes(cloneDeep(data));
-            storageLocal().setItem(key, data);
-            resolve(router);
-          } else {
-            resolve(router);
-          }
-        });
+        getAsyncRoutes()
+          .then(({ code, data }) => {
+            if (code === 0) {
+              handleAsyncRoutes(cloneDeep(data));
+              storageLocal().setItem(key, data);
+            } else {
+              handleAsyncRoutes([]);
+            }
+          })
+          .catch(() => {
+            handleAsyncRoutes([]);
+          })
+          .finally(() => resolve(router));
       });
     }
   } else {
     return new Promise(resolve => {
-      getAsyncRoutes().then(({ code, data }) => {
-        if (code === 0) {
-          handleAsyncRoutes(cloneDeep(data));
-          resolve(router);
-        } else {
-          resolve(router);
-        }
-      });
+      getAsyncRoutes()
+        .then(({ code, data }) => {
+          if (code === 0) {
+            handleAsyncRoutes(cloneDeep(data));
+          } else {
+            handleAsyncRoutes([]);
+          }
+        })
+        .catch(() => {
+          handleAsyncRoutes([]);
+        })
+        .finally(() => resolve(router));
     });
   }
 }
@@ -328,6 +335,8 @@ function addAsyncRoutes(arrRoutes: Array<RouteRecordRaw>) {
       v.name = (v.children[0].name as string) + "Parent";
     if (v.meta?.frameSrc) {
       v.component = IFrame;
+    } else if ((v.component as string) === "Layout") {
+      v.component = () => import("@/layout/index.vue");
     } else {
       // 对后端传component组件路径和不传做兼容（如果后端传component组件路径，那么path可以随便写，如果不传，component组件路径会跟path保持一致）
       const index = v?.component

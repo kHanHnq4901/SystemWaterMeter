@@ -157,6 +157,9 @@ export const getLoggerMultiChart = (data?: object) =>
   http.request<Result>("post", "/api/water-meters/logger/multi-chart", { data });
 export const getLoggerZoneSummary = (data?: object) =>
   http.request<Result>("post", "/api/water-meters/logger/zone-summary", { data });
+// Ngưỡng HLS/LLS từ INFO_METER — dùng cho chart áp suất
+export const getMeterThresholds = (data: { meterNos: string[] }) =>
+  http.request<Result>("post", "/api/water-meters/logger/thresholds", { data });
 export const getZoneStats = () =>
   http.request<Result>("get", "/api/water-meters/zone-stats");
 export const getLoggerHourly = (data?: object) =>
@@ -164,6 +167,9 @@ export const getLoggerHourly = (data?: object) =>
 
 export const getMeterStatus = (data?: object) =>
   http.request<Result>("post", "/api/water-meters/meter-status", { data });
+
+export const getCollectionRate = (data?: object) =>
+  http.request<Result>("post", "/api/water-meters/collection-rate", { data });
 
 // Unit Management (Hierarchy Tree)
 export const getUnitTree = () =>

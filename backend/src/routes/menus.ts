@@ -1,6 +1,7 @@
 import express, { Request, Response } from "express";
 import mssql from "mssql";
 import pool from "../config/database.js";
+import { getUserIdFromToken } from "../middleware/zoneAuth.js";
 
 const router = express.Router();
 
@@ -162,10 +163,134 @@ router.delete("/:id", async (req: Request, res: Response) => {
     res.status(500).json({ code: 500, message: error.message });
   }
 });
-// Tất cả routes đã được định nghĩa tĩnh trong src/router/modules/ của frontend.
-// API này trả về mảng rỗng để tránh xung đột/trùng lặp với static routes.
-// Menu sidebar được build từ constantMenus (static routes) trong permission store.
-router.get("/get-async-routes", async (_req: Request, res: Response) => {
-  res.json({ code: 0, message: "Thành công", data: [] });
+// GET /api/menus/get-async-routes — Trả về cây menu từ SYS_MENU cho router động
+// - Admin: thấy tất cả menu
+// - Non-admin: chỉ thấy menu có trong SYS_ROLE_MENU theo role của user
+//   (folder TYPE=0 luôn được giữ; frontend filterTree tự loại folder rỗng)
+router.get("/get-async-routes", async (req: Request, res: Response) => {
+  try {
+    const conn = await pool.connect();
+
+    // Lấy userId từ token → query role IDs và kiểm tra admin
+    let isAdmin = false;
+    let userRoleIds: number[] = [];
+    const userId = getUserIdFromToken(req);
+
+    if (userId) {
+      try {
+        const roleRes = await conn.request()
+          .input("userId", mssql.Int, userId)
+          .query(`
+            SELECT r.ID as roleId, r.CODE
+            FROM SYS_ROLE r WITH(NOLOCK)
+            JOIN SYS_USER_ROLE ur WITH(NOLOCK) ON r.ID = ur.ROLE_ID
+            WHERE ur.USER_ID = @userId AND r.STATUS = 1
+          `);
+        isAdmin      = roleRes.recordset.some((r: any) => r.CODE === "admin");
+        userRoleIds  = roleRes.recordset.map((r: any) => Number(r.roleId));
+      } catch {
+        // Không đọc được role → coi như không có quyền đặc biệt
+      }
+    }
+
+    // Kiểm tra SYS_ROLE_MENU có dữ liệu chưa (fallback nếu chưa chạy migration)
+    let roleMenuConfigured = false;
+    try {
+      const cntRes = await conn.request().query("SELECT COUNT(*) as cnt FROM SYS_ROLE_MENU WITH(NOLOCK)");
+      roleMenuConfigured = Number(cntRes.recordset[0].cnt) > 0;
+    } catch { /* bảng không tồn tại hoặc lỗi → coi như chưa cấu hình */ }
+
+    // Lấy danh sách MENU_ID được phép (bỏ qua nếu admin hoặc chưa cấu hình)
+    let allowedPageIds: Set<number> | null = null; // null = không hạn chế
+
+    if (!isAdmin && roleMenuConfigured) {
+      if (userRoleIds.length > 0) {
+        try {
+          const rmReq = conn.request();
+          userRoleIds.forEach((id, i) => rmReq.input(`r${i}`, mssql.Int, id));
+          const inClause = userRoleIds.map((_, i) => `@r${i}`).join(", ");
+          const rmRes = await rmReq.query(`
+            SELECT DISTINCT MENU_ID FROM SYS_ROLE_MENU WITH(NOLOCK)
+            WHERE ROLE_ID IN (${inClause})
+          `);
+          allowedPageIds = new Set(rmRes.recordset.map((r: any) => Number(r.MENU_ID)));
+        } catch {
+          allowedPageIds = null; // lỗi → không lọc, cho xem hết
+        }
+      }
+      // userRoleIds rỗng → allowedPageIds = null (không lọc, chờ admin gán role)
+    }
+
+    // Lấy toàn bộ menu từ DB
+    const result = await conn.request().query(`
+      SELECT
+        ID        as id,
+        PARENT_ID as parentId,
+        TYPE      as menuType,
+        NAME      as title,
+        KEY_NAME  as name,
+        URL       as path,
+        COMPONENT as component,
+        ICON      as icon,
+        ORDER_NUM as rank,
+        PERMS     as auths
+      FROM SYS_MENU
+      WHERE DEL_FLAG = 0
+      ORDER BY PARENT_ID ASC, ORDER_NUM ASC
+    `);
+
+    const rows = result.recordset;
+
+    // Build node map
+    // - Folder (TYPE=0): luôn thêm vào map; frontend sẽ loại folder rỗng
+    // - Page  (TYPE=1): chỉ thêm nếu ID nằm trong allowedPageIds (hoặc admin)
+    const nodeMap = new Map<number, any>();
+    rows.forEach((r: any) => {
+      const isFolder = Number(r.menuType) === 0;
+      if (!isFolder && allowedPageIds !== null && !allowedPageIds.has(Number(r.id))) return;
+      const path = r.path || (isFolder ? `/_dir_${r.id}` : "");
+      if (!path) return;
+      nodeMap.set(Number(r.id), {
+        path,
+        name:      r.name || undefined,
+        component: isFolder ? "Layout" : (r.component || ""),
+        meta: {
+          title:    r.title,
+          icon:     r.icon || undefined,
+          rank:     Number(r.rank),
+          showLink: true,
+          ...(r.auths ? { auths: String(r.auths).split(",") } : {})
+        }
+      });
+    });
+
+    // Build tree
+    const tree: any[] = [];
+    rows.forEach((r: any) => {
+      const node = nodeMap.get(Number(r.id));
+      if (!node) return;
+      const parentId = Number(r.parentId);
+      if (parentId === 0) {
+        tree.push(node);
+      } else {
+        const parent = nodeMap.get(parentId);
+        if (parent) {
+          if (!parent.children) parent.children = [];
+          parent.children.push(node);
+        }
+      }
+    });
+
+    // Sort by rank recursively
+    function sortByRank(arr: any[]) {
+      arr.sort((a, b) => (a.meta?.rank ?? 0) - (b.meta?.rank ?? 0));
+      arr.forEach(n => n.children && sortByRank(n.children));
+    }
+    sortByRank(tree);
+
+    res.json({ code: 0, message: "common.success", data: tree });
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
+  }
 });
 export default router;

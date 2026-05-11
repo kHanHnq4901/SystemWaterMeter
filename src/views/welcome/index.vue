@@ -408,23 +408,29 @@ onUnmounted(() => {
     <el-card shadow="never" id="meter-table" v-motion
       :initial="{ opacity: 0, y: 50 }" :enter="{ opacity: 1, y: 0, transition: { delay: 640 } }">
       <template #header>
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="flex items-center justify-between">
           <span class="text-sm font-semibold flex items-center gap-1">
             <span class="i-ri:drop-line" style="color:#41b6ff" />
             Trạng thái đồng hồ
           </span>
-          <el-divider direction="vertical" />
-          <ZoneTreeSelect placeholder="Tất cả vùng..." width="200px" @select="onZoneSelect" />
-          <el-input v-model="keyword" placeholder="Mã / tên đồng hồ..." clearable style="width:190px" size="small"
+          <el-tag type="info" size="small">{{ fn(tablePag.total) }} thiết bị</el-tag>
+        </div>
+        <div class="flex flex-wrap items-center gap-2 mt-2">
+          <ZoneTreeSelect
+            placeholder="Tất cả vùng..."
+            width="240px"
+            popper-width="380px"
+            @select="onZoneSelect"
+          />
+          <el-input v-model="keyword" placeholder="Mã / tên đồng hồ..." clearable style="width:200px" size="small"
             @keyup.enter="() => { tablePag.currentPage = 1; loadTable(); }">
             <template #prefix><span class="i-ri:search-line" style="font-size:12px" /></template>
           </el-input>
-          <el-select v-model="onlineOnly" placeholder="Trạng thái KN" style="width:145px" size="small" clearable
+          <el-select v-model="onlineOnly" placeholder="Tất cả" style="width:130px" size="small" clearable
             @change="() => { tablePag.currentPage = 1; loadTable(); }">
             <el-option label="🟢 Online"  :value="1" />
             <el-option label="🔴 Offline" :value="0" />
           </el-select>
-          <el-tag type="info" size="small" class="ml-auto">{{ fn(tablePag.total) }} thiết bị</el-tag>
         </div>
       </template>
 

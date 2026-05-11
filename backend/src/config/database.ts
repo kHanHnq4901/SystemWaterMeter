@@ -4,11 +4,11 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const config = {
-  server: process.env.DB_HOST || "DESKTOP-G171CPL",
-  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 1433,
-  user: process.env.DB_USER || "sa",
-  password: process.env.DB_PASSWORD || "gelex@123",
-  database: process.env.DB_NAME || "WS02",
+  server:   process.env.DB_HOST     || "localhost",
+  port:     process.env.DB_PORT     ? parseInt(process.env.DB_PORT) : 1433,
+  user:     process.env.DB_USER     || "sa",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME     || "WS02",
   options: {
     encrypt: true,
     trustServerCertificate: true

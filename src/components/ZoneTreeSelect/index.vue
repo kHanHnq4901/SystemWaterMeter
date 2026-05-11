@@ -6,9 +6,11 @@ import type { TreeSelection } from "@/hooks/useZoneMeterTree";
 const props = withDefaults(defineProps<{
   placeholder?: string;
   width?: string;
+  popperWidth?: string;
 }>(), {
   placeholder: "Chọn vùng / đồng hồ...",
-  width: "260px"
+  width: "260px",
+  popperWidth: "320px"
 });
 
 const emit = defineEmits<{ (e: "select", sel: TreeSelection): void }>();
@@ -82,6 +84,7 @@ defineExpose({ load, clear });
     :loading="loading"
     :placeholder="placeholder"
     :style="{ width }"
+    popper-class="zt-popper"
     check-strictly
     highlight-current
     @change="onChange"
@@ -105,19 +108,41 @@ defineExpose({ load, clear });
   </el-tree-select>
 </template>
 
+<style lang="scss">
+/* Dropdown popper — không scoped vì teleport ra ngoài component */
+.zt-popper {
+  min-width: 360px !important;
+
+  /* Override El-Plus tree node: bỏ cắt chữ, cho phép wrap */
+  .el-tree-node__content {
+    height: auto !important;
+    min-height: 26px;
+    align-items: flex-start;
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+
+  .el-tree-node__label {
+    white-space: normal !important;
+    word-break: break-word;
+    line-height: 1.4;
+  }
+}
+</style>
+
 <style lang="scss" scoped>
 .zt-sel-node {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 5px;
   width: 100%;
-  overflow: hidden;
 }
 
 .zt-sel-icon {
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  margin-top: 2px;
 
   &.zone  { color: #3b82f6; opacity: 0.85; }
   &.meter { color: #41b6ff; }
@@ -125,10 +150,9 @@ defineExpose({ load, clear });
 
 .zt-sel-label {
   font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   flex: 1;
+  word-break: break-word;
+  line-height: 1.4;
 }
 
 .zt-sel-dot {
@@ -136,6 +160,7 @@ defineExpose({ load, clear });
   height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
-  margin-left: auto;
+  margin-top: 5px;
+  margin-left: 4px;
 }
 </style>

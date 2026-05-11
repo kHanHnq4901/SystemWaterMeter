@@ -44,12 +44,18 @@ export async function getUserZones(userId: number): Promise<number[] | null> {
       `);
     if (adminCheck.recordset.length > 0) return null; // Admin = xem tất
 
-    // Zone từ SYS_USER_ZONE (cấp trực tiếp cho user)
+    // Zone từ SYS_USER_ZONE → convert sang REGION_ID qua SYS_REGION.ZONE_ID
+    // (SYS_USER_ZONE.ZONE_ID là ID của SYS_ZONE, không phải SYS_REGION.ID)
     const userZoneRes = await conn.request()
       .input("userId", mssql.Int, userId)
-      .query("SELECT ZONE_ID FROM SYS_USER_ZONE WHERE USER_ID = @userId");
+      .query(`
+        SELECT DISTINCT sr.ID as REGION_ID
+        FROM SYS_USER_ZONE uz
+        JOIN SYS_REGION sr ON sr.ZONE_ID = uz.ZONE_ID AND sr.DEL_FLAG = 0
+        WHERE uz.USER_ID = @userId
+      `);
 
-    // Zone từ SYS_ROLE_REGION (cấp qua role)
+    // Zone từ SYS_ROLE_REGION (cấp qua role — đây đã là REGION_ID trực tiếp)
     const roleZoneRes = await conn.request()
       .input("userId", mssql.Int, userId)
       .query(`
@@ -60,13 +66,33 @@ export async function getUserZones(userId: number): Promise<number[] | null> {
       `);
 
     const merged = [
-      ...userZoneRes.recordset.map((r: any) => Number(r.ZONE_ID)),
+      ...userZoneRes.recordset.map((r: any) => Number(r.REGION_ID)),
       ...roleZoneRes.recordset.map((r: any) => Number(r.REGION_ID))
     ];
     const unique = [...new Set(merged)];
 
     // Không cấu hình zone nào → không hạn chế
-    return unique.length > 0 ? unique : null;
+    if (unique.length === 0) return null;
+
+    // Expand: thêm tất cả region con (descendant) của các vùng được gán
+    // để filter đúng khi user được gán vào region cha
+    const expandReq = conn.request();
+    unique.forEach((id, i) => expandReq.input(`z${i}`, mssql.Int, id));
+    const inClause = unique.map((_, i) => `@z${i}`).join(", ");
+    const expandRes = await expandReq.query(`
+      WITH BaseZones AS (
+        SELECT ID FROM SYS_REGION WHERE ID IN (${inClause}) AND DEL_FLAG = 0
+      ),
+      RegionCTE AS (
+        SELECT ID FROM BaseZones
+        UNION ALL
+        SELECT r.ID FROM SYS_REGION r
+        JOIN RegionCTE rc ON r.PARENT_ID = rc.ID
+        WHERE r.DEL_FLAG = 0
+      )
+      SELECT DISTINCT ID FROM RegionCTE
+    `);
+    return expandRes.recordset.map((r: any) => Number(r.ID));
   } catch (err) {
     console.warn("[zoneAuth] Không thể đọc zone của user, mặc định cho qua:", err);
     return null;

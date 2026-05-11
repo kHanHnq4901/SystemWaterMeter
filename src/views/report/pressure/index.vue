@@ -3,7 +3,7 @@ import { ref, computed, watch, nextTick, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useDark, useECharts } from "@pureadmin/utils";
 import dayjs from "dayjs";
-import { getWaterMeterList, getLoggerMultiChart } from "@/api/waterMeter";
+import { getWaterMeterList, getLoggerMultiChart, getMeterThresholds } from "@/api/waterMeter";
 
 defineOptions({ name: "ReportPressure" });
 
@@ -57,6 +57,10 @@ const zoneGroups = computed(() => {
 
 const COLORS = ["#409eff", "#67c23a", "#e6a23c", "#f56c6c", "#9b59b6", "#1abc9c", "#e74c3c", "#3498db"];
 
+// Ngưỡng HLS/LLS từ INFO_METER — dùng để vẽ đường cảnh báo trên chart
+type Threshold = { meterNo: string; hls: number | null; lls: number | null };
+const thresholds = ref<Threshold[]>([]);
+
 const timeLabels = ref<string[]>([]);
 type PivotRow = Record<string, any>;
 const pivotRows = ref<PivotRow[]>([]);
@@ -105,6 +109,13 @@ async function handleSearch() {
 
     pivotRows.value = periods.map(p => rowMap[p]);
     seriesMap.value = newSeries;
+
+    // Load HLS/LLS thresholds song song
+    try {
+      const tr = await getMeterThresholds({ meterNos: selectedMeters.value });
+      thresholds.value = (tr.data ?? []) as Threshold[];
+    } catch { thresholds.value = []; }
+
     renderChart();
     currentPage.value = 1;
   } finally {
@@ -133,12 +144,34 @@ const { setOptions } = useECharts(chartRef, { theme });
 
 function renderChart() {
   if (!selectedMeters.value.length || !timeLabels.value.length) return;
+
+  // Tính HLS/LLS duy nhất để vẽ markLine ngang (lấy max HLS và min LLS qua tất cả meters được chọn)
+  const hlsValues = thresholds.value.map(t => t.hls).filter((v): v is number => v != null && v > 0);
+  const llsValues = thresholds.value.map(t => t.lls).filter((v): v is number => v != null && v > 0);
+  const markLines: any[] = [];
+  if (hlsValues.length) markLines.push({
+    yAxis: Math.max(...hlsValues),
+    name: "HLS", label: { formatter: `HLS: ${Math.max(...hlsValues)} bar`, position: "insideEndTop" },
+    lineStyle: { color: "#f56c6c", type: "dashed", width: 1.5 }
+  });
+  if (llsValues.length) markLines.push({
+    yAxis: Math.min(...llsValues),
+    name: "LLS", label: { formatter: `LLS: ${Math.min(...llsValues)} bar`, position: "insideEndBottom" },
+    lineStyle: { color: "#e6a23c", type: "dashed", width: 1.5 }
+  });
+
   setOptions({
     tooltip: {
       trigger: "axis",
-      formatter: (params: any) =>
-        `<b>${params[0].axisValue}</b><br/>` +
-        params.map((p: any) => `${p.marker}${p.seriesName}: <b>${p.value} bar</b>`).join("<br/>")
+      formatter: (params: any) => {
+        let html = `<b>${params[0].axisValue}</b><br/>`;
+        params.forEach((p: any) => {
+          if (p.seriesType === "line" && p.data !== undefined) {
+            html += `${p.marker}${p.seriesName}: <b>${p.value} bar</b><br/>`;
+          }
+        });
+        return html;
+      }
     },
     legend: { data: selectedMeterObjects.value.map(m => m.label), bottom: 0, type: "scroll" },
     grid: { left: 56, right: 20, top: 16, bottom: 60 },
@@ -152,7 +185,11 @@ function renderChart() {
       type: "line", smooth: true, symbol: "none",
       data: seriesMap.value[id] ?? [],
       lineStyle: { width: 2, color: COLORS[idx % COLORS.length] },
-      itemStyle: { color: COLORS[idx % COLORS.length] }
+      itemStyle: { color: COLORS[idx % COLORS.length] },
+      // Chỉ series đầu tiên mang markLine để tránh vẽ trùng
+      ...(idx === 0 && markLines.length ? {
+        markLine: { silent: true, symbol: "none", data: markLines }
+      } : {})
     }))
   });
 }

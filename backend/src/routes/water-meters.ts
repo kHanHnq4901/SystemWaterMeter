@@ -5,6 +5,22 @@ import { zoneAuth, buildZoneFilter } from "../middleware/zoneAuth.js";
 
 const router = express.Router();
 
+/** Lấy tất cả IDs của regionId và toàn bộ region con (descendants) */
+async function expandRegionId(conn: any, regionId: number): Promise<number[]> {
+  const req = conn.request().input("rid", mssql.Int, regionId);
+  const res = await req.query(`
+    WITH RegionCTE AS (
+      SELECT ID FROM SYS_REGION WHERE ID = @rid AND DEL_FLAG = 0
+      UNION ALL
+      SELECT r.ID FROM SYS_REGION r
+      JOIN RegionCTE rc ON r.PARENT_ID = rc.ID
+      WHERE r.DEL_FLAG = 0
+    )
+    SELECT DISTINCT ID FROM RegionCTE
+  `);
+  return res.recordset.map((r: any) => Number(r.ID));
+}
+
 // POST /api/water-meters/list — Danh sách đồng hồ (phân trang + tìm kiếm)
 router.post("/list", zoneAuth, async (req: Request, res: Response) => {
   try {
@@ -12,19 +28,24 @@ router.post("/list", zoneAuth, async (req: Request, res: Response) => {
     const offset = (Number(currentPage) - 1) * Number(pageSize);
     const connection = await pool.connect();
 
+    // Expand lineId sang tất cả region con để lọc đúng vùng phân cấp
+    const lineIdList = (lineId !== undefined && lineId !== "")
+      ? await expandRegionId(connection, Number(lineId))
+      : null;
+
     // Xây điều kiện lọc
     const conditions: string[] = [];
     if (keyword) conditions.push("(m.METER_NO LIKE @keyword OR m.METER_NAME LIKE @keyword OR m.CUSTOMER_CODE LIKE @keyword)");
     if (state !== undefined && state !== "") conditions.push("m.STATE = @state");
     if (meterType !== undefined && meterType !== "") conditions.push("m.METER_TYPE = @meterType");
-    if (lineId !== undefined && lineId !== "") conditions.push("m.REGION_ID = @lineId");
+    if (lineIdList) conditions.push(`m.REGION_ID IN (${lineIdList.map((_, i) => `@rid${i}`).join(", ")})`);
 
-    // Hàm thêm params thông thường vào request
+    // Hàm thêm params vào request
     const addParams = (r: mssql.Request) => {
       if (keyword) r.input("keyword", mssql.NVarChar, `%${keyword}%`);
-      if (state !== undefined && state !== "") r.input("state", mssql.Int, Number(state));
-      if (meterType !== undefined && meterType !== "") r.input("meterType", mssql.Int, Number(meterType));
-      if (lineId !== undefined && lineId !== "") r.input("lineId", mssql.Int, Number(lineId));
+      if (state !== undefined && state !== "") r.input("state", mssql.NVarChar, String(state));
+      if (meterType !== undefined && meterType !== "") r.input("meterType", mssql.NVarChar, String(meterType));
+      if (lineIdList) lineIdList.forEach((id, i) => r.input(`rid${i}`, mssql.Int, id));
     };
 
     // Lấy zone condition string và thêm vào conditions (dùng countReq để build lần đầu)
@@ -309,52 +330,49 @@ router.get("/tree", async (_req: Request, res: Response) => {
   try {
     const conn = await pool.connect();
 
-    // 1. All regions (full hierarchy via PARENT_ID), include ZONE_ID for meter join
+    // 1. All regions (full hierarchy via PARENT_ID)
     const regRows = (await conn.request().query(`
-      SELECT ID as id, NAME as name, PARENT_ID as parentId, ORDER_NUM as orderNum,
-             ZONE_ID as zoneId
+      SELECT ID as id, NAME as name, PARENT_ID as parentId, ORDER_NUM as orderNum
       FROM SYS_REGION WHERE DEL_FLAG = 0
       ORDER BY ORDER_NUM ASC, NAME ASC
     `)).recordset;
 
-    // 2. All meters — REGION_ID in INFO_METER references SYS_REGION.ZONE_ID
+    // 2. All meters — INFO_METER.REGION_ID references SYS_REGION.ID
     const meterRows = (await conn.request().query(`
       SELECT METER_NO as meterNo, METER_NAME as meterName, STATE as state,
              REGION_ID as regionId
       FROM INFO_METER
       ORDER BY METER_NO
     `)).recordset;
-
-    // Build region node map keyed by SYS_REGION.ID (for hierarchy wiring)
-    // Also build zoneIdMap keyed by SYS_REGION.ZONE_ID (for meter attachment)
     type ZNode = { id: string; label: string; type: string; regionId: number | null; children: any[]; _cnt: number };
-    const nodeMap    = new Map<number, ZNode>(); // key: SYS_REGION.ID
-    const zoneIdMap  = new Map<number, ZNode>(); // key: SYS_REGION.ZONE_ID
+    const nodeMap = new Map<number, ZNode>(); // key: SYS_REGION.ID (normalized to number)
     for (const r of regRows) {
+      const rid = Number(r.id);
       const node: ZNode = {
-        id:       `Z_${r.id}`,
+        id:       `Z_${rid}`,
         label:    r.name,
         type:     "zone",
-        regionId: r.id,
+        regionId: rid,
         children: [],
         _cnt:     0
       };
-      nodeMap.set(r.id, node);
-      if (r.zoneId != null) zoneIdMap.set(r.zoneId, node);
+      nodeMap.set(rid, node);
     }
 
     // Wire parent → child using SYS_REGION.PARENT_ID → SYS_REGION.ID
     const rootZones: ZNode[] = [];
     for (const r of regRows) {
-      const node = nodeMap.get(r.id)!;
-      if (r.parentId && nodeMap.has(r.parentId)) {
-        nodeMap.get(r.parentId)!.children.push(node);
+      const rid = Number(r.id);
+      const node = nodeMap.get(rid)!;
+      const parentId = r.parentId ? Number(r.parentId) : null;
+      if (parentId && nodeMap.has(parentId)) {
+        nodeMap.get(parentId)!.children.push(node);
       } else {
         rootZones.push(node);
       }
     }
 
-    // Attach meters: INFO_METER.REGION_ID → SYS_REGION.ZONE_ID (fallback to ID)
+    // Attach meters: INFO_METER.REGION_ID → SYS_REGION.ID (normalize về number)
     const unassigned: any[] = [];
     for (const m of meterRows) {
       const mNode = {
@@ -362,11 +380,11 @@ router.get("/tree", async (_req: Request, res: Response) => {
         label:    m.meterName ? `${m.meterNo} – ${m.meterName}` : m.meterNo,
         type:     "meter",
         meterNo:  m.meterNo,
-        regionId: m.regionId ?? null,
+        regionId: m.regionId != null ? Number(m.regionId) : null,
         state:    m.state
       };
-      const targetZone = m.regionId
-        ? (zoneIdMap.get(m.regionId) ?? nodeMap.get(m.regionId))
+      const targetZone = m.regionId != null
+        ? nodeMap.get(Number(m.regionId))
         : null;
       if (targetZone) {
         targetZone.children.push(mNode);
@@ -411,10 +429,16 @@ router.post("/instant/list", async (req: Request, res: Response) => {
     const offset = (Number(currentPage) - 1) * Number(pageSize);
     const connection = await pool.connect();
 
+    const regionCte = regionId ? `WITH RegionTree AS (
+      SELECT ID FROM SYS_REGION WHERE ID = @regionId AND DEL_FLAG = 0
+      UNION ALL
+      SELECT s.ID FROM SYS_REGION s JOIN RegionTree rt ON s.PARENT_ID = rt.ID WHERE s.DEL_FLAG = 0
+    )` : "";
+
     const conds: string[] = [];
     if (meterNo)   conds.push("METER_NO LIKE @meterNo");
     if (gatewayNo) conds.push("GATEWAY_NO LIKE @gatewayNo");
-    if (regionId)  conds.push("METER_NO IN (SELECT METER_NO FROM INFO_METER WHERE REGION_ID = @regionId)");
+    if (regionId)  conds.push("METER_NO IN (SELECT im.METER_NO FROM INFO_METER im WHERE im.REGION_ID IN (SELECT ID FROM RegionTree))");
     if (dateFrom)  conds.push("REALTIME >= @dateFrom");
     if (dateTo)    conds.push("REALTIME < DATEADD(day, 1, CAST(@dateTo as date))");
     const where = conds.length ? "WHERE " + conds.join(" AND ") : "";
@@ -429,13 +453,14 @@ router.post("/instant/list", async (req: Request, res: Response) => {
     };
 
     const countResult = await addP(connection.request()).query(
-      `SELECT COUNT(*) as total FROM HIS_INSTANT_METER ${where}`
+      `${regionCte} SELECT COUNT(*) as total FROM HIS_INSTANT_METER ${where}`
     );
 
     const dataReq = addP(connection.request());
     dataReq.input("offset",   mssql.Int, offset);
     dataReq.input("pageSize", mssql.Int, Number(pageSize));
     const dataResult = await dataReq.query(`
+      ${regionCte}
       SELECT
         METER_NO       as meterNo,
         REALTIME       as realtime,
@@ -473,10 +498,16 @@ router.post("/instant/chart", async (req: Request, res: Response) => {
   try {
     const { meterNo, gatewayNo, regionId, dateFrom, dateTo } = req.body;
 
+    const regionCte = regionId ? `WITH RegionTree AS (
+      SELECT ID FROM SYS_REGION WHERE ID = @regionId AND DEL_FLAG = 0
+      UNION ALL
+      SELECT s.ID FROM SYS_REGION s JOIN RegionTree rt ON s.PARENT_ID = rt.ID WHERE s.DEL_FLAG = 0
+    )` : "";
+
     const conds: string[] = [];
     if (meterNo)   conds.push("METER_NO LIKE @meterNo");
     if (gatewayNo) conds.push("GATEWAY_NO LIKE @gatewayNo");
-    if (regionId)  conds.push("METER_NO IN (SELECT METER_NO FROM INFO_METER WHERE REGION_ID = @regionId)");
+    if (regionId)  conds.push("METER_NO IN (SELECT im.METER_NO FROM INFO_METER im WHERE im.REGION_ID IN (SELECT ID FROM RegionTree))");
     if (dateFrom)  conds.push("REALTIME >= @dateFrom");
     if (dateTo)    conds.push("REALTIME < DATEADD(day, 1, CAST(@dateTo as date))");
     const where = conds.length ? "WHERE " + conds.join(" AND ") : "";
@@ -489,6 +520,7 @@ router.post("/instant/chart", async (req: Request, res: Response) => {
     if (dateTo)    r.input("dateTo",    mssql.VarChar, dateTo);
 
     const result = await r.query(`
+      ${regionCte}
       SELECT
         CONVERT(varchar(10), REALTIME, 120)              as date,
         COUNT(*)                                          as readingCount,
@@ -519,10 +551,16 @@ router.post("/logger/list", async (req: Request, res: Response) => {
     const offset = (Number(currentPage) - 1) * Number(pageSize);
     const connection = await pool.connect();
 
+    const regionCte = regionId ? `WITH RegionTree AS (
+      SELECT ID FROM SYS_REGION WHERE ID = @regionId AND DEL_FLAG = 0
+      UNION ALL
+      SELECT s.ID FROM SYS_REGION s JOIN RegionTree rt ON s.PARENT_ID = rt.ID WHERE s.DEL_FLAG = 0
+    )` : "";
+
     const conds: string[] = [];
     if (meterNo)   conds.push("METER_NO LIKE @meterNo");
     if (gatewayNo) conds.push("GATEWAY_NO LIKE @gatewayNo");
-    if (regionId)  conds.push("METER_NO IN (SELECT METER_NO FROM INFO_METER WHERE REGION_ID = @regionId)");
+    if (regionId)  conds.push("METER_NO IN (SELECT im.METER_NO FROM INFO_METER im WHERE im.REGION_ID IN (SELECT ID FROM RegionTree))");
     if (dateFrom)  conds.push("DATA_TIME >= @dateFrom");
     if (dateTo)    conds.push("DATA_TIME < DATEADD(day, 1, CAST(@dateTo as date))");
     const where = conds.length ? "WHERE " + conds.join(" AND ") : "";
@@ -537,13 +575,14 @@ router.post("/logger/list", async (req: Request, res: Response) => {
     };
 
     const countResult = await addP(connection.request()).query(
-      `SELECT COUNT(*) as total FROM HIS_DATA_METER ${where}`
+      `${regionCte} SELECT COUNT(*) as total FROM HIS_DATA_METER ${where}`
     );
 
     const dataReq = addP(connection.request());
     dataReq.input("offset",   mssql.Int, offset);
     dataReq.input("pageSize", mssql.Int, Number(pageSize));
     const dataResult = await dataReq.query(`
+      ${regionCte}
       SELECT
         METER_NO        as meterNo,
         DATA_TIME       as dataTime,
@@ -581,10 +620,16 @@ router.post("/logger/production", async (req: Request, res: Response) => {
   try {
     const { meterNo, gatewayNo, regionId, dateFrom, dateTo, groupBy = "day" } = req.body;
 
+    const regionCte = regionId ? `WITH RegionTree AS (
+      SELECT ID FROM SYS_REGION WHERE ID = @regionId AND DEL_FLAG = 0
+      UNION ALL
+      SELECT s.ID FROM SYS_REGION s JOIN RegionTree rt ON s.PARENT_ID = rt.ID WHERE s.DEL_FLAG = 0
+    )` : "";
+
     const conds: string[] = [];
     if (meterNo)   conds.push("METER_NO LIKE @meterNo");
     if (gatewayNo) conds.push("GATEWAY_NO LIKE @gatewayNo");
-    if (regionId)  conds.push("METER_NO IN (SELECT METER_NO FROM INFO_METER WHERE REGION_ID = @regionId)");
+    if (regionId)  conds.push("METER_NO IN (SELECT im.METER_NO FROM INFO_METER im WHERE im.REGION_ID IN (SELECT ID FROM RegionTree))");
     if (dateFrom)  conds.push("DATA_TIME >= @dateFrom");
     if (dateTo)    conds.push("DATA_TIME < DATEADD(day, 1, CAST(@dateTo as date))");
     const where = conds.length ? "WHERE " + conds.join(" AND ") : "";
@@ -601,6 +646,7 @@ router.post("/logger/production", async (req: Request, res: Response) => {
     if (dateTo)    r.input("dateTo",    mssql.VarChar, dateTo);
 
     const result = await r.query(`
+      ${regionCte}
       SELECT
         ${convertExpr}                                                                          as period,
         COUNT(DISTINCT METER_NO)                                                                as meterCount,
@@ -627,10 +673,16 @@ router.post("/logger/chart", async (req: Request, res: Response) => {
   try {
     const { meterNo, gatewayNo, regionId, dateFrom, dateTo } = req.body;
 
+    const regionCte = regionId ? `WITH RegionTree AS (
+      SELECT ID FROM SYS_REGION WHERE ID = @regionId AND DEL_FLAG = 0
+      UNION ALL
+      SELECT s.ID FROM SYS_REGION s JOIN RegionTree rt ON s.PARENT_ID = rt.ID WHERE s.DEL_FLAG = 0
+    )` : "";
+
     const conds: string[] = [];
     if (meterNo)   conds.push("METER_NO LIKE @meterNo");
     if (gatewayNo) conds.push("GATEWAY_NO LIKE @gatewayNo");
-    if (regionId)  conds.push("METER_NO IN (SELECT METER_NO FROM INFO_METER WHERE REGION_ID = @regionId)");
+    if (regionId)  conds.push("METER_NO IN (SELECT im.METER_NO FROM INFO_METER im WHERE im.REGION_ID IN (SELECT ID FROM RegionTree))");
     if (dateFrom)  conds.push("DATA_TIME >= @dateFrom");
     if (dateTo)    conds.push("DATA_TIME < DATEADD(day, 1, CAST(@dateTo as date))");
     const where = conds.length ? "WHERE " + conds.join(" AND ") : "";
@@ -643,6 +695,7 @@ router.post("/logger/chart", async (req: Request, res: Response) => {
     if (dateTo)    r.input("dateTo",    mssql.VarChar, dateTo);
 
     const result = await r.query(`
+      ${regionCte}
       SELECT
         CONVERT(varchar(10), DATA_TIME, 120)                                          as date,
         COUNT(*)                                                                       as readingCount,
@@ -664,12 +717,30 @@ router.post("/logger/chart", async (req: Request, res: Response) => {
 });
 
 // POST /api/water-meters/logger/multi-chart — Per-meter chart data for multiple meters
-router.post("/logger/multi-chart", async (req: Request, res: Response) => {
+// Yêu cầu auth; lọc meterNos theo zone của user
+router.post("/logger/multi-chart", zoneAuth, async (req: Request, res: Response) => {
   try {
-    const { meterNos, dateFrom, dateTo, groupBy = "day" } = req.body;
+    let { meterNos, dateFrom, dateTo, groupBy = "day" } = req.body;
     if (!meterNos?.length) return res.json({ code: 0, message: "common.success", data: [] });
 
-    const r = (await pool.connect()).request();
+    const conn = await pool.connect();
+
+    // Lọc meterNos theo zone của user (nếu có hạn chế zone)
+    if (req.userZones !== null && req.userZones !== undefined) {
+      const zones = req.userZones;
+      if (zones.length === 0) return res.json({ code: 0, message: "common.success", data: [] });
+      const zReq = conn.request();
+      zones.forEach((id, i) => zReq.input(`z${i}`, mssql.Int, id));
+      const inZ = zones.map((_, i) => `@z${i}`).join(",");
+      const allowed = await zReq.query(
+        `SELECT METER_NO FROM INFO_METER WHERE REGION_ID IN (${inZ})`
+      );
+      const allowedSet = new Set(allowed.recordset.map((r: any) => r.METER_NO));
+      meterNos = (meterNos as string[]).filter((no: string) => allowedSet.has(no));
+      if (!meterNos.length) return res.json({ code: 0, message: "common.success", data: [] });
+    }
+
+    const r = conn.request();
     const placeholders = (meterNos as string[]).map((no: string, i: number) => {
       r.input(`m${i}`, mssql.VarChar, no);
       return `@m${i}`;
@@ -710,15 +781,52 @@ router.post("/logger/multi-chart", async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/water-meters/logger/thresholds — HLS/LLS ngưỡng áp suất từ INFO_METER
+// Dùng cho màn Áp suất để vẽ đường cảnh báo trên chart
+router.post("/logger/thresholds", zoneAuth, async (req: Request, res: Response) => {
+  try {
+    const { meterNos } = req.body;
+    if (!meterNos?.length) return res.json({ code: 0, message: "common.success", data: [] });
+
+    const r = (await pool.connect()).request();
+    const placeholders = (meterNos as string[]).map((no: string, i: number) => {
+      r.input(`m${i}`, mssql.VarChar, no);
+      return `@m${i}`;
+    }).join(",");
+
+    const result = await r.query(`
+      SELECT
+        METER_NO  as meterNo,
+        METER_NAME as meterName,
+        ISNULL(CAST(HLS as float), NULL) as hls,
+        ISNULL(CAST(LLS as float), NULL) as lls,
+        PIPE_SIZE as pipeSize,
+        METER_TYPE as meterType
+      FROM INFO_METER
+      WHERE METER_NO IN (${placeholders})
+    `);
+
+    res.json({ code: 0, message: "common.success", data: result.recordset });
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
 // POST /api/water-meters/logger/zone-summary — Zone-level aggregated stats
 router.post("/logger/zone-summary", async (req: Request, res: Response) => {
   try {
     const { dateFrom, dateTo, regionId, groupBy = "month" } = req.body;
     const r = (await pool.connect()).request();
 
+    const regionCte = regionId ? `WITH RegionTree AS (
+      SELECT ID FROM SYS_REGION WHERE ID = @regionId AND DEL_FLAG = 0
+      UNION ALL
+      SELECT s.ID FROM SYS_REGION s JOIN RegionTree rt ON s.PARENT_ID = rt.ID WHERE s.DEL_FLAG = 0
+    )` : "";
+
     const mConds: string[] = ["1=1"];
     const hConds: string[] = [];
-    if (regionId) { r.input("regionId", mssql.Int, Number(regionId)); mConds.push("m.REGION_ID = @regionId"); }
+    if (regionId) { r.input("regionId", mssql.Int, Number(regionId)); mConds.push("m.REGION_ID IN (SELECT ID FROM RegionTree)"); }
     if (dateFrom) { r.input("dateFrom", mssql.VarChar, dateFrom); hConds.push("h.DATA_TIME >= @dateFrom"); }
     if (dateTo)   { r.input("dateTo",   mssql.VarChar, dateTo);   hConds.push("h.DATA_TIME < DATEADD(day, 1, CAST(@dateTo as date))"); }
 
@@ -730,6 +838,7 @@ router.post("/logger/zone-summary", async (req: Request, res: Response) => {
       : "CONVERT(varchar(7), h.DATA_TIME, 120)";
 
     const result = await r.query(`
+      ${regionCte}
       SELECT
         ISNULL(r.ID, 0)                as regionId,
         ISNULL(r.NAME, N'Chưa phân vùng') as regionName,
@@ -823,7 +932,7 @@ router.post("/meter-status", async (req: Request, res: Response) => {
 
     const conds: string[] = [];
     if (keyword)  conds.push("(m.METER_NO LIKE @kw OR m.METER_NAME LIKE @kw)");
-    if (regionId) conds.push("m.REGION_ID = @regionId");
+    if (regionId) conds.push("m.REGION_ID IN (SELECT ID FROM RegionTree)");
     if (state !== undefined && state !== "") conds.push("m.STATE = @state");
     const where = conds.length ? "WHERE " + conds.join(" AND ") : "";
 
@@ -861,8 +970,17 @@ router.post("/meter-status", async (req: Request, res: Response) => {
       ${where}
     `;
 
+    // Khi có regionId, thêm RegionTree CTE trước base để lọc đúng vùng phân cấp
+    const regionTreeCte = regionId
+      ? `RegionTree AS (
+          SELECT ID FROM SYS_REGION WHERE ID = @regionId AND DEL_FLAG = 0
+          UNION ALL
+          SELECT s.ID FROM SYS_REGION s JOIN RegionTree rt ON s.PARENT_ID = rt.ID WHERE s.DEL_FLAG = 0
+        ),`
+      : "";
+
     const cteWrap = (inner: string) => `
-      WITH base AS (
+      WITH ${regionTreeCte} base AS (
         SELECT
           m.METER_NO        as meterNo,
           m.METER_NAME      as meterName,
@@ -908,6 +1026,85 @@ router.post("/meter-status", async (req: Request, res: Response) => {
         pageSize: Number(pageSize)
       }
     });
+  } catch (error: any) {
+    res.status(500).json({ code: 500, message: error.message });
+  }
+});
+
+// POST /api/water-meters/collection-rate — Tỷ lệ thu thập dữ liệu theo ngày
+router.post("/collection-rate", zoneAuth, async (req: Request, res: Response) => {
+  try {
+    const { dateFrom, dateTo, regionId } = req.body;
+    const conn = await pool.connect();
+
+    // Expand regionId sang con cháu nếu có
+    const regionIds = regionId ? await expandRegionId(conn, Number(regionId)) : null;
+
+    // Zone filter từ token
+    const zones = req.userZones;
+    const buildMeterFilter = (r: mssql.Request, alias = "m"): string => {
+      const conds: string[] = [];
+      if (regionIds) {
+        regionIds.forEach((id, i) => r.input(`cr${i}`, mssql.Int, id));
+        conds.push(`${alias}.REGION_ID IN (${regionIds.map((_, i) => `@cr${i}`).join(",")})`);
+      }
+      if (zones) {
+        zones.forEach((id, i) => r.input(`cz${i}`, mssql.Int, id));
+        conds.push(`${alias}.REGION_ID IN (${zones.map((_, i) => `@cz${i}`).join(",")})`);
+      }
+      return conds.length ? "WHERE " + conds.join(" AND ") : "";
+    };
+
+    // Tổng số đồng hồ (theo zone + region filter)
+    const totalReq = conn.request();
+    const totalWhere = buildMeterFilter(totalReq);
+    const totalRes = await totalReq.query(
+      `SELECT COUNT(*) as total FROM INFO_METER m WITH(NOLOCK) ${totalWhere}`
+    );
+    const total = Number(totalRes.recordset[0]?.total ?? 0);
+
+    // Đồng hồ có gửi dữ liệu mỗi ngày (HIS_INSTANT_METER)
+    const dataReq = conn.request();
+    if (dateFrom) dataReq.input("dateFrom", mssql.VarChar, dateFrom);
+    if (dateTo)   dataReq.input("dateTo",   mssql.VarChar, dateTo);
+
+    const meterSubConds: string[] = [];
+    if (regionIds) {
+      regionIds.forEach((id, i) => dataReq.input(`dr${i}`, mssql.Int, id));
+      meterSubConds.push(`im.REGION_ID IN (${regionIds.map((_, i) => `@dr${i}`).join(",")})`);
+    }
+    if (zones) {
+      zones.forEach((id, i) => dataReq.input(`dz${i}`, mssql.Int, id));
+      meterSubConds.push(`im.REGION_ID IN (${zones.map((_, i) => `@dz${i}`).join(",")})`);
+    }
+    const meterSubWhere = meterSubConds.length
+      ? `AND h.METER_NO IN (SELECT im.METER_NO FROM INFO_METER im WITH(NOLOCK) WHERE ${meterSubConds.join(" AND ")})`
+      : "";
+
+    const dateConds: string[] = [];
+    if (dateFrom) dateConds.push("h.CREATED >= @dateFrom");
+    if (dateTo)   dateConds.push("h.CREATED < DATEADD(day, 1, CAST(@dateTo AS date))");
+    const dateWhere = dateConds.length ? "WHERE " + dateConds.join(" AND ") : "";
+
+    const dataRes = await dataReq.query(`
+      SELECT
+        CONVERT(varchar(10), h.CREATED, 120) AS day,
+        COUNT(DISTINCT h.METER_NO)           AS received
+      FROM HIS_INSTANT_METER h WITH(NOLOCK)
+      ${dateWhere}
+      ${meterSubWhere}
+      GROUP BY CONVERT(varchar(10), h.CREATED, 120)
+      ORDER BY day
+    `);
+
+    const series = dataRes.recordset.map((r: any) => ({
+      date:     r.day,
+      received: Number(r.received),
+      total,
+      rate: total > 0 ? Math.round((Number(r.received) / total) * 1000) / 10 : 0
+    }));
+
+    res.json({ code: 0, message: "common.success", data: { total, series } });
   } catch (error: any) {
     res.status(500).json({ code: 500, message: error.message });
   }

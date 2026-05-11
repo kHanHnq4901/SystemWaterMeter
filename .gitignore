@@ -8,6 +8,25 @@ report.html
 vite.config.*.timestamp*
 
 yarn.lock
+
+# Môi trường — chứa mật khẩu, không commit
+.env
+.env.local
+.env.*.local
+backend/.env
+backend/.env.local
+
+# TypeScript compiled output (không cần commit)
+src/**/*.js
+src/**/*.js.map
+src/**/*.jsx
+src/**/*.jsx.map
+build/*.js
+build/*.js.map
+mock/*.js
+mock/*.js.map
+vite.config.js
+vite.config.js.map
 npm-debug.log*
 .pnpm-error.log*
 .pnpm-debug.log
