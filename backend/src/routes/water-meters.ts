@@ -1032,73 +1032,64 @@ router.post("/meter-status", async (req: Request, res: Response) => {
 });
 
 // POST /api/water-meters/collection-rate — Tỷ lệ thu thập dữ liệu theo ngày
-router.post("/collection-rate", zoneAuth, async (req: Request, res: Response) => {
+// Không dùng zoneAuth cứng — đây là tổng quan thống kê, đọc zone tùy chọn từ token
+router.post("/collection-rate", async (req: Request, res: Response) => {
   try {
     const { dateFrom, dateTo, regionId } = req.body;
     const conn = await pool.connect();
 
+    // Lấy zone từ token nếu có (optional — không block nếu không có)
+    let zones: number[] | null = null;
+    try {
+      const { getUserIdFromToken, getUserZones } = await import("../middleware/zoneAuth.js");
+      const userId = getUserIdFromToken(req);
+      if (userId) zones = await getUserZones(userId);
+    } catch { /* không có token hoặc lỗi zone — bỏ qua, hiển thị toàn bộ */ }
+
     // Expand regionId sang con cháu nếu có
     const regionIds = regionId ? await expandRegionId(conn, Number(regionId)) : null;
 
-    // Zone filter từ token
-    const zones = req.userZones;
-    const buildMeterFilter = (r: mssql.Request, alias = "m"): string => {
-      const conds: string[] = [];
+    // Điều kiện lọc meter STATE=1
+    const buildMeterConds = (r: mssql.Request, prefix: string): string => {
+      const conds: string[] = ["im.STATE = 1"];
       if (regionIds) {
-        regionIds.forEach((id, i) => r.input(`cr${i}`, mssql.Int, id));
-        conds.push(`${alias}.REGION_ID IN (${regionIds.map((_, i) => `@cr${i}`).join(",")})`);
+        regionIds.forEach((id, i) => r.input(`${prefix}r${i}`, mssql.Int, id));
+        conds.push(`im.REGION_ID IN (${regionIds.map((_, i) => `@${prefix}r${i}`).join(",")})`);
       }
       if (zones) {
-        zones.forEach((id, i) => r.input(`cz${i}`, mssql.Int, id));
-        conds.push(`${alias}.REGION_ID IN (${zones.map((_, i) => `@cz${i}`).join(",")})`);
+        zones.forEach((id, i) => r.input(`${prefix}z${i}`, mssql.Int, id));
+        conds.push(`im.REGION_ID IN (${zones.map((_, i) => `@${prefix}z${i}`).join(",")})`);
       }
-      return conds.length ? "WHERE " + conds.join(" AND ") : "";
+      return conds.join(" AND ");
     };
 
-    // Tổng đồng hồ STATE=1 (đang hoạt động) theo zone/region filter
+    // Tổng đồng hồ đang hoạt động
     const totalReq = conn.request();
-    const totalConds: string[] = ["m.STATE = 1"];
-    if (regionIds) {
-      regionIds.forEach((id, i) => totalReq.input(`tr${i}`, mssql.Int, id));
-      totalConds.push(`m.REGION_ID IN (${regionIds.map((_, i) => `@tr${i}`).join(",")})`);
-    }
-    if (zones) {
-      zones.forEach((id, i) => totalReq.input(`tz${i}`, mssql.Int, id));
-      totalConds.push(`m.REGION_ID IN (${zones.map((_, i) => `@tz${i}`).join(",")})`);
-    }
+    const totalConds = buildMeterConds(totalReq, "t");
     const totalRes = await totalReq.query(
-      `SELECT COUNT(*) as total FROM INFO_METER m WITH(NOLOCK) WHERE ${totalConds.join(" AND ")}`
+      `SELECT COUNT(*) as total FROM INFO_METER im WITH(NOLOCK) WHERE ${totalConds}`
     );
     const total = Number(totalRes.recordset[0]?.total ?? 0);
 
-    // Đồng hồ có ≥1 bản tin trong ngày (HIS_DATA_METER.DATA_TIME) = online
+    // Đồng hồ có ≥1 bản tin mỗi ngày = online hôm đó
     const dataReq = conn.request();
     if (dateFrom) dataReq.input("dateFrom", mssql.VarChar, dateFrom);
     if (dateTo)   dataReq.input("dateTo",   mssql.VarChar, dateTo);
 
-    const meterSubConds: string[] = ["im.STATE = 1"];
-    if (regionIds) {
-      regionIds.forEach((id, i) => dataReq.input(`dr${i}`, mssql.Int, id));
-      meterSubConds.push(`im.REGION_ID IN (${regionIds.map((_, i) => `@dr${i}`).join(",")})`);
-    }
-    if (zones) {
-      zones.forEach((id, i) => dataReq.input(`dz${i}`, mssql.Int, id));
-      meterSubConds.push(`im.REGION_ID IN (${zones.map((_, i) => `@dz${i}`).join(",")})`);
-    }
-    const meterSubWhere = `AND h.METER_NO IN (SELECT im.METER_NO FROM INFO_METER im WITH(NOLOCK) WHERE ${meterSubConds.join(" AND ")})`;
-
-    const dateConds: string[] = [];
-    if (dateFrom) dateConds.push("h.DATA_TIME >= CAST(@dateFrom AS date)");
-    if (dateTo)   dateConds.push("h.DATA_TIME <  DATEADD(day,1,CAST(@dateTo AS date))");
-    const dateWhere = dateConds.length ? "WHERE " + dateConds.join(" AND ") : "";
+    const meterConds = buildMeterConds(dataReq, "d");
+    const dateWhereParts: string[] = [];
+    if (dateFrom) dateWhereParts.push("h.DATA_TIME >= CAST(@dateFrom AS date)");
+    if (dateTo)   dateWhereParts.push("h.DATA_TIME <  DATEADD(day,1,CAST(@dateTo AS date))");
+    const whereParts = [...dateWhereParts,
+      `h.METER_NO IN (SELECT im.METER_NO FROM INFO_METER im WITH(NOLOCK) WHERE ${meterConds})`
+    ];
 
     const dataRes = await dataReq.query(`
       SELECT
         CONVERT(varchar(10), h.DATA_TIME, 120) AS day,
         COUNT(DISTINCT h.METER_NO)             AS received
       FROM HIS_DATA_METER h WITH(NOLOCK)
-      ${dateWhere}
-      ${meterSubWhere}
+      WHERE ${whereParts.join(" AND ")}
       GROUP BY CONVERT(varchar(10), h.DATA_TIME, 120)
       ORDER BY day
     `);
@@ -1112,6 +1103,7 @@ router.post("/collection-rate", zoneAuth, async (req: Request, res: Response) =>
 
     res.json({ code: 0, message: "common.success", data: { total, series } });
   } catch (error: any) {
+    console.error("[collection-rate]", error.message);
     res.status(500).json({ code: 500, message: error.message });
   }
 });
