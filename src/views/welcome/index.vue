@@ -20,8 +20,8 @@ const currentDate = ref(new Date().toLocaleDateString("vi-VN", { weekday: "long"
 const statCards = ref([
   { label: "Tổng số Đồng hồ",  value: 0, color: "#41b6ff", bg: "#e8f6ff", icon: "ri:drop-line",       sub: "", suffix: "", link: "/device/meter"   },
   { label: "Tổng số Gateway",   value: 0, color: "#e6a23c", bg: "#fdf6ec", icon: "ri:router-line",      sub: "", suffix: "", link: "/device/gateway" },
-  { label: "Sự kiện tháng này", value: 0, color: "#67c23a", bg: "#f0f9eb", icon: "ri:bar-chart-2-line", sub: "", suffix: "", link: "/analysis/data"  },
-  { label: "Tỷ lệ thu thập TB", value: 0, color: "#9b59b6", bg: "#f5f0ff", icon: "ri:percent-line",     sub: "", suffix: "%", link: ""               }
+  { label: "Sự kiện tháng này", value: 0, color: "#67c23a", bg: "#f0f9eb", icon: "ri:bar-chart-2-line", sub: "", suffix: "", link: "/analysis/alert"      },
+  { label: "Tỷ lệ thu thập TB", value: 0, color: "#9b59b6", bg: "#f5f0ff", icon: "ri:percent-line",     sub: "", suffix: "%", link: "/analysis/collection" }
 ]);
 
 const meterStatusPie = ref<any[]>([]);
@@ -205,7 +205,7 @@ const drawerMeter   = ref<any>(null);
 function openDrawer(row: any)  { drawerMeter.value = row; drawerVisible.value = true; }
 function goToAnalysis() {
   if (!drawerMeter.value) return;
-  router.push({ path: "/analysis/data", query: { meterNo: drawerMeter.value.meterNo } });
+  router.push({ path: "/analysis/meter-data", query: { meterNo: drawerMeter.value.meterNo } });
   drawerVisible.value = false;
 }
 
