@@ -169,11 +169,18 @@ function handleAsyncRoutes(routeList) {
         ) {
           return;
         } else {
+          // Folder routes (still have children after flattening) must NOT be registered
+          // with their Layout component nested under root "/" — that creates double sidebar.
+          // Strip children so they act as redirect-only routes under "/".
+          const isFolder = (v as any).children?.length > 0;
+          const routeForRoot: RouteRecordRaw = isFolder
+            ? ({ ...v, children: undefined } as any)
+            : v;
           // 切记将路由push到routes后还需要使用addRoute，这样路由才能正常跳转
-          router.options.routes[0].children.push(v);
+          router.options.routes[0].children.push(routeForRoot);
           // 最终路由进行升序
           ascending(router.options.routes[0].children);
-          if (!router.hasRoute(v?.name)) router.addRoute(v);
+          if (!router.hasRoute(routeForRoot?.name)) router.addRoute(routeForRoot);
           const flattenRouters: any = router
             .getRoutes()
             .find(n => n.path === "/");
